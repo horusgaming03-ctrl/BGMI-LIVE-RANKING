@@ -1,0 +1,9 @@
+git : fatal: pathspec 'node_modules' did not match any files
+At line:1 char:199
++ ... txt, .\status-check.txt; git rm -r --cached node_modules 2>&1 | Out-S ...
++                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (fatal: pathspec...match any files 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
