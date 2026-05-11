@@ -1,0 +1,68 @@
+export const esports = {
+  name: "Esports",
+  colors: {
+    primary: "#ff4655",
+    secondary: "#0f1923",
+    accent: "#ff4655",
+    text: "#ffffff",
+    textMuted: "#8b9bb4",
+    gold: "#ffd700",
+  },
+  gradients: {
+    panel: "linear-gradient(180deg, #0f1923 0%, #1a2332 100%)",
+    header: "linear-gradient(90deg, #ff4655 0%, #d63447 50%, #ff4655 100%)",
+    row: "linear-gradient(90deg, rgba(255,70,85,.06) 0%, transparent 100%)",
+    topLine: "linear-gradient(90deg, #ff4655, #ff6b7a, #ff4655)",
+    wwcd: "linear-gradient(180deg, #0f1923 0%, #1a0a0c 100%)",
+  },
+  glow: {
+    primary: "0 0 20px rgba(255,70,85,.3)",
+    accent: "0 0 30px rgba(255,70,85,.2)",
+    board: "0 0 60px rgba(255,70,85,.15)",
+  },
+  borders: {
+    panel: "1px solid rgba(255,70,85,.3)",
+    row: "1px solid rgba(255,255,255,.04)",
+    header: "1px solid rgba(255,70,85,.4)",
+    alive: "none",
+  },
+  typography: {
+    fontFamily: "'Rajdhani', 'Inter', sans-serif",
+    headerSize: 11,
+    rankSize: 16,
+    teamSize: 12,
+    numberSize: 16,
+    wwcdTitleSize: 20,
+    wwcdMainSize: 64,
+    wwcdTeamSize: 40,
+  },
+  shadows: {
+    board: "0 8px 40px rgba(0,0,0,.6)",
+    row: "none",
+    wwcd: "0 0 80px rgba(255,70,85,.3)",
+  },
+  row: {
+    bgA: "#141e2b",
+    bgB: "#111927",
+    height: 42,
+    hoverBg: "rgba(255,70,85,.08)",
+    borderRadius: 0,
+  },
+  alive: {
+    color: "#ff4655",
+    deadColor: "#1e2a3a",
+    shape: "square",
+    size: 8,
+    gap: 2,
+  },
+  wwcd: {
+    overlayBg: "rgba(0,0,0,.94)",
+    titleColor: "#ff4655",
+    mainColor: "#ffffff",
+    teamColor: "#ff4655",
+    borderColor: "#ff4655",
+  },
+  topLine: {
+    height: 3,
+  },
+};

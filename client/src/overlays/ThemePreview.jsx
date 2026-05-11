@@ -1,0 +1,852 @@
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { getTheme, getThemeNames } from "./themes";
+import { getPresetNames, getPresetConfig } from "./presets";
+import overlayConfig from "./overlayConfig";
+import useAnimation from "./animations/useAnimation";
+import keyframes from "./animations/keyframes";
+import { engineKeyframeCss } from "../overlay-engine/animations/keyframes";
+import AliveIndicator, { ALIVE_STYLE_IDS } from "../overlay-engine/alive-styles/AliveIndicator";
+import socket, { API } from "./socket";
+import { overlayPathMatches } from "./utils/overlayPrefsMatch";
+import { mergeThemeOverride } from "./utils/mergeThemeOverride";
+
+const SAMPLE_TEAMS = [
+  { id: 1, team: "SOUL", finishes: 4, points: 42, logo: null, alivePlayers: 4, status: "alive" },
+  { id: 2, team: "GODL", finishes: 1, points: 28, logo: null, alivePlayers: 3, status: "knocked" },
+  { id: 3, team: "FNATIC", finishes: 0, points: 25, logo: null, alivePlayers: 0, status: "eliminated" },
+  { id: 4, team: "TSM", finishes: 1, points: 23, logo: null, alivePlayers: 4, status: "alive" },
+];
+
+function pruneColorOverrideDraft(d) {
+  if (!d || typeof d !== "object") return {};
+  const out = {};
+  if (d.colors && typeof d.colors === "object" && Object.keys(d.colors).length) out.colors = d.colors;
+  if (d.alive && typeof d.alive === "object" && Object.keys(d.alive).length) out.alive = d.alive;
+  if (d.row && typeof d.row === "object" && Object.keys(d.row).length) out.row = d.row;
+  return out;
+}
+
+export default function ThemePreview() {
+  const themeNames = getThemeNames();
+  const presetNames = getPresetNames();
+  const [selected, setSelected] = useState(themeNames[0]);
+  const [aliveStyle, setAliveStyle] = useState("heart");
+  const [aliveLayout, setAliveLayout] = useState("grid");
+  const [custIconAlive, setCustIconAlive] = useState(null);
+  const [custIconDead, setCustIconDead] = useState(null);
+  const [aliveSaved, setAliveSaved] = useState(false);
+  const [uploadNote, setUploadNote] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [liveTheme, setLiveTheme] = useState(null);
+  const [activePreset, setActivePreset] = useState(null);
+  const [themeColorOverridesServer, setThemeColorOverridesServer] = useState({});
+  const [colorDraft, setColorDraft] = useState({});
+  const [colorSaveMsg, setColorSaveMsg] = useState("");
+  const initRef = useRef(false);
+  const colorHydrateKeyRef = useRef("");
+  const colorAutoLastSigRef = useRef("");
+  const colorAutoTimerRef = useRef(null);
+  const baseTheme = useMemo(() => getTheme(selected), [selected]);
+  const theme = useMemo(() => mergeThemeOverride(baseTheme, colorDraft), [baseTheme, colorDraft]);
+
+  const previewConfig = useMemo(() => {
+    const base = { ...overlayConfig };
+    if (activePreset) {
+      const p = getPresetConfig(activePreset);
+      if (p) Object.assign(base, p);
+    }
+    return base;
+  }, [activePreset]);
+
+  const anim = useAnimation(previewConfig);
+
+  const applyPreset = useCallback((name) => {
+    const cfg = getPresetConfig(name);
+    if (!cfg?.theme) return;
+    setActivePreset(name);
+    setSelected(cfg.theme);
+    if (cfg.aliveStyle) setAliveStyle(cfg.aliveStyle);
+    if (cfg.aliveLayout === "line" || cfg.aliveLayout === "grid") setAliveLayout(cfg.aliveLayout);
+  }, []);
+
+  useEffect(() => {
+    const onActive = (name) => {
+      setLiveTheme(name);
+      if (!initRef.current) {
+        initRef.current = true;
+        if (themeNames.includes(name)) setSelected(name);
+      }
+    };
+    socket.on("activeThemeChanged", onActive);
+    socket.emit("requestActiveTheme");
+    return () => socket.off("activeThemeChanged", onActive);
+  }, [themeNames]);
+
+  const hydrateAliveFromSettings = useCallback((s) => {
+    if (!s || typeof s !== "object") return;
+    const tp = s.themedOverlayPrefs;
+    if (tp && typeof tp === "object") {
+      if (typeof tp.aliveStyle === "string") setAliveStyle(tp.aliveStyle);
+      if (tp.aliveLayout === "line" || tp.aliveLayout === "grid") setAliveLayout(tp.aliveLayout);
+      setCustIconAlive(typeof tp.aliveCustomAlive === "string" ? tp.aliveCustomAlive : null);
+      setCustIconDead(typeof tp.aliveCustomDead === "string" ? tp.aliveCustomDead : null);
+      return;
+    }
+    const ep = s.engineOverlayPrefs;
+    if (!ep || typeof ep !== "object") return;
+    if (!overlayPathMatches(ep.overlayPath, "/overlay/themed")) return;
+    if (typeof ep.aliveStyle === "string") setAliveStyle(ep.aliveStyle);
+    if (ep.aliveLayout === "line" || ep.aliveLayout === "grid") setAliveLayout(ep.aliveLayout);
+    setCustIconAlive(typeof ep.aliveCustomAlive === "string" ? ep.aliveCustomAlive : null);
+    setCustIconDead(typeof ep.aliveCustomDead === "string" ? ep.aliveCustomDead : null);
+  }, []);
+
+  useEffect(() => {
+    fetch(`${API}/settings`)
+      .then((r) => r.json())
+      .then((s) => {
+        if (s?.themeColorOverrides && typeof s.themeColorOverrides === "object") {
+          setThemeColorOverridesServer(s.themeColorOverrides);
+        }
+        hydrateAliveFromSettings(s);
+      })
+      .catch(() => {});
+  }, [hydrateAliveFromSettings]);
+
+  useEffect(() => {
+    const patch = themeColorOverridesServer[selected];
+    const sig = JSON.stringify(patch ?? null);
+    const hydrateKey = `${selected}|${sig}`;
+    if (colorHydrateKeyRef.current === hydrateKey) return;
+    colorHydrateKeyRef.current = hydrateKey;
+    if (patch && typeof patch === "object") {
+      const nextDraft = {
+        colors: { ...(patch.colors || {}) },
+        alive: { ...(patch.alive || {}) },
+        row: { ...(patch.row || {}) },
+      };
+      setColorDraft(nextDraft);
+      colorAutoLastSigRef.current = `${selected}|${JSON.stringify(pruneColorOverrideDraft(nextDraft))}`;
+    } else {
+      setColorDraft({});
+      colorAutoLastSigRef.current = `${selected}|${JSON.stringify({})}`;
+    }
+  }, [selected, themeColorOverridesServer]);
+
+  useEffect(() => {
+    const onSettings = () => {
+      fetch(`${API}/settings`)
+        .then((r) => r.json())
+        .then((s) => {
+          if (s?.themeColorOverrides && typeof s.themeColorOverrides === "object") {
+            setThemeColorOverridesServer(s.themeColorOverrides);
+          }
+          hydrateAliveFromSettings(s);
+        })
+        .catch(() => {});
+    };
+    socket.on("settingsUpdated", onSettings);
+    return () => socket.off("settingsUpdated", onSettings);
+  }, [hydrateAliveFromSettings]);
+
+  useEffect(() => {
+    const cleaned = pruneColorOverrideDraft(colorDraft);
+    const sig = `${selected}|${JSON.stringify(cleaned)}`;
+    if (Object.keys(cleaned).length === 0) return;
+    if (sig === colorAutoLastSigRef.current) return;
+
+    if (colorAutoTimerRef.current) clearTimeout(colorAutoTimerRef.current);
+    colorAutoTimerRef.current = setTimeout(async () => {
+      colorAutoTimerRef.current = null;
+      try {
+        const cur = await fetch(`${API}/settings`).then((r) => r.json());
+        const prev = cur.themeColorOverrides && typeof cur.themeColorOverrides === "object" ? { ...cur.themeColorOverrides } : {};
+        const next = { ...prev, [selected]: cleaned };
+        const res = await fetch(`${API}/settings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ themeColorOverrides: next }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.themeColorOverrides && typeof data.themeColorOverrides === "object") {
+            setThemeColorOverridesServer(data.themeColorOverrides);
+          }
+          colorAutoLastSigRef.current = sig;
+          setColorSaveMsg("Synced — live overlay & elimination banner updated.");
+          setTimeout(() => setColorSaveMsg(""), 2200);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }, 450);
+    return () => {
+      if (colorAutoTimerRef.current) clearTimeout(colorAutoTimerRef.current);
+    };
+  }, [colorDraft, selected]);
+
+  const buildThemedSearch = useCallback(() => {
+    const p = new URLSearchParams();
+    if (activePreset) {
+      p.set("preset", activePreset);
+    } else {
+      p.set("theme", selected);
+    }
+    p.set("alive", aliveStyle);
+    p.set("aliveLayout", aliveLayout);
+    if (custIconAlive) p.set("aliveIconAlive", custIconAlive);
+    if (custIconDead) p.set("aliveIconDead", custIconDead);
+    return p.toString();
+  }, [activePreset, selected, aliveStyle, aliveLayout, custIconAlive, custIconDead]);
+
+  const persistThemedAliveToServer = useCallback(
+    async (nextAlive, nextDead) => {
+      const cur = await fetch(`${API}/settings`).then((r) => r.json());
+      const prev = cur.themedOverlayPrefs && typeof cur.themedOverlayPrefs === "object" ? { ...cur.themedOverlayPrefs } : {};
+      const res = await fetch(`${API}/settings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          themedOverlayPrefs: {
+            ...prev,
+            aliveStyle,
+            aliveLayout,
+            aliveCustomAlive: nextAlive,
+            aliveCustomDead: nextDead,
+          },
+        }),
+      });
+      return res.ok;
+    },
+    [aliveStyle, aliveLayout],
+  );
+
+  const uploadAliveFile = useCallback(
+    async (e, role) => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch(`${API}/upload/alive-icon?role=${role}`, { method: "POST", body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setUploadNote(data.message || "Upload failed");
+          setTimeout(() => setUploadNote(""), 4000);
+          return;
+        }
+        if (data.path) {
+          const nextAlive = role === "dead" ? custIconAlive : data.path;
+          const nextDead = role === "dead" ? data.path : custIconDead;
+          if (role === "dead") setCustIconDead(data.path);
+          else setCustIconAlive(data.path);
+          let saved = false;
+          try {
+            saved = await persistThemedAliveToServer(nextAlive, nextDead);
+          } catch {
+            saved = false;
+          }
+          setUploadNote(
+            saved
+              ? "Uploaded & saved — match board (/overlay/themed) will use this PNG."
+              : "Uploaded — click Save alive prefs (match board) if the API save failed.",
+          );
+          setTimeout(() => setUploadNote(""), 6000);
+        }
+      } catch {
+        setUploadNote("Upload failed — is the API running (port 3001)?");
+        setTimeout(() => setUploadNote(""), 4000);
+      }
+    },
+    [custIconAlive, custIconDead, persistThemedAliveToServer],
+  );
+
+  const saveAlivePrefs = async () => {
+    try {
+      const ok = await persistThemedAliveToServer(custIconAlive, custIconDead);
+      if (ok) {
+        setAliveSaved(true);
+        setTimeout(() => setAliveSaved(false), 2000);
+      }
+    } catch (err) {
+      console.error("Failed to save alive prefs:", err);
+    }
+  };
+
+  const saveThemeColors = async () => {
+    try {
+      const cur = await fetch(`${API}/settings`).then((r) => r.json());
+      const prev = cur.themeColorOverrides && typeof cur.themeColorOverrides === "object" ? { ...cur.themeColorOverrides } : {};
+      const cleaned = pruneColorOverrideDraft(colorDraft);
+      const next = { ...prev };
+      if (Object.keys(cleaned).length === 0) delete next[selected];
+      else next[selected] = cleaned;
+      const res = await fetch(`${API}/settings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ themeColorOverrides: next }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.themeColorOverrides && typeof data.themeColorOverrides === "object") {
+          setThemeColorOverridesServer(data.themeColorOverrides);
+        }
+        colorAutoLastSigRef.current = `${selected}|${JSON.stringify(cleaned)}`;
+        setColorSaveMsg("Colors saved — live overlay & elimination update via socket.");
+        setTimeout(() => setColorSaveMsg(""), 4000);
+      } else setColorSaveMsg("Save failed.");
+    } catch (err) {
+      console.error(err);
+      setColorSaveMsg("Save failed — is the API running?");
+    }
+  };
+
+  const resetThemeColors = async () => {
+    setColorDraft({});
+    try {
+      const cur = await fetch(`${API}/settings`).then((r) => r.json());
+      const prev = cur.themeColorOverrides && typeof cur.themeColorOverrides === "object" ? { ...cur.themeColorOverrides } : {};
+      delete prev[selected];
+      const res = await fetch(`${API}/settings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ themeColorOverrides: prev }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.themeColorOverrides && typeof data.themeColorOverrides === "object") {
+          setThemeColorOverridesServer(data.themeColorOverrides);
+        }
+        setColorSaveMsg("Reverted to built-in theme colors.");
+        setTimeout(() => setColorSaveMsg(""), 4000);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const saveTheme = async () => {
+    try {
+      const res = await fetch(`${API}/overlay/active-theme`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ theme: selected }),
+      });
+      if (res.ok) {
+        setLiveTheme(selected);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      }
+    } catch (err) {
+      console.error("Failed to save theme:", err);
+    }
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#0a0a0f", color: "#fff", fontFamily: "Inter, system-ui, sans-serif", padding: 30 }}>
+      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6, flexWrap: "wrap", gap: 12 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 900, margin: 0 }}>Overlay Theme Preview</h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {liveTheme && (
+              <span style={{ fontSize: 12, color: "#8CB7BE", fontWeight: 700 }}>
+                Live: <span style={{ color: "#6FF3CB" }}>{liveTheme}</span>
+              </span>
+            )}
+            <button onClick={saveTheme} style={saveBtn}>
+              {saved ? "Saved!" : `Save & Apply "${selected}"`}
+            </button>
+          </div>
+        </div>
+        <p style={{ color: "#888", fontSize: 14, marginBottom: 16 }}>
+          Click a theme to preview. <strong style={{ color: "#6FF3CB" }}>Save &amp; Apply</strong> sets the live theme for the match board and elimination banner (via{" "}
+          <code style={{ color: "#9cdcfe" }}>activeTheme</code>
+          ). Color pickers below <strong style={{ color: "#888" }}>auto-sync</strong> to <code style={{ color: "#6ff3cb" }}>/overlay/themed</code> and{" "}
+          <code style={{ color: "#6ff3cb" }}>/overlay/elimination</code> for the selected theme id after a short delay.
+        </p>
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: "#666", letterSpacing: "0.12em", marginBottom: 8 }}>ALIVE INDICATOR · ?alive= in OBS</div>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>LAYOUT ON BOARD</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 10 }}>
+              {[
+                { id: "grid", label: "Square (2×2)" },
+                { id: "line", label: "Single line" },
+              ].map((x) => (
+                <button
+                  key={x.id}
+                  type="button"
+                  onClick={() => {
+                    setAliveLayout(x.id);
+                    setActivePreset(null);
+                  }}
+                  style={{
+                    padding: "8px 14px",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    borderRadius: 8,
+                    border: aliveLayout === x.id ? "2px solid #41E8B8" : "1px solid rgba(255,255,255,.12)",
+                    background: aliveLayout === x.id ? "rgba(65,232,184,.12)" : "rgba(255,255,255,.04)",
+                    color: aliveLayout === x.id ? "#6FF3CB" : "#999",
+                    cursor: "pointer",
+                  }}
+                >
+                  {x.label}
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 6 }}>CUSTOM PNG (OPTIONAL)</div>
+            {uploadNote ? (
+              <div style={{ fontSize: 11, color: "#fbbf24", marginBottom: 8 }}>{uploadNote}</div>
+            ) : null}
+            {(custIconAlive || custIconDead) && (
+              <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
+                {custIconAlive ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 10, color: "#666" }}>Alive</span>
+                    <img
+                      src={`${API}${custIconAlive}?t=${encodeURIComponent(custIconAlive)}`}
+                      alt=""
+                      style={{ width: 28, height: 28, objectFit: "contain", borderRadius: 4, border: "1px solid rgba(255,255,255,.12)" }}
+                    />
+                  </div>
+                ) : null}
+                {custIconDead ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 10, color: "#666" }}>Dead</span>
+                    <img
+                      src={`${API}${custIconDead}?t=${encodeURIComponent(custIconDead)}`}
+                      alt=""
+                      style={{ width: 28, height: 28, objectFit: "contain", borderRadius: 4, border: "1px solid rgba(255,255,255,.12)", opacity: 0.75 }}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            )}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end", marginBottom: 10 }}>
+              <label style={{ fontSize: 11, color: "#aaa", display: "flex", flexDirection: "column", gap: 4 }}>
+                Alive (lit)
+                <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,.svg" onChange={(e) => uploadAliveFile(e, "alive")} />
+              </label>
+              <label style={{ fontSize: 11, color: "#aaa", display: "flex", flexDirection: "column", gap: 4 }}>
+                Dead (dim)
+                <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,.svg" onChange={(e) => uploadAliveFile(e, "dead")} />
+              </label>
+              <button
+                type="button"
+                onClick={async () => {
+                  setCustIconAlive(null);
+                  setCustIconDead(null);
+                  try {
+                    await persistThemedAliveToServer(null, null);
+                  } catch {
+                    setUploadNote("Cleared in UI — server clear may have failed.");
+                    setTimeout(() => setUploadNote(""), 4000);
+                  }
+                }}
+                style={{
+                  padding: "6px 10px",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  borderRadius: 6,
+                  border: "1px solid rgba(248,113,113,.35)",
+                  background: "rgba(0,0,0,.25)",
+                  color: "#fca5a5",
+                  cursor: "pointer",
+                }}
+              >
+                Clear PNGs
+              </button>
+              <button type="button" onClick={saveAlivePrefs} style={saveAliveBtn}>
+                {aliveSaved ? "Saved!" : "Save alive prefs (match board)"}
+              </button>
+            </div>
+            <p style={{ fontSize: 10, color: "#666", margin: "0 0 14px", maxWidth: 720, lineHeight: 1.45 }}>
+              Uploads save automatically for <strong style={{ color: "#888" }}>/overlay/themed</strong>. Custom icons are stored separately from the broadcast-engine catalog so saving there cannot wipe them.
+            </p>
+          </div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>SHAPE / STYLE</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {ALIVE_STYLE_IDS.map((id) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => {
+                  setAliveStyle(id);
+                  setActivePreset(null);
+                }}
+                style={{
+                  padding: "5px 10px",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  borderRadius: 6,
+                  border: aliveStyle === id ? "2px solid #41E8B8" : "1px solid rgba(255,255,255,.12)",
+                  background: aliveStyle === id ? "rgba(65,232,184,.12)" : "rgba(255,255,255,.04)",
+                  color: aliveStyle === id ? "#6FF3CB" : "#999",
+                  cursor: "pointer",
+                }}
+              >
+                {id}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Theme grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10, marginBottom: 40 }}>
+          {themeNames.map((name) => {
+            const t = getTheme(name);
+            const active = name === selected;
+            const isLive = name === liveTheme;
+            return (
+              <button
+                key={name}
+                onClick={() => {
+                  setSelected(name);
+                  setActivePreset(null);
+                }}
+                style={{
+                  padding: "12px 10px",
+                  background: active ? t.gradients.header : "rgba(255,255,255,.04)",
+                  border: active ? `2px solid ${t.colors.primary}` : isLive ? "2px solid rgba(65,232,184,.4)" : "1px solid rgba(255,255,255,.08)",
+                  borderRadius: 8,
+                  color: active ? "#fff" : "#aaa",
+                  cursor: "pointer",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  textAlign: "center",
+                  transition: "all 0.2s",
+                  position: "relative",
+                }}
+              >
+                <div style={{ width: "100%", height: 4, borderRadius: 2, background: t.gradients.topLine, marginBottom: 8 }} />
+                {t.name}
+                {isLive && (
+                  <div style={{ position: "absolute", top: 4, right: 4, width: 8, height: 8, borderRadius: "50%", background: "#6FF3CB", boxShadow: "0 0 6px rgba(65,232,184,.6)" }} />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 40, alignItems: "start" }}>
+          {/* Live preview */}
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 800, color: "#888", letterSpacing: "0.1em", margin: 0 }}>LIVE PREVIEW</h3>
+              <button onClick={saveTheme} style={saveBtnSmall}>
+                {saved ? "Saved!" : "Save & Apply"}
+              </button>
+            </div>
+            <div
+              style={{
+                width: 334,
+                background: theme.gradients.panel,
+                border: theme.borders.panel,
+                overflow: "hidden",
+                boxShadow: theme.shadows.board,
+                fontFamily: theme.typography.fontFamily,
+                animation: anim.board,
+              }}
+            >
+              <div style={{ height: theme.topLine?.height || 3, background: theme.gradients.topLine }} />
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "52px 92px 38px 52px 62px",
+                  alignItems: "center",
+                  padding: "8px 6px",
+                  background: theme.gradients.header,
+                  borderBottom: theme.borders.header,
+                  animation: anim.header,
+                }}
+              >
+                {["RANK", "TEAM", "FIN", "TOTAL", "ALIVE"].map((l, i) => (
+                  <div key={l} style={{ textAlign: i === 1 ? "left" : "center", color: theme.colors.gold, fontSize: theme.typography.headerSize, fontWeight: 700, letterSpacing: 1, paddingLeft: i === 1 ? 2 : 0 }}>{l}</div>
+                ))}
+              </div>
+              {SAMPLE_TEAMS.map((t, i) => {
+                const alive = t.alivePlayers;
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "52px 92px 38px 52px 62px",
+                      alignItems: "center",
+                      minHeight: theme.row.height,
+                      padding: "5px 6px",
+                      background: i % 2 === 0 ? theme.row.bgA : theme.row.bgB,
+                      borderBottom: theme.borders.row,
+                      animation: anim.row(i),
+                    }}
+                  >
+                    <div style={{ color: theme.colors.text, fontSize: theme.typography.rankSize, fontWeight: 700, textAlign: "center", fontStyle: "italic" }}>#{i + 1}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      <div style={{ width: 24, height: 24, border: `1px solid ${theme.colors.primary}40`, background: theme.gradients.panel, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                        <span style={{ color: theme.colors.gold, fontSize: 9, fontWeight: 800 }}>{t.team.slice(0, 2)}</span>
+                      </div>
+                      <div style={{ color: theme.colors.text, fontWeight: 700, fontSize: theme.typography.teamSize, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.team}</div>
+                    </div>
+                    <div style={{ textAlign: "center", color: t.finishes > 0 ? theme.colors.gold : theme.colors.textMuted, fontSize: theme.typography.numberSize, fontWeight: 700 }}>{t.finishes}</div>
+                    <div style={{ textAlign: "center", color: theme.colors.text, fontSize: theme.typography.numberSize, fontWeight: 700 }}>{t.points}</div>
+                    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minWidth: 0, overflow: "visible" }}>
+                      <AliveIndicator
+                        count={alive}
+                        theme={theme}
+                        styleId={aliveStyle}
+                        layout={aliveLayout}
+                        customAlivePath={custIconAlive}
+                        customDeadPath={custIconDead}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Info panel */}
+          <div>
+            <h3 style={{ fontSize: 14, fontWeight: 800, color: "#888", marginBottom: 12, letterSpacing: "0.1em" }}>THEME DETAILS — {theme.name.toUpperCase()}</h3>
+
+            <div style={{ background: "rgba(255,255,255,.03)", borderRadius: 12, padding: 20, border: "1px solid rgba(255,255,255,.06)", marginBottom: 20 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#888" }}>COLORS — auto-sync to live overlays</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button type="button" onClick={saveThemeColors} style={saveColorsBtn}>
+                    Save colors (live)
+                  </button>
+                  <button type="button" onClick={resetThemeColors} style={resetColorsBtn}>
+                    Reset theme colors
+                  </button>
+                </div>
+              </div>
+              {colorSaveMsg ? (
+                <p style={{ fontSize: 11, color: "#6FF3CB", margin: "0 0 12px" }}>{colorSaveMsg}</p>
+              ) : null}
+              <p style={{ fontSize: 11, color: "#666", margin: "0 0 14px", lineHeight: 1.45 }}>
+                Pickers update this page immediately; changes are <strong style={{ color: "#888" }}>saved automatically</strong> (≈½s) to the server for{" "}
+                <code style={{ color: "#6ff3cb" }}>/overlay/themed</code> and <code style={{ color: "#6ff3cb" }}>/overlay/themed/overall</code> and{" "}
+                <code style={{ color: "#6ff3cb" }}>/overlay/elimination</code> and <code style={{ color: "#6ff3cb" }}>/overlay/wwcd-four</code> when they follow the
+                live theme id (see <strong style={{ color: "#888" }}>Save &amp; Apply</strong>). You can still use{" "}
+                <strong style={{ color: "#888" }}>Save colors (live)</strong> to force an immediate write.
+              </p>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>Palette</div>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+                {Object.keys(baseTheme.colors).map((key) => (
+                  <label key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                    <input
+                      type="color"
+                      value={toInputColor(colorDraft.colors?.[key] ?? baseTheme.colors[key])}
+                      onChange={(e) =>
+                        setColorDraft((d) => ({
+                          ...d,
+                          colors: { ...(d.colors || {}), [key]: e.target.value },
+                        }))
+                      }
+                      style={{
+                        width: 48,
+                        height: 36,
+                        border: "1px solid rgba(255,255,255,.2)",
+                        borderRadius: 8,
+                        padding: 0,
+                        background: "transparent",
+                        cursor: "pointer",
+                      }}
+                    />
+                    <span style={{ fontSize: 9, color: "#888", fontWeight: 600 }}>{key}</span>
+                  </label>
+                ))}
+              </div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>Alive indicator</div>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+                {["color", "deadColor"].map((key) => (
+                  <label key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                    <input
+                      type="color"
+                      value={toInputColor(colorDraft.alive?.[key] ?? baseTheme.alive?.[key] ?? "#888888")}
+                      onChange={(e) =>
+                        setColorDraft((d) => ({
+                          ...d,
+                          alive: { ...(d.alive || {}), [key]: e.target.value },
+                        }))
+                      }
+                      style={{
+                        width: 48,
+                        height: 36,
+                        border: "1px solid rgba(255,255,255,.2)",
+                        borderRadius: 8,
+                        padding: 0,
+                        cursor: "pointer",
+                      }}
+                    />
+                    <span style={{ fontSize: 9, color: "#888", fontWeight: 600 }}>alive.{key}</span>
+                  </label>
+                ))}
+              </div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>Row backgrounds</div>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                {["bgA", "bgB"].map((key) => (
+                  <label key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                    <input
+                      type="color"
+                      value={toInputColor(colorDraft.row?.[key] ?? baseTheme.row?.[key] ?? "#1a1a1a")}
+                      onChange={(e) =>
+                        setColorDraft((d) => ({
+                          ...d,
+                          row: { ...(d.row || {}), [key]: e.target.value },
+                        }))
+                      }
+                      style={{
+                        width: 48,
+                        height: 36,
+                        border: "1px solid rgba(255,255,255,.2)",
+                        borderRadius: 8,
+                        padding: 0,
+                        cursor: "pointer",
+                      }}
+                    />
+                    <span style={{ fontSize: 9, color: "#888", fontWeight: 600 }}>row.{key}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ background: "rgba(255,255,255,.03)", borderRadius: 12, padding: 20, border: "1px solid rgba(255,255,255,.06)", marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#888", marginBottom: 10 }}>OBS URLS</div>
+              <UrlRow label="Match Board" url={`/overlay/themed?${buildThemedSearch()}`} />
+              <UrlRow
+                label="Overall Standings"
+                url={activePreset ? `/overlay/themed/overall?preset=${encodeURIComponent(activePreset)}` : `/overlay/themed/overall?theme=${selected}`}
+              />
+              <UrlRow label="Elimination Banner (same theme id + saved colors)" url={`/overlay/elimination?theme=${selected}`} />
+              <UrlRow label="With Switcher" url={`/overlay/themed?${buildThemedSearch()}&switcher=1`} />
+              <div style={{ marginTop: 10, padding: "8px 10px", background: "rgba(65,232,184,.06)", borderRadius: 6, border: "1px solid rgba(65,232,184,.15)" }}>
+                <div style={{ fontSize: 10, color: "#6FF3CB", fontWeight: 700, marginBottom: 2 }}>Live Mode (auto-updates when you Save)</div>
+                <code style={{ fontSize: 11, color: "#6ff3cb", background: "rgba(0,0,0,.3)", padding: "4px 8px", borderRadius: 4, display: "block", wordBreak: "break-all" }}>
+                  http://localhost:5173/overlay/themed
+                </code>
+              </div>
+            </div>
+
+            <div style={{ background: "rgba(255,255,255,.03)", borderRadius: 12, padding: 20, border: "1px solid rgba(255,255,255,.06)" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#888", marginBottom: 6 }}>PRESETS</div>
+              <p style={{ fontSize: 11, color: "#666", margin: "0 0 12px", lineHeight: 1.45 }}>
+                Each preset sets <strong style={{ color: "#999" }}>theme</strong>, <strong style={{ color: "#999" }}>row animations</strong>, and suggested{" "}
+                <strong style={{ color: "#999" }}>alive shape / layout</strong>. Use OBS URLs below with <code style={{ color: "#6ff3cb" }}>?preset=…</code>.
+              </p>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {presetNames.map((p) => {
+                  const isOn = activePreset === p;
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => applyPreset(p)}
+                      style={{
+                        padding: "6px 11px",
+                        background: isOn ? "rgba(65,232,184,.14)" : "rgba(255,255,255,.06)",
+                        borderRadius: 6,
+                        fontSize: 11,
+                        color: isOn ? "#6FF3CB" : "#aaa",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        border: isOn ? "2px solid rgba(65,232,184,.5)" : "1px solid rgba(255,255,255,.1)",
+                      }}
+                    >
+                      {p}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <style>{`${keyframes}\n${engineKeyframeCss}`}</style>
+    </div>
+  );
+}
+
+function toInputColor(hex) {
+  if (!hex || typeof hex !== "string") return "#000000";
+  let h = hex.trim();
+  if (/^#[0-9a-f]{3}$/i.test(h)) {
+    const [a, b, c] = [h[1], h[2], h[3]];
+    h = `#${a}${a}${b}${b}${c}${c}`;
+  }
+  return /^#[0-9a-f]{6}$/i.test(h) ? h : "#000000";
+}
+
+function UrlRow({ label, url }) {
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ fontSize: 10, color: "#666", fontWeight: 700, marginBottom: 2 }}>{label}</div>
+      <code style={{ fontSize: 11, color: "#6ff3cb", background: "rgba(0,0,0,.3)", padding: "4px 8px", borderRadius: 4, display: "block", wordBreak: "break-all" }}>
+        http://localhost:5173{url}
+      </code>
+    </div>
+  );
+}
+
+const saveAliveBtn = {
+  padding: "6px 12px",
+  fontSize: 11,
+  fontWeight: 800,
+  borderRadius: 8,
+  border: "1px solid rgba(65,232,184,.45)",
+  background: "rgba(65,232,184,.1)",
+  color: "#6FF3CB",
+  cursor: "pointer",
+};
+
+const saveColorsBtn = {
+  padding: "6px 12px",
+  fontSize: 11,
+  fontWeight: 800,
+  borderRadius: 8,
+  border: "1px solid rgba(56,189,248,.45)",
+  background: "rgba(56,189,248,.12)",
+  color: "#7dd3fc",
+  cursor: "pointer",
+};
+
+const resetColorsBtn = {
+  padding: "6px 12px",
+  fontSize: 11,
+  fontWeight: 700,
+  borderRadius: 8,
+  border: "1px solid rgba(248,113,113,.35)",
+  background: "rgba(0,0,0,.2)",
+  color: "#fca5a5",
+  cursor: "pointer",
+};
+
+const saveBtn = {
+  padding: "10px 22px",
+  background: "linear-gradient(90deg, #41E8B8, #2ED7A7)",
+  color: "#031014",
+  border: "none",
+  borderRadius: 10,
+  fontSize: 14,
+  fontWeight: 900,
+  cursor: "pointer",
+  letterSpacing: 0.5,
+  boxShadow: "0 4px 16px rgba(65,232,184,.25)",
+  transition: "all 0.2s",
+};
+
+const saveBtnSmall = {
+  padding: "6px 14px",
+  background: "linear-gradient(90deg, #41E8B8, #2ED7A7)",
+  color: "#031014",
+  border: "none",
+  borderRadius: 8,
+  fontSize: 11,
+  fontWeight: 900,
+  cursor: "pointer",
+  letterSpacing: 0.3,
+  boxShadow: "0 2px 10px rgba(65,232,184,.2)",
+};

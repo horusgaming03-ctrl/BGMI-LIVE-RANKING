@@ -1,0 +1,68 @@
+export const pubgTournament = {
+  name: "PUBG Tournament",
+  colors: {
+    primary: "#f2a900",
+    secondary: "#1b1b1b",
+    accent: "#f2a900",
+    text: "#ffffff",
+    textMuted: "#8a8a7a",
+    gold: "#f2a900",
+  },
+  gradients: {
+    panel: "linear-gradient(180deg, #1b1b1b 0%, #252525 100%)",
+    header: "linear-gradient(90deg, #2a2a1a 0%, #1b1b1b 100%)",
+    row: "linear-gradient(90deg, rgba(242,169,0,.03) 0%, transparent 100%)",
+    topLine: "linear-gradient(90deg, #f2a900, #ffc107, #f2a900)",
+    wwcd: "linear-gradient(180deg, #1b1b0e 0%, #0a0a05 100%)",
+  },
+  glow: {
+    primary: "0 0 15px rgba(242,169,0,.2)",
+    accent: "0 0 20px rgba(242,169,0,.15)",
+    board: "0 0 30px rgba(0,0,0,.6)",
+  },
+  borders: {
+    panel: "2px solid rgba(242,169,0,.3)",
+    row: "1px solid rgba(255,255,255,.04)",
+    header: "1px solid rgba(242,169,0,.25)",
+    alive: "none",
+  },
+  typography: {
+    fontFamily: "'Rajdhani', 'Inter', sans-serif",
+    headerSize: 11,
+    rankSize: 17,
+    teamSize: 13,
+    numberSize: 16,
+    wwcdTitleSize: 22,
+    wwcdMainSize: 68,
+    wwcdTeamSize: 42,
+  },
+  shadows: {
+    board: "0 0 30px rgba(0,0,0,.6), 0 0 60px rgba(242,169,0,.05)",
+    row: "none",
+    wwcd: "0 0 100px rgba(242,169,0,.25)",
+  },
+  row: {
+    bgA: "#1e1e1e",
+    bgB: "#252525",
+    height: 44,
+    hoverBg: "rgba(242,169,0,.05)",
+    borderRadius: 0,
+  },
+  alive: {
+    color: "#f2a900",
+    deadColor: "#2a2a2a",
+    shape: "square",
+    size: 8,
+    gap: 2,
+  },
+  wwcd: {
+    overlayBg: "rgba(0,0,0,.94)",
+    titleColor: "#f2a900",
+    mainColor: "#ffffff",
+    teamColor: "#f2a900",
+    borderColor: "#f2a900",
+  },
+  topLine: {
+    height: 4,
+  },
+};

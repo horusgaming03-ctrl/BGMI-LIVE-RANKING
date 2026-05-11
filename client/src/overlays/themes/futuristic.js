@@ -1,0 +1,68 @@
+export const futuristic = {
+  name: "Futuristic",
+  colors: {
+    primary: "#00e5ff",
+    secondary: "#050a18",
+    accent: "#7c4dff",
+    text: "#e0f7fa",
+    textMuted: "#4a6a7a",
+    gold: "#00e5ff",
+  },
+  gradients: {
+    panel: "linear-gradient(180deg, #050a18 0%, #0a1628 100%)",
+    header: "linear-gradient(90deg, rgba(0,229,255,.1) 0%, rgba(124,77,255,.1) 100%)",
+    row: "linear-gradient(90deg, rgba(0,229,255,.02) 0%, transparent 100%)",
+    topLine: "linear-gradient(90deg, #00e5ff, #7c4dff, #00e5ff)",
+    wwcd: "linear-gradient(180deg, #050a18 0%, #020510 100%)",
+  },
+  glow: {
+    primary: "0 0 25px rgba(0,229,255,.2)",
+    accent: "0 0 25px rgba(124,77,255,.2)",
+    board: "0 0 40px rgba(0,229,255,.08), 0 0 80px rgba(124,77,255,.05)",
+  },
+  borders: {
+    panel: "1px solid rgba(0,229,255,.2)",
+    row: "1px solid rgba(0,229,255,.04)",
+    header: "1px solid rgba(0,229,255,.15)",
+    alive: "none",
+  },
+  typography: {
+    fontFamily: "'Rajdhani', 'Inter', sans-serif",
+    headerSize: 11,
+    rankSize: 16,
+    teamSize: 12,
+    numberSize: 16,
+    wwcdTitleSize: 20,
+    wwcdMainSize: 64,
+    wwcdTeamSize: 40,
+  },
+  shadows: {
+    board: "0 0 40px rgba(0,229,255,.1), 0 0 80px rgba(124,77,255,.05)",
+    row: "none",
+    wwcd: "0 0 100px rgba(0,229,255,.25), 0 0 150px rgba(124,77,255,.1)",
+  },
+  row: {
+    bgA: "#070e20",
+    bgB: "#0a1228",
+    height: 42,
+    hoverBg: "rgba(0,229,255,.04)",
+    borderRadius: 0,
+  },
+  alive: {
+    color: "#00e5ff",
+    deadColor: "#0a1628",
+    shape: "diamond",
+    size: 7,
+    gap: 3,
+  },
+  wwcd: {
+    overlayBg: "rgba(2,5,16,.96)",
+    titleColor: "#00e5ff",
+    mainColor: "#ffffff",
+    teamColor: "#7c4dff",
+    borderColor: "#00e5ff",
+  },
+  topLine: {
+    height: 3,
+  },
+};

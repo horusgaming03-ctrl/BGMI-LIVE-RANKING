@@ -1,0 +1,68 @@
+export const compactPro = {
+  name: "Compact Pro",
+  colors: {
+    primary: "#e8e8e8",
+    secondary: "#18181b",
+    accent: "#a855f7",
+    text: "#e8e8e8",
+    textMuted: "#71717a",
+    gold: "#a855f7",
+  },
+  gradients: {
+    panel: "linear-gradient(180deg, #18181b 0%, #1f1f23 100%)",
+    header: "linear-gradient(90deg, #27272a 0%, #18181b 100%)",
+    row: "none",
+    topLine: "linear-gradient(90deg, #a855f7, #c084fc, #a855f7)",
+    wwcd: "linear-gradient(180deg, #18181b 0%, #0c0c0e 100%)",
+  },
+  glow: {
+    primary: "none",
+    accent: "0 0 12px rgba(168,85,247,.15)",
+    board: "0 4px 16px rgba(0,0,0,.5)",
+  },
+  borders: {
+    panel: "1px solid rgba(168,85,247,.15)",
+    row: "1px solid rgba(255,255,255,.04)",
+    header: "1px solid rgba(168,85,247,.1)",
+    alive: "none",
+  },
+  typography: {
+    fontFamily: "'Inter', system-ui, sans-serif",
+    headerSize: 9,
+    rankSize: 13,
+    teamSize: 11,
+    numberSize: 13,
+    wwcdTitleSize: 16,
+    wwcdMainSize: 52,
+    wwcdTeamSize: 34,
+  },
+  shadows: {
+    board: "0 4px 16px rgba(0,0,0,.5)",
+    row: "none",
+    wwcd: "0 0 60px rgba(168,85,247,.2)",
+  },
+  row: {
+    bgA: "#1c1c1f",
+    bgB: "#202024",
+    height: 36,
+    hoverBg: "rgba(168,85,247,.04)",
+    borderRadius: 0,
+  },
+  alive: {
+    color: "#a855f7",
+    deadColor: "#27272a",
+    shape: "square",
+    size: 6,
+    gap: 2,
+  },
+  wwcd: {
+    overlayBg: "rgba(0,0,0,.93)",
+    titleColor: "#a855f7",
+    mainColor: "#ffffff",
+    teamColor: "#c084fc",
+    borderColor: "#a855f7",
+  },
+  topLine: {
+    height: 2,
+  },
+};

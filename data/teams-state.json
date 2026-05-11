@@ -1,0 +1,58 @@
+{
+  "teams": [
+    {
+      "id": 1778491097522,
+      "team": "ANUP",
+      "status": "alive",
+      "finishes": 0,
+      "points": 0,
+      "logo": null,
+      "alivePlayers": 4,
+      "positionPoints": 0,
+      "eliminationRank": null,
+      "players": []
+    },
+    {
+      "id": 1778491104724,
+      "team": "ZARNAIN",
+      "status": "alive",
+      "finishes": 0,
+      "points": 0,
+      "logo": null,
+      "alivePlayers": 4,
+      "positionPoints": 0,
+      "eliminationRank": null,
+      "players": []
+    },
+    {
+      "id": 1778491146888,
+      "team": "PRIENC",
+      "status": "alive",
+      "finishes": 0,
+      "points": 0,
+      "logo": null,
+      "alivePlayers": 4,
+      "positionPoints": 0,
+      "eliminationRank": null,
+      "players": []
+    },
+    {
+      "id": 1778491151288,
+      "team": "LIL",
+      "status": "alive",
+      "finishes": 0,
+      "points": 0,
+      "logo": null,
+      "alivePlayers": 4,
+      "positionPoints": 0,
+      "eliminationRank": null,
+      "players": []
+    }
+  ],
+  "currentMatch": {
+    "number": 1,
+    "status": "live",
+    "startedAt": 1778491048360
+  },
+  "matchHistory": []
+}

@@ -1,0 +1,68 @@
+export const minimal = {
+  name: "Minimal",
+  colors: {
+    primary: "#ffffff",
+    secondary: "#111111",
+    accent: "#4a9eff",
+    text: "#ffffff",
+    textMuted: "#666666",
+    gold: "#4a9eff",
+  },
+  gradients: {
+    panel: "linear-gradient(180deg, #111111 0%, #1a1a1a 100%)",
+    header: "linear-gradient(180deg, #1a1a1a 0%, #111111 100%)",
+    row: "none",
+    topLine: "linear-gradient(90deg, #4a9eff, #6ab0ff, #4a9eff)",
+    wwcd: "linear-gradient(180deg, #111111 0%, #0a0a0a 100%)",
+  },
+  glow: {
+    primary: "none",
+    accent: "none",
+    board: "0 4px 20px rgba(0,0,0,.4)",
+  },
+  borders: {
+    panel: "1px solid rgba(255,255,255,.08)",
+    row: "1px solid rgba(255,255,255,.04)",
+    header: "1px solid rgba(255,255,255,.08)",
+    alive: "none",
+  },
+  typography: {
+    fontFamily: "'Inter', system-ui, sans-serif",
+    headerSize: 10,
+    rankSize: 14,
+    teamSize: 12,
+    numberSize: 14,
+    wwcdTitleSize: 18,
+    wwcdMainSize: 56,
+    wwcdTeamSize: 36,
+  },
+  shadows: {
+    board: "0 4px 20px rgba(0,0,0,.4)",
+    row: "none",
+    wwcd: "0 0 40px rgba(74,158,255,.15)",
+  },
+  row: {
+    bgA: "#161616",
+    bgB: "#1c1c1c",
+    height: 40,
+    hoverBg: "rgba(255,255,255,.03)",
+    borderRadius: 0,
+  },
+  alive: {
+    color: "#4a9eff",
+    deadColor: "#2a2a2a",
+    shape: "circle",
+    size: 6,
+    gap: 3,
+  },
+  wwcd: {
+    overlayBg: "rgba(0,0,0,.92)",
+    titleColor: "#4a9eff",
+    mainColor: "#ffffff",
+    teamColor: "#4a9eff",
+    borderColor: "rgba(255,255,255,.15)",
+  },
+  topLine: {
+    height: 2,
+  },
+};

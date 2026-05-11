@@ -1,0 +1,13 @@
+{
+  "autoCalculate": true,
+  "tournamentLogo": null,
+  "engineOverlayPrefs": null,
+  "themedOverlayPrefs": {
+    "aliveStyle": "circle",
+    "aliveLayout": "line",
+    "aliveCustomAlive": null,
+    "aliveCustomDead": null
+  },
+  "themeColorOverrides": {},
+  "overallStandingsBg": null
+}

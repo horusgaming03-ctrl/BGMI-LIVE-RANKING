@@ -1,0 +1,68 @@
+export const neon = {
+  name: "Neon",
+  colors: {
+    primary: "#00f0ff",
+    secondary: "#0a0a14",
+    accent: "#ff00e5",
+    text: "#ffffff",
+    textMuted: "#6a7a8a",
+    gold: "#00f0ff",
+  },
+  gradients: {
+    panel: "linear-gradient(180deg, #0a0a14 0%, #0d0d1a 100%)",
+    header: "linear-gradient(90deg, rgba(0,240,255,.08) 0%, rgba(255,0,229,.08) 100%)",
+    row: "linear-gradient(90deg, rgba(0,240,255,.03) 0%, transparent 100%)",
+    topLine: "linear-gradient(90deg, #00f0ff, #ff00e5, #00f0ff)",
+    wwcd: "linear-gradient(180deg, #0a0a14 0%, #050510 100%)",
+  },
+  glow: {
+    primary: "0 0 25px rgba(0,240,255,.35)",
+    accent: "0 0 25px rgba(255,0,229,.25)",
+    board: "0 0 50px rgba(0,240,255,.1), 0 0 100px rgba(255,0,229,.05)",
+  },
+  borders: {
+    panel: "1px solid rgba(0,240,255,.25)",
+    row: "1px solid rgba(0,240,255,.06)",
+    header: "1px solid rgba(0,240,255,.2)",
+    alive: "none",
+  },
+  typography: {
+    fontFamily: "'Rajdhani', 'Inter', sans-serif",
+    headerSize: 11,
+    rankSize: 16,
+    teamSize: 12,
+    numberSize: 16,
+    wwcdTitleSize: 20,
+    wwcdMainSize: 64,
+    wwcdTeamSize: 40,
+  },
+  shadows: {
+    board: "0 0 50px rgba(0,240,255,.15), 0 0 100px rgba(255,0,229,.08)",
+    row: "none",
+    wwcd: "0 0 80px rgba(0,240,255,.3), 0 0 120px rgba(255,0,229,.15)",
+  },
+  row: {
+    bgA: "#0c0c18",
+    bgB: "#0e0e1c",
+    height: 42,
+    hoverBg: "rgba(0,240,255,.06)",
+    borderRadius: 0,
+  },
+  alive: {
+    color: "#00f0ff",
+    deadColor: "#1a1a2e",
+    shape: "square",
+    size: 8,
+    gap: 2,
+  },
+  wwcd: {
+    overlayBg: "rgba(0,0,0,.95)",
+    titleColor: "#00f0ff",
+    mainColor: "#ffffff",
+    teamColor: "#ff00e5",
+    borderColor: "#00f0ff",
+  },
+  topLine: {
+    height: 3,
+  },
+};

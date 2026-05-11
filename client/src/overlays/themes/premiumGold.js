@@ -1,0 +1,68 @@
+export const premiumGold = {
+  name: "Premium Gold",
+  colors: {
+    primary: "#f0b03a",
+    secondary: "#15110d",
+    accent: "#f0b03a",
+    text: "#ffffff",
+    textMuted: "#8a7a60",
+    gold: "#f0b03a",
+  },
+  gradients: {
+    panel: "linear-gradient(180deg, #15110d 0%, #1a140f 100%)",
+    header: "linear-gradient(180deg, #2a1c0f 0%, #16110d 100%)",
+    row: "linear-gradient(90deg, rgba(240,176,58,.04) 0%, transparent 100%)",
+    topLine: "linear-gradient(90deg, #6b4308, #f0b03a, #6b4308)",
+    wwcd: "linear-gradient(180deg, #241607 0%, #090603 100%)",
+  },
+  glow: {
+    primary: "0 0 20px rgba(240,176,58,.2)",
+    accent: "0 0 30px rgba(240,176,58,.15)",
+    board: "0 0 40px rgba(0,0,0,.7)",
+  },
+  borders: {
+    panel: "1px solid #8a5b12",
+    row: "1px solid rgba(255,255,255,.03)",
+    header: "1px solid rgba(240,176,58,.3)",
+    alive: "none",
+  },
+  typography: {
+    fontFamily: "'Rajdhani', 'Inter', sans-serif",
+    headerSize: 11,
+    rankSize: 16,
+    teamSize: 12,
+    numberSize: 16,
+    wwcdTitleSize: 20,
+    wwcdMainSize: 64,
+    wwcdTeamSize: 40,
+  },
+  shadows: {
+    board: "0 0 40px rgba(0,0,0,.7)",
+    row: "none",
+    wwcd: "0 0 60px rgba(240,176,58,.2)",
+  },
+  row: {
+    bgA: "#1a140f",
+    bgB: "#211912",
+    height: 42,
+    hoverBg: "rgba(240,176,58,.06)",
+    borderRadius: 0,
+  },
+  alive: {
+    color: "#f0b03a",
+    deadColor: "#20263b",
+    shape: "square",
+    size: 8,
+    gap: 2,
+  },
+  wwcd: {
+    overlayBg: "rgba(0,0,0,.92)",
+    titleColor: "#f0b03a",
+    mainColor: "#ffffff",
+    teamColor: "#f0b03a",
+    borderColor: "#f0b03a",
+  },
+  topLine: {
+    height: 4,
+  },
+};

@@ -1,0 +1,68 @@
+export const streamerStyle = {
+  name: "Streamer Style",
+  colors: {
+    primary: "#9147ff",
+    secondary: "#0e0e10",
+    accent: "#bf94ff",
+    text: "#efeff1",
+    textMuted: "#adadb8",
+    gold: "#ffb833",
+  },
+  gradients: {
+    panel: "linear-gradient(180deg, #0e0e10 0%, #18181b 100%)",
+    header: "linear-gradient(90deg, #9147ff 0%, #772ce8 100%)",
+    row: "none",
+    topLine: "linear-gradient(90deg, #9147ff, #bf94ff, #9147ff)",
+    wwcd: "linear-gradient(180deg, #0e0e10 0%, #050506 100%)",
+  },
+  glow: {
+    primary: "0 0 20px rgba(145,71,255,.2)",
+    accent: "0 0 15px rgba(191,148,255,.15)",
+    board: "0 4px 25px rgba(0,0,0,.5)",
+  },
+  borders: {
+    panel: "1px solid rgba(145,71,255,.2)",
+    row: "1px solid rgba(255,255,255,.04)",
+    header: "none",
+    alive: "none",
+  },
+  typography: {
+    fontFamily: "'Inter', system-ui, sans-serif",
+    headerSize: 10,
+    rankSize: 15,
+    teamSize: 12,
+    numberSize: 15,
+    wwcdTitleSize: 20,
+    wwcdMainSize: 60,
+    wwcdTeamSize: 38,
+  },
+  shadows: {
+    board: "0 4px 25px rgba(0,0,0,.5)",
+    row: "none",
+    wwcd: "0 0 80px rgba(145,71,255,.25)",
+  },
+  row: {
+    bgA: "#0e0e10",
+    bgB: "#18181b",
+    height: 42,
+    hoverBg: "rgba(145,71,255,.05)",
+    borderRadius: 4,
+  },
+  alive: {
+    color: "#bf94ff",
+    deadColor: "#26262c",
+    shape: "circle",
+    size: 7,
+    gap: 3,
+  },
+  wwcd: {
+    overlayBg: "rgba(0,0,0,.94)",
+    titleColor: "#bf94ff",
+    mainColor: "#efeff1",
+    teamColor: "#9147ff",
+    borderColor: "#9147ff",
+  },
+  topLine: {
+    height: 3,
+  },
+};

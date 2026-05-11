@@ -1,0 +1,68 @@
+export const cyberpunk = {
+  name: "Cyberpunk",
+  colors: {
+    primary: "#fcee09",
+    secondary: "#1a1a2e",
+    accent: "#e94560",
+    text: "#fcee09",
+    textMuted: "#8a8a6a",
+    gold: "#fcee09",
+  },
+  gradients: {
+    panel: "linear-gradient(180deg, #16213e 0%, #0f3460 100%)",
+    header: "linear-gradient(90deg, #e94560 0%, #533483 100%)",
+    row: "linear-gradient(90deg, rgba(252,238,9,.03) 0%, transparent 100%)",
+    topLine: "linear-gradient(90deg, #fcee09, #e94560, #fcee09)",
+    wwcd: "linear-gradient(180deg, #16213e 0%, #0f0f2e 100%)",
+  },
+  glow: {
+    primary: "0 0 20px rgba(252,238,9,.25)",
+    accent: "0 0 20px rgba(233,69,96,.25)",
+    board: "0 0 40px rgba(252,238,9,.08), 0 0 80px rgba(233,69,96,.06)",
+  },
+  borders: {
+    panel: "1px solid rgba(252,238,9,.25)",
+    row: "1px solid rgba(252,238,9,.05)",
+    header: "1px solid rgba(233,69,96,.4)",
+    alive: "none",
+  },
+  typography: {
+    fontFamily: "'Rajdhani', 'Inter', sans-serif",
+    headerSize: 11,
+    rankSize: 16,
+    teamSize: 12,
+    numberSize: 16,
+    wwcdTitleSize: 20,
+    wwcdMainSize: 64,
+    wwcdTeamSize: 40,
+  },
+  shadows: {
+    board: "0 4px 40px rgba(0,0,0,.6), 0 0 30px rgba(252,238,9,.08)",
+    row: "none",
+    wwcd: "0 0 80px rgba(252,238,9,.2), 0 0 120px rgba(233,69,96,.15)",
+  },
+  row: {
+    bgA: "#16213e",
+    bgB: "#1a2744",
+    height: 42,
+    hoverBg: "rgba(252,238,9,.06)",
+    borderRadius: 0,
+  },
+  alive: {
+    color: "#fcee09",
+    deadColor: "#2a2a4e",
+    shape: "square",
+    size: 8,
+    gap: 2,
+  },
+  wwcd: {
+    overlayBg: "rgba(10,10,30,.95)",
+    titleColor: "#fcee09",
+    mainColor: "#ffffff",
+    teamColor: "#e94560",
+    borderColor: "#fcee09",
+  },
+  topLine: {
+    height: 3,
+  },
+};

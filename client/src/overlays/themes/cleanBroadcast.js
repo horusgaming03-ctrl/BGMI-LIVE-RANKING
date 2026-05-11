@@ -1,0 +1,68 @@
+export const cleanBroadcast = {
+  name: "Clean Broadcast",
+  colors: {
+    primary: "#2196f3",
+    secondary: "#0d1117",
+    accent: "#64b5f6",
+    text: "#e8eaed",
+    textMuted: "#7a8a9a",
+    gold: "#ffb74d",
+  },
+  gradients: {
+    panel: "linear-gradient(180deg, #0d1117 0%, #161b22 100%)",
+    header: "linear-gradient(90deg, #1565c0 0%, #0d47a1 100%)",
+    row: "none",
+    topLine: "linear-gradient(90deg, #2196f3, #64b5f6, #2196f3)",
+    wwcd: "linear-gradient(180deg, #0d1117 0%, #080c12 100%)",
+  },
+  glow: {
+    primary: "none",
+    accent: "0 0 15px rgba(33,150,243,.15)",
+    board: "0 8px 30px rgba(0,0,0,.5)",
+  },
+  borders: {
+    panel: "1px solid rgba(33,150,243,.2)",
+    row: "1px solid rgba(255,255,255,.04)",
+    header: "none",
+    alive: "none",
+  },
+  typography: {
+    fontFamily: "'Inter', system-ui, sans-serif",
+    headerSize: 10,
+    rankSize: 15,
+    teamSize: 12,
+    numberSize: 15,
+    wwcdTitleSize: 18,
+    wwcdMainSize: 60,
+    wwcdTeamSize: 38,
+  },
+  shadows: {
+    board: "0 8px 30px rgba(0,0,0,.5)",
+    row: "none",
+    wwcd: "0 0 60px rgba(33,150,243,.2)",
+  },
+  row: {
+    bgA: "#0d1117",
+    bgB: "#161b22",
+    height: 42,
+    hoverBg: "rgba(33,150,243,.05)",
+    borderRadius: 0,
+  },
+  alive: {
+    color: "#4caf50",
+    deadColor: "#21262d",
+    shape: "square",
+    size: 7,
+    gap: 2,
+  },
+  wwcd: {
+    overlayBg: "rgba(0,0,0,.93)",
+    titleColor: "#64b5f6",
+    mainColor: "#ffffff",
+    teamColor: "#2196f3",
+    borderColor: "#2196f3",
+  },
+  topLine: {
+    height: 3,
+  },
+};

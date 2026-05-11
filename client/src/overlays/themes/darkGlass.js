@@ -1,0 +1,68 @@
+export const darkGlass = {
+  name: "Dark Glass",
+  colors: {
+    primary: "#a8b2d1",
+    secondary: "rgba(10,10,20,.85)",
+    accent: "#64ffda",
+    text: "#ccd6f6",
+    textMuted: "#5a6a8a",
+    gold: "#64ffda",
+  },
+  gradients: {
+    panel: "linear-gradient(180deg, rgba(10,10,20,.85) 0%, rgba(15,15,30,.9) 100%)",
+    header: "linear-gradient(180deg, rgba(20,20,40,.7) 0%, rgba(10,10,20,.8) 100%)",
+    row: "none",
+    topLine: "linear-gradient(90deg, #64ffda, #a8b2d1, #64ffda)",
+    wwcd: "linear-gradient(180deg, rgba(10,10,20,.95) 0%, rgba(5,5,15,.98) 100%)",
+  },
+  glow: {
+    primary: "0 0 20px rgba(100,255,218,.1)",
+    accent: "0 0 25px rgba(100,255,218,.15)",
+    board: "0 8px 32px rgba(0,0,0,.4), inset 0 0 60px rgba(100,255,218,.02)",
+  },
+  borders: {
+    panel: "1px solid rgba(100,255,218,.12)",
+    row: "1px solid rgba(255,255,255,.03)",
+    header: "1px solid rgba(100,255,218,.08)",
+    alive: "none",
+  },
+  typography: {
+    fontFamily: "'Inter', system-ui, sans-serif",
+    headerSize: 10,
+    rankSize: 15,
+    teamSize: 12,
+    numberSize: 15,
+    wwcdTitleSize: 18,
+    wwcdMainSize: 60,
+    wwcdTeamSize: 38,
+  },
+  shadows: {
+    board: "0 8px 32px rgba(0,0,0,.4)",
+    row: "none",
+    wwcd: "0 0 80px rgba(100,255,218,.2)",
+  },
+  row: {
+    bgA: "rgba(12,12,25,.6)",
+    bgB: "rgba(18,18,35,.6)",
+    height: 42,
+    hoverBg: "rgba(100,255,218,.04)",
+    borderRadius: 0,
+  },
+  alive: {
+    color: "#64ffda",
+    deadColor: "rgba(30,30,50,.6)",
+    shape: "circle",
+    size: 7,
+    gap: 3,
+  },
+  wwcd: {
+    overlayBg: "rgba(5,5,15,.95)",
+    titleColor: "#64ffda",
+    mainColor: "#ccd6f6",
+    teamColor: "#64ffda",
+    borderColor: "rgba(100,255,218,.3)",
+  },
+  topLine: {
+    height: 2,
+  },
+};

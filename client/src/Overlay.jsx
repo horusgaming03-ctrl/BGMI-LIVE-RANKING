@@ -1,246 +1,594 @@
-import { useEffect, useMemo, useState } from "react";
-import { io } from "socket.io-client";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { connectSocket, getApiBase } from "./apiOrigin";
 
-const socket = io("http://127.0.0.1:3001", { transports: ["websocket"] });
+const API = getApiBase();
+
+const socket = connectSocket();
+
+const THEME = {
+  panel: "#15110d",
+  rowA: "#1a140f",
+  rowB: "#211912",
+  gold: "#f0b03a",
+  goldDark: "#8a5b12",
+  alive: "#f0b03a",
+  dead: "#20263b",
+};
 
 export default function Overlay() {
   const [teams, setTeams] = useState([]);
+  const [showWWCD, setShowWWCD] =
+    useState(false);
+
+  const [winner, setWinner] =
+    useState(null);
+
+  const teamsRef = useRef([]);
 
   useEffect(() => {
-    const handle = (data) => setTeams(Array.isArray(data) ? data : []);
-    socket.on("teamsUpdated", handle);
+    teamsRef.current = teams;
+  }, [teams]);
+
+  useEffect(() => {
+    const onTeams = (data) => {
+      setTeams(
+        Array.isArray(data) ? data : []
+      );
+    };
+
+    const onChicken = (data) => {
+      setWinner(data);
+
+      setShowWWCD(true);
+
+      setTimeout(() => {
+        setShowWWCD(false);
+      }, 30000);
+    };
+
+    const onCommand = (cmd) => {
+      if (cmd.type === "showChickenDinner") {
+        let team = teamsRef.current.find((t) => t.eliminationRank === 1);
+        if (!team) {
+          const sorted = [...teamsRef.current].sort((a, b) => (b.points || 0) - (a.points || 0));
+          team = sorted[0];
+        }
+        const winnerData = team
+          ? { team: team.team, logo: team.logo }
+          : { team: cmd.team || "CHAMPION", logo: null };
+        setWinner(winnerData);
+        setShowWWCD(true);
+        setTimeout(() => setShowWWCD(false), 30000);
+      }
+    };
+
+    socket.on("teamsUpdated", onTeams);
+
+    socket.on(
+      "chickenDinner",
+      onChicken
+    );
+
+    socket.on(
+      "overlayCommand",
+      onCommand
+    );
+
     socket.emit("requestTeams");
-    return () => socket.off("teamsUpdated", handle);
+
+    return () => {
+      socket.off(
+        "teamsUpdated",
+        onTeams
+      );
+
+      socket.off(
+        "chickenDinner",
+        onChicken
+      );
+
+      socket.off(
+        "overlayCommand",
+        onCommand
+      );
+    };
   }, []);
 
-  const sorted = useMemo(
-    () =>
-      [...teams].sort(
-        (a, b) =>
-          b.points - a.points ||
-          b.finishes - a.finishes ||
-          a.team.localeCompare(b.team)
-      ),
-    [teams]
-  );
-
-  if (!sorted.length) {
-    return (
-      <div style={styles.loading}>
-        No overlay data yet. Start backend and add teams in admin.
-      </div>
+  const sorted = useMemo(() => {
+    return [...teams].sort(
+      (a, b) =>
+        b.points - a.points ||
+        b.finishes - a.finishes
     );
-  }
+  }, [teams]);
 
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
-        <div style={styles.head}>
-          <div>#</div>
-          <div>Teams</div>
-          <div>Status</div>
-          <div>FIN.</div>
-          <div>PTS.</div>
+    <div style={styles.root}>
+      {/* WWCD */}
+      {showWWCD && winner && (
+        <div style={styles.wwcdOverlay}>
+          <div style={styles.wwcdBox}>
+            <div style={styles.wwcdTop}>
+              WINNER WINNER
+            </div>
+
+            <div style={styles.wwcdMain}>
+              CHICKEN DINNER
+            </div>
+
+            <div style={styles.wwcdTeam}>
+              {winner.logo && (
+                <img
+                  src={`${API}${winner.logo}`}
+                  alt=""
+                  style={
+                    styles.wwcdLogo
+                  }
+                />
+              )}
+
+              <div
+                style={styles.wwcdName}
+              >
+                {winner.team}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TABLE */}
+      <div style={styles.board}>
+        <div style={styles.topLine} />
+
+        {/* HEADER */}
+        <div style={styles.header}>
+          <div
+            style={styles.headerCenter}
+          >
+            RANK
+          </div>
+
+          <div
+            style={{
+              ...styles.headerLeft,
+              paddingLeft: 2,
+            }}
+          >
+            TEAM
+          </div>
+
+          <div
+            style={styles.headerCenter}
+          >
+            FIN
+          </div>
+
+          <div
+            style={styles.headerCenter}
+          >
+            TOTAL
+          </div>
+
+          <div
+            style={styles.headerCenter}
+          >
+            ALIVE
+          </div>
         </div>
 
-        {sorted.map((t, idx) => {
-          const selected = idx === 9 || idx === 11;
-          const status = String(t.status || "alive").toLowerCase();
-          const statusColor =
-            status === "alive"
-              ? "#54f07d"
-              : status === "knocked"
-              ? "#ff5b2e"
-              : "#9aa1aa";
+        {/* ROWS */}
+        {sorted.map((t, i) => {
+          const status = String(
+            t.status || "alive"
+          ).toLowerCase();
 
-          const activeBars = status === "alive" ? 4 : status === "knocked" ? 2 : 0;
+          const alive =
+            t.alivePlayers ??
+            (status === "alive"
+              ? 4
+              : 0);
 
           return (
             <div
-              key={t.id ?? idx}
+              key={t.id ?? i}
               style={{
                 ...styles.row,
-                background: selected
-                  ? "rgba(166,139,255,.33)"
-                  : idx % 2
-                  ? "rgba(255,255,255,.04)"
-                  : "rgba(255,255,255,.02)",
+                background:
+                  i % 2 === 0
+                    ? THEME.rowA
+                    : THEME.rowB,
               }}
             >
-              <div style={styles.rank}>{idx + 1}</div>
-
-              <div style={styles.teamCell}>
-                <div style={styles.logo}>{String(t.team || "--").slice(0, 2)}</div>
-                <div style={styles.teamName}>{t.team || "TEAM"}</div>
+              {/* RANK */}
+              <div
+                style={styles.rankBox}
+              >
+                #{i + 1}
               </div>
 
-              <div style={styles.statusCell}>
-                <div style={styles.bars}>
-                  {Array.from({ length: 4 }, (_, i) => (
-                    <span
-                      key={i}
-                      style={{
-                        ...styles.bar,
-                        background:
-                          i < activeBars
-                            ? status === "knocked" && i < 2
-                              ? "#ff5b2e"
-                              : "#54f07d"
-                            : "#5a5f68",
-                      }}
+              {/* TEAM */}
+              <div
+                style={styles.teamWrap}
+              >
+                <div
+                  style={
+                    styles.logoBox
+                  }
+                >
+                  {t.logo ? (
+                    <img
+                      src={`${API}${t.logo}`}
+                      alt=""
+                      style={
+                        styles.logo
+                      }
                     />
-                  ))}
+                  ) : (
+                    <span
+                      style={
+                        styles.logoText
+                      }
+                    >
+                      {String(
+                        t.team || "TM"
+                      ).slice(0, 2)}
+                    </span>
+                  )}
                 </div>
 
-                <span
-                  style={{
-                    ...styles.pill,
-                    color: statusColor,
-                    borderColor: `${statusColor}55`,
-                  }}
+                <div
+                  style={
+                    styles.teamName
+                  }
                 >
-                  {status.toUpperCase()}
-                </span>
+                  {t.team}
+                </div>
               </div>
 
-              <div style={styles.value}>{t.finishes ?? 0}</div>
-              <div style={styles.value}>{t.points ?? 0}</div>
+              {/* FIN */}
+              <div
+                style={{
+                  ...styles.number,
+                  color:
+                    (t.finishes ??
+                      0) > 0
+                      ? THEME.gold
+                      : "#555",
+                }}
+              >
+                {t.finishes ?? 0}
+              </div>
+
+              {/* TOTAL */}
+              <div
+                style={styles.number}
+              >
+                {t.points ?? 0}
+              </div>
+
+              {/* ALIVE */}
+              <div
+                style={
+                  styles.aliveWrap
+                }
+              >
+                {[0, 1, 2, 3].map(
+                  (p) => (
+                    <div
+                      key={p}
+                      style={{
+                        ...styles.aliveBox,
+                        background:
+                          p < alive
+                            ? THEME.alive
+                            : THEME.dead,
+                      }}
+                    />
+                  )
+                )}
+              </div>
             </div>
           );
         })}
-
-        <div style={styles.legend}>
-          <span>
-            <i style={{ ...styles.dot, background: "#54f07d" }} />
-            Alive
-          </span>
-          <span>
-            <i style={{ ...styles.dot, background: "#ff5b2e" }} />
-            Knocked
-          </span>
-          <span>
-            <i style={{ ...styles.dot, background: "#9aa1aa" }} />
-            Eliminated
-          </span>
-        </div>
       </div>
+
+      <style>{`
+        *{
+          margin:0;
+          padding:0;
+          box-sizing:border-box;
+        }
+
+        body{
+          overflow:hidden;
+          background:transparent;
+        }
+
+        @keyframes wwcdPop{
+          from{
+            opacity:0;
+            transform:scale(.9);
+          }
+          to{
+            opacity:1;
+            transform:scale(1);
+          }
+        }
+      `}</style>
     </div>
   );
 }
 
 const styles = {
-  page: {
-    minHeight: "100vh",
+  root: {
     width: "100vw",
-    background: "transparent",
-    color: "#fff",
-    padding: "24px",
-    boxSizing: "border-box",
-    fontFamily: "Inter, system-ui, sans-serif",
-  },
-  loading: {
-    minHeight: "100vh",
-    display: "grid",
-    placeItems: "center",
-    color: "#fff",
-    background: "#000",
-    fontSize: "28px",
-    fontWeight: 800,
-    textAlign: "center",
-    padding: "40px",
-  },
-  card: {
-    width: "100%",
-    borderRadius: "28px",
-    overflow: "hidden",
-    background: "rgba(6,18,22,.96)",
-    border: "1px solid rgba(255,255,255,.08)",
-    boxShadow: "0 24px 60px rgba(0,0,0,.45)",
-  },
-  head: {
-    display: "grid",
-    gridTemplateColumns: "70px 1.4fr 260px 110px 110px",
-    background: "#0b2b31",
-    color: "#8fd7df",
-    fontWeight: 800,
-    letterSpacing: "0.18em",
-    textTransform: "uppercase",
-    padding: "16px 22px",
-    fontSize: "12px",
-  },
-  row: {
-    display: "grid",
-    gridTemplateColumns: "70px 1.4fr 260px 110px 110px",
-    alignItems: "center",
-    padding: "12px 22px",
-    borderTop: "1px solid rgba(255,255,255,.05)",
-  },
-  rank: {
-    fontSize: "34px",
-    fontWeight: 900,
-  },
-  teamCell: {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-  },
-  logo: {
-    width: "46px",
-    height: "46px",
-    borderRadius: "12px",
-    background: "linear-gradient(135deg, #f1cf69, #8b681e)",
-    color: "#000",
-    display: "grid",
-    placeItems: "center",
-    fontWeight: 900,
-  },
-  teamName: {
-    fontSize: "28px",
-    fontWeight: 900,
-    letterSpacing: "-0.03em",
-  },
-  statusCell: {
-    display: "flex",
-    alignItems: "center",
-    gap: "14px",
-  },
-  bars: {
-    display: "flex",
-    gap: "5px",
-  },
-  bar: {
-    width: "10px",
-    height: "40px",
-    borderRadius: "2px",
-  },
-  pill: {
-    border: "1px solid",
-    padding: "10px 18px",
-    borderRadius: "999px",
-    fontSize: "14px",
-    fontWeight: 900,
-    background: "rgba(255,255,255,.02)",
-  },
-  value: {
-    fontSize: "34px",
-    fontWeight: 900,
-    textAlign: "left",
-  },
-  legend: {
+    height: "100vh",
     display: "flex",
     justifyContent: "center",
-    gap: "26px",
-    background: "#071115",
-    padding: "14px",
-    fontWeight: 800,
-    textTransform: "uppercase",
-    letterSpacing: "0.16em",
+    alignItems: "center",
+    background: "transparent",
+    fontFamily:
+      "'Rajdhani','Inter',sans-serif",
   },
-  dot: {
-    display: "inline-block",
-    width: "14px",
-    height: "14px",
-    marginRight: "8px",
-    verticalAlign: "middle",
+
+  /* COMPACT BOARD */
+  board: {
+    width: 300,
+
+    background: THEME.panel,
+
+    border: `1px solid ${THEME.goldDark}`,
+
+    overflow: "hidden",
+
+    boxShadow:
+      "0 0 40px rgba(0,0,0,.7)",
+  },
+
+  topLine: {
+    height: 4,
+
+    background:
+      "linear-gradient(90deg,#6b4308,#f0b03a,#6b4308)",
+  },
+
+  /* COMPACT HEADER */
+  header: {
+    display: "grid",
+
+    gridTemplateColumns:
+      "52px 92px 38px 52px 46px",
+
+    alignItems: "center",
+
+    padding: "8px 6px",
+
+    background:
+      "linear-gradient(180deg,#2a1c0f,#16110d)",
+
+    borderBottom:
+      "1px solid rgba(240,176,58,.3)",
+  },
+
+  headerCenter: {
+    textAlign: "center",
+
+    color: THEME.gold,
+
+    fontSize: 11,
+
+    fontWeight: 700,
+
+    letterSpacing: 1,
+  },
+
+  headerLeft: {
+    color: THEME.gold,
+
+    fontSize: 11,
+
+    fontWeight: 700,
+
+    letterSpacing: 1,
+  },
+
+  /* COMPACT ROW */
+  row: {
+    display: "grid",
+
+    gridTemplateColumns:
+      "52px 92px 38px 52px 46px",
+
+    alignItems: "center",
+
+    minHeight: 42,
+
+    padding: "5px 6px",
+
+    borderBottom:
+      "1px solid rgba(255,255,255,.03)",
+  },
+
+  rankBox: {
+    color: "#fff",
+
+    fontSize: 16,
+
+    fontWeight: 700,
+
+    textAlign: "center",
+
+    fontStyle: "italic",
+  },
+
+  teamWrap: {
+    display: "flex",
+
+    alignItems: "center",
+
+    gap: 5,
+
+    minWidth: 0,
+  },
+
+  logoBox: {
+    width: 24,
+
+    height: 24,
+
+    border:
+      "1px solid rgba(240,176,58,.35)",
+
+    background:
+      "linear-gradient(180deg,#24180f,#130d08)",
+
+    display: "grid",
+
+    placeItems: "center",
+
+    overflow: "hidden",
+
+    flexShrink: 0,
+  },
+
+  logo: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+  },
+
+  logoText: {
+    color: THEME.gold,
+
+    fontSize: 9,
+
+    fontWeight: 800,
+  },
+
+  teamName: {
+    color: "#fff",
+
+    fontWeight: 700,
+
+    fontSize: 12,
+
+    whiteSpace: "nowrap",
+
+    overflow: "hidden",
+
+    textOverflow: "ellipsis",
+  },
+
+  number: {
+    textAlign: "center",
+
+    color: "#fff",
+
+    fontSize: 16,
+
+    fontWeight: 700,
+  },
+
+  aliveWrap: {
+    width: 30,
+
+    height: 20,
+
+    display: "grid",
+
+    gridTemplateColumns:
+      "1fr 1fr",
+
+    gridTemplateRows:
+      "1fr 1fr",
+
+    gap: 2,
+
+    justifySelf: "center",
+  },
+
+  aliveBox: {
+    borderRadius: 2,
+  },
+
+  wwcdOverlay: {
+    position: "fixed",
+
+    inset: 0,
+
+    background: "rgba(0,0,0,.92)",
+
+    display: "grid",
+
+    placeItems: "center",
+
+    zIndex: 9999,
+  },
+
+  wwcdBox: {
+    width: 700,
+
+    padding: "60px 40px",
+
+    background:
+      "linear-gradient(180deg,#241607,#090603)",
+
+    border: `2px solid ${THEME.gold}`,
+
+    textAlign: "center",
+
+    animation:
+      "wwcdPop .4s ease",
+  },
+
+  wwcdTop: {
+    color: THEME.gold,
+
+    fontSize: 20,
+
+    fontWeight: 700,
+
+    letterSpacing: 8,
+
+    marginBottom: 10,
+  },
+
+  wwcdMain: {
+    color: "#fff",
+
+    fontSize: 64,
+
+    fontWeight: 800,
+
+    lineHeight: 1,
+  },
+
+  wwcdTeam: {
+    marginTop: 28,
+
+    display: "flex",
+
+    alignItems: "center",
+
+    justifyContent: "center",
+
+    gap: 16,
+  },
+
+  wwcdLogo: {
+    width: 64,
+
+    height: 64,
+
+    objectFit: "cover",
+  },
+
+  wwcdName: {
+    color: THEME.gold,
+
+    fontSize: 40,
+
+    fontWeight: 800,
   },
 };

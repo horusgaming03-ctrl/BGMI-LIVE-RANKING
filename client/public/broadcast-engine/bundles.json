@@ -1,0 +1,10 @@
+{
+  "_comment": "Custom bundle IDs merge with ?bundle=my_key. Fields: engineTheme, engineDesign, aliveStyle, animationPack, engineAnimations (optional). Omit keys you don't need.",
+  "custom_night_show": {
+    "engineTheme": "br_velvet_night_v2",
+    "engineDesign": "dsgn_arena_night_wave1_016",
+    "aliveStyle": "neon_node",
+    "animationPack": "esports",
+    "engineAnimations": true
+  }
+}
