@@ -22,5 +22,6 @@ build/
 *.tmp
 *.temp
 
-# Project diagnostics
-gitinfo.txt
+# Secrets (never commit)
+.env
+

@@ -4,6 +4,9 @@
   "version": "1.0.0",
   "scripts": {
     "start": "node index.js",
+    "backend": "node scripts/start-backend.js",
+    "start:fresh": "node scripts/kill-port-listeners.mjs 3001 && node index.js",
+    "start:backend": "node scripts/kill-port-listeners.mjs 3001 && node scripts/start-backend.js",
     "server": "node index.js",
     "client": "cd client && npm run dev",
     "dev:client": "cd client && npm run dev",
@@ -12,10 +15,12 @@
     "build": "cd client && npm run build",
     "preview": "cd client && npm run preview",
     "wwcd:chars": "node scripts/build-wwcd-characters.mjs",
-    "start:app": "npm run build:client && node index.js"
+    "start:app": "npm run build:client && node index.js",
+    "db:up": "docker compose up -d"
   },
   "dependencies": {
     "cors": "^2.8.6",
+    "dotenv": "^16.4.7",
     "express": "^5.2.1",
     "multer": "^2.1.1",
     "react-router-dom": "^7.15.0",

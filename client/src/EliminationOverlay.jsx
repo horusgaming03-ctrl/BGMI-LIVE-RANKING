@@ -1,7 +1,15 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { getTheme, getThemeNames } from "./overlays/themes";
+import overlayConfig from "./overlays/overlayConfig";
 import socket, { API } from "./overlays/socket";
 import { mergeThemeOverride } from "./overlays/utils/mergeThemeOverride";
+
+function defaultElimTheme() {
+  const names = getThemeNames();
+  const t = overlayConfig?.activeTheme;
+  if (typeof t === "string" && names.includes(t)) return t;
+  return names[0] || "esports";
+}
 
 function hexToRgba(hex, alpha) {
   const h = hex.replace("#", "");
@@ -13,16 +21,19 @@ function hexToRgba(hex, alpha) {
 
 function darken(hex, amount) {
   const h = hex.replace("#", "");
-  const r = Math.max(0, parseInt(h.substring(0, 2), 16) - amount);
-  const g = Math.max(0, parseInt(h.substring(2, 4), 16) - amount);
-  const b = Math.max(0, parseInt(h.substring(4, 6), 16) - amount);
+  const clamp = (n) => Math.max(0, Math.min(255, n));
+  const r = clamp(parseInt(h.substring(0, 2), 16) - amount);
+  const g = clamp(parseInt(h.substring(2, 4), 16) - amount);
+  const b = clamp(parseInt(h.substring(4, 6), 16) - amount);
   return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
 }
 
 export default function EliminationOverlay() {
   const params = new URLSearchParams(window.location.search);
-  const urlTheme = params.get("theme");
-  const [liveTheme, setLiveTheme] = useState(urlTheme || "premiumGold");
+  const raw = params.get("theme");
+  /** Use `?theme=live`, `?theme=auto`, or omit `theme` so colors follow Admin active theme via socket. Pinned `?theme=neon` stays on that id. */
+  const urlTheme = raw && raw !== "live" && raw !== "auto" ? raw : null;
+  const [liveTheme, setLiveTheme] = useState(() => urlTheme || defaultElimTheme());
   const [themeColorOverrides, setThemeColorOverrides] = useState({});
 
   useEffect(() => {
