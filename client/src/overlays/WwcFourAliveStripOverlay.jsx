@@ -181,11 +181,13 @@ export default function WwcFourAliveStripOverlay() {
     const a = theme.alive || {};
     const r = theme.row || {};
     const accent = c.accent || c.primary || "#00c2c9";
+    /** Filled squad bars follow palette (elimination banner + leaderboard header), then explicit alive indicator color from Theme Preview. */
+    const barFilled = c.accent || c.primary || a.color || "#ff4655";
     const primaryHex = typeof c.primary === "string" && c.primary.startsWith("#") ? c.primary : "#ffffff";
     return {
       footerBg: accent,
       footerText: c.text || "#ffffff",
-      barGreen: a.color || "#2ec27e",
+      barGreen: barFilled,
       barDead: a.deadColor || "#4a4f54",
       barsBg: r.bgB || r.bgA || "#161616",
       logoBoxBg: c.secondary || r.bgA || "#0a3d45",
