@@ -3,7 +3,8 @@ import { getPresetConfig } from "../presets";
 import { defaultAliveStyleForPathname } from "./overlayDefaultAlive";
 import { overlayPathMatches } from "./overlayPrefsMatch";
 
-/** URL ?alive= wins; else ?preset= aliveStyle; else theme.alive.shape; else saved prefs; else route default. */
+/** URL ?alive= wins; then ?preset= aliveStyle; then saved prefs for /overlay/themed; then theme.alive.shape hint; else route default.
+ * Saved shape must beat theme.defaults — otherwise Premium Gold etc. force "circle" whenever colors merge into the theme. */
 export function resolveAliveStyle(searchOrParams, theme, savedPrefs = null) {
   const p = typeof searchOrParams === "string" ? new URLSearchParams(searchOrParams) : searchOrParams;
   const raw = p && typeof p.get === "function" ? p.get("alive") : null;
@@ -13,10 +14,6 @@ export function resolveAliveStyle(searchOrParams, theme, savedPrefs = null) {
     const pc = getPresetConfig(presetName);
     if (pc?.aliveStyle && isValidAliveId(pc.aliveStyle)) return pc.aliveStyle;
   }
-  const shape = theme?.alive?.shape;
-  if (shape === "circle") return "circle";
-  if (shape === "diamond") return "diamond";
-  if (shape === "square") return "square";
   const path = typeof window !== "undefined" ? window.location.pathname : "";
   if (
     savedPrefs &&
@@ -27,5 +24,9 @@ export function resolveAliveStyle(searchOrParams, theme, savedPrefs = null) {
   ) {
     return savedPrefs.aliveStyle;
   }
+  const shape = theme?.alive?.shape;
+  if (shape === "circle") return "circle";
+  if (shape === "diamond") return "diamond";
+  if (shape === "square") return "square";
   return defaultAliveStyleForPathname(path);
 }

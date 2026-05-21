@@ -51,6 +51,13 @@ export default function ThemePreview() {
   /** When true, skip re-hydrating colorDraft from server until save succeeds — avoids wiping mid-edit edits. */
   const colorDraftDirtyRef = useRef(false);
   const lastHydratedThemeRef = useRef(null);
+  /** Latest alive picker state for POSTs fired before React re-render (shape / layout clicks). */
+  const alivePrefsRef = useRef({
+    aliveStyle: "heart",
+    aliveLayout: "grid",
+    custIconAlive: null,
+    custIconDead: null,
+  });
   const baseTheme = useMemo(() => getTheme(selected), [selected]);
   const theme = useMemo(() => mergeThemeOverride(baseTheme, colorDraft), [baseTheme, colorDraft]);
 
@@ -125,6 +132,10 @@ export default function ThemePreview() {
       })
       .catch(() => {});
   }, [hydrateAliveFromSettings]);
+
+  useEffect(() => {
+    alivePrefsRef.current = { aliveStyle, aliveLayout, custIconAlive, custIconDead };
+  }, [aliveStyle, aliveLayout, custIconAlive, custIconDead]);
 
   useEffect(() => {
     const patch = themeColorOverridesServer[selected];
@@ -241,26 +252,32 @@ export default function ThemePreview() {
     return p.toString();
   }, [activePreset, selected, aliveStyle, aliveLayout, custIconAlive, custIconDead]);
 
+  const persistThemedPrefsToServer = useCallback(async (overrides = {}) => {
+    const cur = await fetch(`${API}/settings`).then((r) => r.json());
+    const prev = cur.themedOverlayPrefs && typeof cur.themedOverlayPrefs === "object" ? { ...cur.themedOverlayPrefs } : {};
+    const snap = alivePrefsRef.current;
+    const themedOverlayPrefs = {
+      ...prev,
+      aliveStyle: Object.prototype.hasOwnProperty.call(overrides, "aliveStyle") ? overrides.aliveStyle : snap.aliveStyle,
+      aliveLayout: Object.prototype.hasOwnProperty.call(overrides, "aliveLayout") ? overrides.aliveLayout : snap.aliveLayout,
+      aliveCustomAlive: Object.prototype.hasOwnProperty.call(overrides, "aliveCustomAlive")
+        ? overrides.aliveCustomAlive
+        : prev.aliveCustomAlive ?? snap.custIconAlive,
+      aliveCustomDead: Object.prototype.hasOwnProperty.call(overrides, "aliveCustomDead")
+        ? overrides.aliveCustomDead
+        : prev.aliveCustomDead ?? snap.custIconDead,
+    };
+    const res = await fetch(`${API}/settings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ themedOverlayPrefs }),
+    });
+    return res.ok;
+  }, []);
+
   const persistThemedAliveToServer = useCallback(
-    async (nextAlive, nextDead) => {
-      const cur = await fetch(`${API}/settings`).then((r) => r.json());
-      const prev = cur.themedOverlayPrefs && typeof cur.themedOverlayPrefs === "object" ? { ...cur.themedOverlayPrefs } : {};
-      const res = await fetch(`${API}/settings`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          themedOverlayPrefs: {
-            ...prev,
-            aliveStyle,
-            aliveLayout,
-            aliveCustomAlive: nextAlive,
-            aliveCustomDead: nextDead,
-          },
-        }),
-      });
-      return res.ok;
-    },
-    [aliveStyle, aliveLayout],
+    async (nextAlive, nextDead) => persistThemedPrefsToServer({ aliveCustomAlive: nextAlive, aliveCustomDead: nextDead }),
+    [persistThemedPrefsToServer],
   );
 
   const uploadAliveFile = useCallback(
@@ -421,10 +438,11 @@ export default function ThemePreview() {
                 <button
                   key={x.id}
                   type="button"
-                  onClick={() => {
-                    setAliveLayout(x.id);
-                    setActivePreset(null);
-                  }}
+                onClick={() => {
+                  setAliveLayout(x.id);
+                  setActivePreset(null);
+                  void persistThemedPrefsToServer({ aliveLayout: x.id });
+                }}
                   style={{
                     padding: "8px 14px",
                     fontSize: 12,
@@ -507,7 +525,9 @@ export default function ThemePreview() {
               </button>
             </div>
             <p style={{ fontSize: 10, color: "#666", margin: "0 0 14px", maxWidth: 720, lineHeight: 1.45 }}>
-              Uploads save automatically for <strong style={{ color: "#888" }}>/overlay/themed</strong>. Custom icons are stored separately from the broadcast-engine catalog so saving there cannot wipe them.
+              <strong style={{ color: "#888" }}>Shape &amp; layout</strong> save to the server as you click (same prefs as alive colors across all themes).{" "}
+              Custom PNGs still sync on upload — use{" "}
+              <strong style={{ color: "#888" }}>Save alive prefs</strong> to re-push icons only if needed.
             </p>
           </div>
           <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>SHAPE / STYLE</div>
@@ -519,6 +539,7 @@ export default function ThemePreview() {
                 onClick={() => {
                   setAliveStyle(id);
                   setActivePreset(null);
+                  void persistThemedPrefsToServer({ aliveStyle: id });
                 }}
                 style={{
                   padding: "5px 10px",
