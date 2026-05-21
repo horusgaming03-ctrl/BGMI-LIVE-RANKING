@@ -15,6 +15,7 @@ import ZonePredictionOverlay from "./overlays/ZonePredictionOverlay";
 import LiveAnnouncementOverlay from "./overlays/LiveAnnouncementOverlay";
 import FinishBadgesOverlay from "./overlays/FinishBadgesOverlay";
 import ObsSharedTripleSlotOverlay from "./overlays/ObsSharedTripleSlotOverlay";
+import SideBannerOverlay from "./overlays/SideBannerOverlay";
 
 export default function App() {
   return (
@@ -41,6 +42,7 @@ export default function App() {
       <Route path="/overlay/engine-catalog" element={<EngineCatalog />} />
       {/* One PNG on disk → three OBS browser-source URLs read the same asset (no processing). */}
       <Route path="/overlay/obs-slot/:slotId" element={<ObsSharedTripleSlotOverlay />} />
+      <Route path="/overlay/side-banner" element={<SideBannerOverlay />} />
     </Routes>
   );
 }

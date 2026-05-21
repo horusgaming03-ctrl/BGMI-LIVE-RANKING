@@ -270,6 +270,85 @@ function normalizeTeamRondoFields(team) {
   return team;
 }
 
+/** Defaults for `sideOverlayPrefs` — mirror client/src/sideOverlayPrefs.js */
+const SIDE_OVERLAY_DEFAULT_PREFS_BACKEND = {
+  groupLabel: "GROUP A",
+  useLiveMatchNumber: true,
+  matchNumberManual: 4,
+  useLiveMapName: true,
+  mapNameManual: "",
+  mapOrdinal: null,
+  logoPanelBg: "#f7931e",
+  topBarBg: "#ffffff",
+  topBarText: "#151515",
+  mapAreaBgStart: "#0f5f5f",
+  mapAreaBgEnd: "#073030",
+  mapNameColor: "#ffffff",
+  sparkleColor: "#e63946",
+  showSparkle: true,
+  bannerScale: 1,
+};
+
+/** Coerce `#rgb` / `#rrggbbaa` / `#rrggbb` → `#rrggbb` (matches client clampHexColor) */
+function normalizeSideOverlayHex(value, fallback) {
+  const fb =
+    typeof fallback === "string" && /^#[0-9A-Fa-f]{6}$/.test(String(fallback).trim())
+      ? String(fallback).trim().toLowerCase()
+      : "#ffffff";
+  if (value == null || typeof value !== "string") return fb;
+  const s = value.trim();
+  const m = /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/.exec(s);
+  if (!m) return fb;
+  let h = m[1];
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  else if (h.length === 8) h = h.slice(0, 6);
+  if (h.length !== 6) return fb;
+  return `#${h.toLowerCase()}`;
+}
+
+function sanitizeSideOverlayPrefs(raw) {
+  const d = SIDE_OVERLAY_DEFAULT_PREFS_BACKEND;
+  const hc = (v, fb) => normalizeSideOverlayHex(v, fb);
+
+  if (!raw || typeof raw !== "object") return { ...d };
+
+  let mapOrdinal = null;
+  if (raw.mapOrdinal !== null && raw.mapOrdinal !== undefined && raw.mapOrdinal !== "") {
+    const n = Number(raw.mapOrdinal);
+    if (Number.isFinite(n) && n >= 1) mapOrdinal = Math.min(999, Math.trunc(n));
+  }
+
+  let matchNum = Number(raw.matchNumberManual);
+  if (!Number.isFinite(matchNum) || matchNum < 1) matchNum = d.matchNumberManual;
+  matchNum = Math.min(9999, Math.trunc(matchNum));
+
+  let scale = Number(raw.bannerScale);
+  if (!Number.isFinite(scale)) scale = d.bannerScale;
+  scale = Math.max(0.5, Math.min(1.5, scale));
+
+  const grp = typeof raw.groupLabel === "string" ? raw.groupLabel.trim().slice(0, 40) : "";
+  let mapNm = "";
+  if (typeof raw.mapNameManual === "string") mapNm = raw.mapNameManual.trim().slice(0, 72);
+
+  return {
+    groupLabel: grp || d.groupLabel,
+    useLiveMatchNumber: coerceJsonBool(raw.useLiveMatchNumber, true),
+    matchNumberManual: matchNum,
+    useLiveMapName: coerceJsonBool(raw.useLiveMapName, true),
+    mapNameManual: mapNm,
+    mapOrdinal,
+    logoPanelBg: hc(raw.logoPanelBg, d.logoPanelBg),
+    topBarBg: hc(raw.topBarBg, d.topBarBg),
+    topBarText: hc(raw.topBarText, d.topBarText),
+    mapAreaBgStart: hc(raw.mapAreaBgStart, d.mapAreaBgStart),
+    mapAreaBgEnd: hc(raw.mapAreaBgEnd, d.mapAreaBgEnd),
+    mapNameColor: hc(raw.mapNameColor, d.mapNameColor),
+    sparkleColor: hc(raw.sparkleColor, d.sparkleColor),
+    showSparkle: coerceJsonBool(raw.showSparkle, true),
+    bannerScale: scale,
+  };
+}
+
 // ── State ──
 let teams = [];
 let currentMatch = {
@@ -302,6 +381,8 @@ let settings = {
   googleIntegration: sanitizeGoogleIntegration({}),
   /** Live match board theme id (must match client theme names, e.g. cyberpunk) — persisted across restarts */
   activeTheme: "esports",
+  /** Banner strip for `/overlay/side-banner` (tournament graphic + match / map titles) */
+  sideOverlayPrefs: sanitizeSideOverlayPrefs({}),
 };
 
 const dataDir = path.join(ROOT, "data");
@@ -525,6 +606,16 @@ function loadPersistedSettings() {
     if (Object.prototype.hasOwnProperty.call(raw, "activeTheme")) {
       settings.activeTheme = sanitizeActiveThemeServer(raw.activeTheme);
     }
+    const hasValidSidePrefs =
+      raw.sideOverlayPrefs != null &&
+      typeof raw.sideOverlayPrefs === "object" &&
+      !Array.isArray(raw.sideOverlayPrefs);
+    if (hasValidSidePrefs) {
+      settings.sideOverlayPrefs = sanitizeSideOverlayPrefs(raw.sideOverlayPrefs);
+    } else {
+      /* Older app-settings.json omitted this block — write once so overlays + admin share the same snapshot */
+      persistAppSettings();
+    }
     if (!settings.themedOverlayPrefs && settings.engineOverlayPrefs && typeof settings.engineOverlayPrefs === "object") {
       const op = String(settings.engineOverlayPrefs.overlayPath || "")
         .replace(/\/+$/, "")
@@ -558,6 +649,7 @@ function persistAppSettings() {
           wwcdCharacterArts: settings.wwcdCharacterArts,
           googleIntegration: settings.googleIntegration,
           activeTheme: settings.activeTheme,
+          sideOverlayPrefs: settings.sideOverlayPrefs,
         },
         null,
         2
@@ -1476,6 +1568,9 @@ app.post("/settings", (req, res) => {
     } else if (Array.isArray(req.body.wwcdCharacterArts)) {
       settings.wwcdCharacterArts = sanitizeWwcdCharacterArts(req.body.wwcdCharacterArts);
     }
+  }
+  if (Object.prototype.hasOwnProperty.call(req.body, "sideOverlayPrefs")) {
+    settings.sideOverlayPrefs = sanitizeSideOverlayPrefs(req.body.sideOverlayPrefs || {});
   }
   if (Object.prototype.hasOwnProperty.call(req.body, "activeTheme")) {
     settings.activeTheme = sanitizeActiveThemeServer(req.body.activeTheme);

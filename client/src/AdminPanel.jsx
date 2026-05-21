@@ -5,6 +5,7 @@ import { normalizeMatchMeta } from "./normalizeMatchMeta";
 import RondoKnockMatrix from "./rondo/RondoKnockMatrix";
 import { getRondoRecallChargesRemaining } from "./rondo/recallCharges.js";
 import { buildLiveRankingOrder } from "./teamDisplayOrder";
+import { SIDE_OVERLAY_DEFAULT_PREFS, mergeSideOverlayPrefs, clampHexColor, stableCanonSidePrefs } from "./sideOverlayPrefs";
 
 const API = getApiBase();
 const socket = connectSocket();
@@ -53,6 +54,15 @@ export default function AdminPanel() {
   const [wwcdCharacterArts, setWwcdCharacterArts] = useState([null, null, null, null]);
   const [wwcdSlotSelected, setWwcdSlotSelected] = useState(0);
   const [wwcdUrlDraft, setWwcdUrlDraft] = useState("");
+  const sideBannerTourLogoRef = useRef(null);
+  const [sideOverlayDraft, setSideOverlayDraft] = useState(() => ({ ...SIDE_OVERLAY_DEFAULT_PREFS }));
+  const [broadcastTournamentLogo, setBroadcastTournamentLogo] = useState(null);
+
+  /** After first `/settings`, side banner colors auto-save debounced — refs avoid ping-pong loops */
+  const sidePrefsHydratedRef = useRef(false);
+  const sideLastCanonRef = useRef("");
+  const sideAutosaveTimerRef = useRef(null);
+
   const [screenshotPreviews, setScreenshotPreviews] = useState([]);
   const screenshotInputRef = useRef(null);
   const logoInputRef = useRef(null);
@@ -142,6 +152,24 @@ export default function AdminPanel() {
       if (Array.isArray(data?.wwcdCharacterArts)) {
         setWwcdCharacterArts(normalizeWwcdArts(data.wwcdCharacterArts));
       }
+      if (Object.prototype.hasOwnProperty.call(data, "tournamentLogo")) {
+        setBroadcastTournamentLogo(data.tournamentLogo || null);
+      }
+      if (
+        data?.sideOverlayPrefs != null &&
+        typeof data.sideOverlayPrefs === "object" &&
+        !Array.isArray(data.sideOverlayPrefs)
+      ) {
+        const merged = mergeSideOverlayPrefs(data.sideOverlayPrefs);
+        setSideOverlayDraft(merged);
+        sideLastCanonRef.current = stableCanonSidePrefs(merged);
+        sidePrefsHydratedRef.current = true;
+      } else if (!sidePrefsHydratedRef.current) {
+        const merged = mergeSideOverlayPrefs({});
+        setSideOverlayDraft(merged);
+        sideLastCanonRef.current = stableCanonSidePrefs(merged);
+        sidePrefsHydratedRef.current = true;
+      }
       if (data?.googleIntegration && typeof data.googleIntegration === "object") {
         setGoogleIntegration((prev) => ({ ...prev, ...data.googleIntegration }));
       }
@@ -172,6 +200,44 @@ export default function AdminPanel() {
       socket.off("tournamentUpdated", onTournament);
     };
   }, []);
+
+  /** Debounced POST so color pickers reliably sync the overlay without an extra Save click */
+  useEffect(() => {
+    if (!sidePrefsHydratedRef.current) return;
+    const canon = stableCanonSidePrefs(sideOverlayDraft);
+    if (canon === sideLastCanonRef.current) return;
+
+    if (sideAutosaveTimerRef.current != null) window.clearTimeout(sideAutosaveTimerRef.current);
+    sideAutosaveTimerRef.current = window.setTimeout(async () => {
+      sideAutosaveTimerRef.current = null;
+      try {
+        const res = await fetch(`${API}/settings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sideOverlayPrefs: mergeSideOverlayPrefs(sideOverlayDraft) }),
+        });
+        if (res.ok) {
+          const s = await res.json().catch(() => ({}));
+          if (s.sideOverlayPrefs && typeof s.sideOverlayPrefs === "object") {
+            const merged = mergeSideOverlayPrefs(s.sideOverlayPrefs);
+            sideLastCanonRef.current = stableCanonSidePrefs(merged);
+            setSideOverlayDraft(merged);
+          } else {
+            sideLastCanonRef.current = canon;
+          }
+        }
+      } catch {
+        /* offline / API — retry with Save side banner settings */
+      }
+    }, 500);
+
+    return () => {
+      if (sideAutosaveTimerRef.current != null) {
+        window.clearTimeout(sideAutosaveTimerRef.current);
+        sideAutosaveTimerRef.current = null;
+      }
+    };
+  }, [sideOverlayDraft]);
 
   useEffect(() => {
     const onActiveTheme = (name) => {
@@ -2559,6 +2625,13 @@ export default function AdminPanel() {
                 <div style={{ fontWeight: 800, fontSize: 16 }}>Elimination Banner</div>
                 <div style={{ color: "#8CB7BE", fontSize: 12, marginTop: 4 }}>Opens in separate window</div>
               </div>
+              <div style={ns.overlayCard} onClick={() => window.open("/overlay/side-banner", "_blank", "width=980,height=360")}>
+                <div style={{ fontSize: 36, marginBottom: 8 }}>▦</div>
+                <div style={{ fontWeight: 800, fontSize: 16 }}>Side match banner</div>
+                <div style={{ color: "#8CB7BE", fontSize: 12, marginTop: 4 }}>
+                  Tournament logo · group/match · map name — separate OBS source (/overlay/side-banner)
+                </div>
+              </div>
               <div style={ns.overlayCard} onClick={() => window.open("/overlay/themes", "_blank")}>
                 <div style={{ fontSize: 36, marginBottom: 8 }}>👁️</div>
                 <div style={{ fontWeight: 800, fontSize: 16 }}>Theme Preview</div>
@@ -2568,6 +2641,226 @@ export default function AdminPanel() {
                 <div style={{ fontSize: 36, marginBottom: 8 }}>🎨</div>
                 <div style={{ fontWeight: 800, fontSize: 16 }}>Theme & Design</div>
                 <div style={{ color: "#8CB7BE", fontSize: 12, marginTop: 4 }}>Broadcast engine: names, pairs & URLs</div>
+              </div>
+            </div>
+
+            {/* Side match banner — /overlay/side-banner (transparent OBS strip) */}
+            <div style={{ marginTop: 14, padding: "16px 18px", background: "rgba(255,160,72,.06)", borderRadius: 14, border: "1px solid rgba(255,170,92,.28)" }}>
+              <div style={{ fontWeight: 800, fontSize: 14, color: "#FFB86B", marginBottom: 10, letterSpacing: 0.5 }}>Side match banner controls</div>
+              <p style={{ margin: "0 0 14px", color: "#8CB7BE", fontSize: 12, lineHeight: 1.55, maxWidth: 860 }}>
+                Esports-style strip (logo pane + white match row + teal map pane). Saves to the server; the overlay listens over Socket.IO. Tournament logo uploads here apply to WWCD overlays too{" "}
+                <strong style={{ color: "#C8E8E4" }}>if shared</strong> — same <code style={{ color: "#F1CF69" }}>tournamentLogo</code> field.
+              </p>
+              <p style={{ margin: "0 0 14px", color: "#6f9aaf", fontSize: 11, fontFamily: "monospace" }}>
+                OBS path: <code style={{ color: "#F1CF69" }}>/overlay/side-banner</code> · same origin as Admin (Dev <code style={{ color: "#F1CF69" }}>:5173</code> · prod build often{" "}
+                <code style={{ color: "#F1CF69" }}>:3001</code>)
+              </p>
+
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start", marginBottom: 16 }}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10 }}>
+                  <div style={{ width: 120, height: 88, borderRadius: 10, border: "1px solid rgba(255,255,255,.14)", background: "rgba(0,0,0,.35)", overflow: "hidden", display: "grid", placeItems: "center" }}>
+                    {broadcastTournamentLogo ? (
+                      <img alt="" src={broadcastTournamentLogo.startsWith("http") ? broadcastTournamentLogo : `${API}${broadcastTournamentLogo}`} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+                    ) : (
+                      <span style={{ fontSize: 10, color: "#64748b" }}>No logo</span>
+                    )}
+                  </div>
+                  <input ref={sideBannerTourLogoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!f) return;
+                    const fd = new FormData();
+                    fd.append("logo", f);
+                    const res = await fetch(`${API}/upload/tournament-logo`, { method: "POST", body: fd });
+                    if (!res.ok) {
+                      setMessage("Tournament logo upload failed.");
+                      return;
+                    }
+                    const d = await res.json().catch(() => ({}));
+                    setBroadcastTournamentLogo(d.tournamentLogo || null);
+                    setMessage("Tournament logo updated.");
+                  }} />
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    <button type="button" onClick={() => sideBannerTourLogoRef.current?.click()} style={{ padding: "8px 12px", borderRadius: 8, border: "none", fontWeight: 800, fontSize: 11, cursor: "pointer", background: "linear-gradient(90deg,#f7931e,#ff9f43)", color: "#1a1400" }}>
+                      Upload tournament logo…
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const res = await fetch(`${API}/settings`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ tournamentLogo: null }),
+                        });
+                        if (res.ok) {
+                          setBroadcastTournamentLogo(null);
+                          setMessage("Tournament logo cleared.");
+                        }
+                      }}
+                      style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(255,120,120,.4)", fontWeight: 700, fontSize: 11, cursor: "pointer", background: "rgba(220,38,38,.12)", color: "#fecaca" }}
+                    >
+                      Remove logo
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ flex: "1 1 320px", display: "grid", gap: 10 }}>
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <span style={{ fontSize: 10, fontWeight: 800, color: "#8899aa" }}>Group label</span>
+                    <input
+                      type="text"
+                      value={sideOverlayDraft.groupLabel}
+                      onChange={(e) => setSideOverlayDraft((d) => ({ ...d, groupLabel: e.target.value.slice(0, 40) }))}
+                      style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,.12)", background: "rgba(0,0,0,.25)", color: "#fff", fontWeight: 700 }}
+                    />
+                  </label>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12 }}>
+                      <input type="checkbox" checked={Boolean(sideOverlayDraft.useLiveMatchNumber)} onChange={(e) => setSideOverlayDraft((d) => ({ ...d, useLiveMatchNumber: e.target.checked }))} /> Live match #
+                    </label>
+                    <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <span style={{ fontSize: 10, fontWeight: 800, color: "#8899aa" }}>Match # (manual)</span>
+                      <input
+                        type="number"
+                        min={1}
+                        disabled={Boolean(sideOverlayDraft.useLiveMatchNumber)}
+                        value={sideOverlayDraft.matchNumberManual || 1}
+                        onChange={(e) =>
+                          setSideOverlayDraft((d) => ({
+                            ...d,
+                            matchNumberManual: Math.max(1, Math.min(9999, parseInt(e.target.value, 10) || 1)),
+                          }))
+                        }
+                        style={{
+                          padding: "8px 10px",
+                          borderRadius: 8,
+                          border: "1px solid rgba(255,255,255,.12)",
+                          background: sideOverlayDraft.useLiveMatchNumber ? "rgba(0,0,0,.35)" : "rgba(0,0,0,.25)",
+                          color: "#fff",
+                          width: 100,
+                        }}
+                      />
+                    </label>
+                    <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <span style={{ fontSize: 10, fontWeight: 800, color: "#8899aa" }}>MAP # (optional, top line suffix)</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={999}
+                        placeholder="—"
+                        value={sideOverlayDraft.mapOrdinal == null ? "" : sideOverlayDraft.mapOrdinal}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (v.trim() === "") setSideOverlayDraft((d) => ({ ...d, mapOrdinal: null }));
+                          else {
+                            const n = Math.min(999, Math.max(1, parseInt(v, 10) || 1));
+                            setSideOverlayDraft((d) => ({ ...d, mapOrdinal: n }));
+                          }
+                        }}
+                        style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,.12)", background: "rgba(0,0,0,.25)", color: "#fff", width: 100 }}
+                      />
+                    </label>
+                  </div>
+
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12 }}>
+                      <input type="checkbox" checked={Boolean(sideOverlayDraft.useLiveMapName)} onChange={(e) => setSideOverlayDraft((d) => ({ ...d, useLiveMapName: e.target.checked }))} /> Live map from match board ({bgmiMapLabel(currentMatch.map)})
+                    </label>
+                  </div>
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <span style={{ fontSize: 10, fontWeight: 800, color: "#8899aa" }}>Map display name override</span>
+                    <input
+                      type="text"
+                      disabled={Boolean(sideOverlayDraft.useLiveMapName)}
+                      value={sideOverlayDraft.mapNameManual || ""}
+                      onChange={(e) => setSideOverlayDraft((d) => ({ ...d, mapNameManual: e.target.value.slice(0, 72) }))}
+                      placeholder="RONDO …"
+                      style={{
+                        padding: "8px 10px",
+                        borderRadius: 8,
+                        border: "1px solid rgba(255,255,255,.12)",
+                        background: sideOverlayDraft.useLiveMapName ? "rgba(0,0,0,.35)" : "rgba(0,0,0,.25)",
+                        color: "#fff",
+                        fontWeight: 800,
+                      }}
+                    />
+                  </label>
+
+                  <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 12 }}>
+                    <input type="checkbox" checked={sideOverlayDraft.showSparkle !== false} onChange={(e) => setSideOverlayDraft((d) => ({ ...d, showSparkle: e.target.checked }))} /> Show sparkle on match row
+                  </label>
+
+                  <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <span style={{ fontSize: 10, fontWeight: 800, color: "#8899aa" }}>Banner scale ({sideOverlayDraft.bannerScale})</span>
+                    <input type="range" min={50} max={150} step={5} value={Math.round(Number(sideOverlayDraft.bannerScale) * 100) || 100} onChange={(e) => setSideOverlayDraft((d) => ({ ...d, bannerScale: Math.max(0.5, Math.min(1.5, Number(e.target.value) / 100)) }))} />
+                  </label>
+                </div>
+              </div>
+
+              <div style={{ fontWeight: 800, fontSize: 11, color: "#9aaabd", marginBottom: 10 }}>Colors</div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+                {[
+                  { key: "logoPanelBg", label: "Logo panel" },
+                  { key: "topBarBg", label: "Top row bg" },
+                  { key: "topBarText", label: "Top row text" },
+                  { key: "mapAreaBgStart", label: "Map gradient A" },
+                  { key: "mapAreaBgEnd", label: "Map gradient B" },
+                  { key: "mapNameColor", label: "Map name" },
+                  { key: "sparkleColor", label: "Sparkle" },
+                ].map(({ key, label }) => (
+                  <label key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                    <input
+                      type="color"
+                      value={clampHexColor(sideOverlayDraft[key], SIDE_OVERLAY_DEFAULT_PREFS[key])}
+                      onChange={(e) =>
+                        setSideOverlayDraft((d) => ({
+                          ...d,
+                          [key]: clampHexColor(e.target.value, SIDE_OVERLAY_DEFAULT_PREFS[key]),
+                        }))
+                      }
+                      style={{ width: 42, height: 32, border: "none", borderRadius: 8, cursor: "pointer", background: "transparent" }}
+                    />
+                    <span style={{ fontSize: 9, color: "#7a8799", fontWeight: 700 }}>{label}</span>
+                  </label>
+                ))}
+              </div>
+
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (sideAutosaveTimerRef.current != null) {
+                      window.clearTimeout(sideAutosaveTimerRef.current);
+                      sideAutosaveTimerRef.current = null;
+                    }
+                    const res = await fetch(`${API}/settings`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ sideOverlayPrefs: mergeSideOverlayPrefs(sideOverlayDraft) }),
+                    });
+                    if (res.ok) {
+                      const s = await res.json().catch(() => ({}));
+                      if (s.sideOverlayPrefs && typeof s.sideOverlayPrefs === "object") {
+                        const merged = mergeSideOverlayPrefs(s.sideOverlayPrefs);
+                        setSideOverlayDraft(merged);
+                        sideLastCanonRef.current = stableCanonSidePrefs(merged);
+                      } else {
+                        sideLastCanonRef.current = stableCanonSidePrefs(mergeSideOverlayPrefs(sideOverlayDraft));
+                      }
+                      setMessage("Side banner settings saved.");
+                    } else setMessage("Could not save side banner settings.");
+                  }}
+                  style={{ padding: "10px 18px", borderRadius: 10, border: "none", fontWeight: 800, cursor: "pointer", background: "linear-gradient(90deg,#ffb347,#ff8c42)", color: "#1a1400", fontSize: 12 }}
+                >
+                  Save side banner settings
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSideOverlayDraft(() => ({ ...SIDE_OVERLAY_DEFAULT_PREFS }))}
+                  style={{ padding: "10px 14px", borderRadius: 10, border: "1px solid rgba(255,255,255,.12)", fontWeight: 700, cursor: "pointer", background: "rgba(255,255,255,.05)", color: "#9fbfcf", fontSize: 12 }}
+                >
+                  Reset form to defaults
+                </button>
               </div>
             </div>
 
@@ -2846,7 +3139,8 @@ export default function AdminPanel() {
                 <code style={{ color: "#F1CF69" }}>http://localhost:5173/overlay/broadcast-engine</code> · Elimination{" "}
                 <code style={{ color: "#F1CF69" }}>http://localhost:5173/overlay/elimination</code> · WWCD{" "}
                 <code style={{ color: "#F1CF69" }}>http://localhost:5173/overlay/wwcd</code> · WWCD strip only (transparent OBS){" "}
-                <code style={{ color: "#F1CF69" }}>http://localhost:5173/overlay/wwcd-only</code> · legacy paths{" "}
+                <code style={{ color: "#F1CF69" }}>http://localhost:5173/overlay/wwcd-only</code> · Side banner{" "}
+                <code style={{ color: "#F1CF69" }}>http://localhost:5173/overlay/side-banner</code> · legacy paths{" "}
                 <code style={{ color: "#F1CF69" }}>/overlay/wwcd-4-teams</code>, <code style={{ color: "#F1CF69" }}>/overlay/wwcd-four</code> (
                 <code style={{ color: "#F1CF69" }}>?theme=premiumGold</code>, <code style={{ color: "#F1CF69" }}>?position=bottom</code>, <code style={{ color: "#F1CF69" }}>?debug=1</code>)
               </p>

@@ -14,6 +14,7 @@ const OVERLAY_TARGETS = [
   { path: "/overlay/themed", label: "Themed match board" },
   { path: "/overlay/themed/overall", label: "Themed overall standings" },
   { path: "/overlay/elimination", label: "Elimination banner" },
+  { path: "/overlay/side-banner", label: "Side match banner (logo + match + map)" },
   { path: "/overlay/zone-prediction", label: "Zone prediction cue (admin)" },
   { path: "/overlay/announcements", label: "Live announcements ticker (admin)" },
   { path: "/overlay/finish-badges", label: "Finish / kill badges strip" },
