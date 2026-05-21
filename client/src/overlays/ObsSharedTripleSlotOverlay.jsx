@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import socket, { API } from "./socket";
-import { buildLiveRankingOrder } from "../teamDisplayOrder";
+import { buildOverlayStreamRankingOrder } from "../teamDisplayOrder";
 
 const SLOT_LABEL = {
   eliminations: "Eliminations",
@@ -46,7 +46,7 @@ function teamStableKey(t) {
 }
 
 function topFourAliveKeys(teamsList) {
-  const ordered = buildLiveRankingOrder(Array.isArray(teamsList) ? teamsList : []);
+  const ordered = buildOverlayStreamRankingOrder(Array.isArray(teamsList) ? teamsList : []);
   const alive = ordered.filter((t) => {
     const s = String(t.status || "alive").toLowerCase();
     return s === "alive" || s === "rondo_benched";
@@ -189,11 +189,11 @@ function buildRows(slotId, teamsList, cap, columnMode, fpMetric, topFourKeys) {
 
   if (columnMode === "gold4") {
     if (slotId === "live-ranking") {
-      const sorted = buildLiveRankingOrder(teams);
+      const sorted = buildOverlayStreamRankingOrder(teams);
       return sorted.slice(0, cap).map((t, i) => fromGold(t, i + 1));
     }
     if (slotId === "top-four") {
-      const ordered = buildLiveRankingOrder(teams);
+      const ordered = buildOverlayStreamRankingOrder(teams);
       const sorted = ordered
         .filter((t) => {
           const s = String(t.status || "alive").toLowerCase();
@@ -214,11 +214,11 @@ function buildRows(slotId, teamsList, cap, columnMode, fpMetric, topFourKeys) {
 
   /** live5 */
   if (slotId === "live-ranking") {
-    const sorted = buildLiveRankingOrder(teams);
+    const sorted = buildOverlayStreamRankingOrder(teams);
     return sorted.slice(0, cap).map((t, i) => fromLive(t, i + 1, true));
   }
   if (slotId === "top-four") {
-    const ordered = buildLiveRankingOrder(teams);
+    const ordered = buildOverlayStreamRankingOrder(teams);
     const sorted = ordered
       .filter((t) => {
         const s = String(t.status || "alive").toLowerCase();

@@ -3,7 +3,7 @@
  * Integer percentages among the final 1–4 non-eliminated squads match the strip overlay exactly.
  */
 
-import { buildLiveRankingOrder } from "./teamDisplayOrder";
+import { buildOverlayStreamRankingOrder } from "./teamDisplayOrder";
 
 /** Integer percentages that sum to 100 from non-negative weights */
 export function distributePercents(weights) {
@@ -27,9 +27,9 @@ export function wwcdStripWeightForTeam(t) {
   return ap * 24 + pts * 0.45 + fin * 3.5 + 1;
 }
 
-/** Full roster order first, then non-eliminated only — matches dashboard / overlays. */
+/** Full roster order first, then non-eliminated only — same ordering as stream overlay (pts, alive, id). */
 export function stripTeamsFromAlive(teams) {
-  const ordered = buildLiveRankingOrder(teams);
+  const ordered = buildOverlayStreamRankingOrder(teams);
   const alive = ordered.filter((t) => String(t.status || "").toLowerCase() !== "eliminated");
   const n = alive.length;
   if (n < 1 || n > 4) return [];

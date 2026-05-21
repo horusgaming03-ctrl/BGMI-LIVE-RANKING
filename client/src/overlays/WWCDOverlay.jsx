@@ -3,7 +3,7 @@ import { connectSocket, getApiBase } from "../apiOrigin";
 import { getTheme, getThemeNames } from "./themes";
 import { mergeThemeOverride } from "./utils/mergeThemeOverride";
 import { normalizeMatchMeta } from "../normalizeMatchMeta";
-import { buildLiveRankingOrder } from "../teamDisplayOrder";
+import { buildOverlayStreamRankingOrder } from "../teamDisplayOrder";
 
 const API = getApiBase();
 const sock = connectSocket();
@@ -639,7 +639,7 @@ export default function WWCDOverlay() {
       if (cmd.type === "showChickenDinner") {
         let team = teamsRef.current.find((t) => t.eliminationRank === 1);
         if (!team) {
-          const sorted = buildLiveRankingOrder(teamsRef.current);
+          const sorted = buildOverlayStreamRankingOrder(teamsRef.current);
           team = sorted[0];
         }
         const raw = team

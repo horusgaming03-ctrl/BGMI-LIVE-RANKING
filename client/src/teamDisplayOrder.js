@@ -47,3 +47,35 @@ export function buildLiveRankingOrder(teams) {
   }
   return out;
 }
+
+function overlayAliveCountForSort(t) {
+  const s = String(t?.status || "alive").toLowerCase();
+  if (s === "eliminated") return 0;
+  if (s === "rondo_benched") {
+    const ap = Number(t?.alivePlayers);
+    return Number.isFinite(ap) ? Math.max(0, Math.min(4, Math.floor(ap))) : 0;
+  }
+  const ap = Number(t?.alivePlayers);
+  if (Number.isFinite(ap) && ap >= 0) return Math.max(0, Math.min(4, Math.floor(ap)));
+  if (s === "alive") return 4;
+  return 0;
+}
+
+/**
+ * **OBS / stream output only** — dynamic leaderboard order for overlays.
+ * Ignores `displayOrder` row pins (unlike `buildLiveRankingOrder` used by Admin + backend).
+ *
+ * Sort: total points DESC → alive players DESC → team id ASC (stable tie-break).
+ */
+export function buildOverlayStreamRankingOrder(teams) {
+  const arr = Array.isArray(teams) ? [...teams] : [];
+  return arr.sort((a, b) => {
+    const pa = Number(a?.points) || 0;
+    const pb = Number(b?.points) || 0;
+    if (pb !== pa) return pb - pa;
+    const va = overlayAliveCountForSort(a);
+    const vb = overlayAliveCountForSort(b);
+    if (vb !== va) return vb - va;
+    return (Number(a?.id) || 0) - (Number(b?.id) || 0);
+  });
+}

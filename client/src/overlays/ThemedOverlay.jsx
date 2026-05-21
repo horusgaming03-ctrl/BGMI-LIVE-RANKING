@@ -13,7 +13,7 @@ import { resolveAliveStyle } from "./utils/resolveAliveStyle";
 import { resolveAliveLayout, resolveAliveCustomIcons } from "./utils/resolveAliveExtras";
 import { mergeThemeOverride } from "./utils/mergeThemeOverride";
 import { overlayPathMatches } from "./utils/overlayPrefsMatch";
-import { buildLiveRankingOrder } from "../teamDisplayOrder";
+import { buildOverlayStreamRankingOrder } from "../teamDisplayOrder";
 
 function OverlayInner({ cumulativeOverall = false }) {
   const { theme: baseTheme, themeName, config } = useTheme();
@@ -113,7 +113,7 @@ function OverlayInner({ cumulativeOverall = false }) {
       if (!cmd || typeof cmd !== "object" || cmd.type !== "showChickenDinner") return;
       let team = teamsRef.current.find((t) => t.eliminationRank === 1);
       if (!team) {
-        const sorted = buildLiveRankingOrder(teamsRef.current);
+        const sorted = buildOverlayStreamRankingOrder(teamsRef.current);
         team = sorted[0];
       }
       const winnerData = team
@@ -149,7 +149,7 @@ function OverlayInner({ cumulativeOverall = false }) {
     };
   }, [theme, wwcdColors]);
 
-  const sortLiveOrder = useCallback((list) => buildLiveRankingOrder(list), []);
+  const sortLiveOrder = useCallback((list) => buildOverlayStreamRankingOrder(list), []);
 
   const boardTeams = useMemo(() => {
     if (!cumulativeOverall) return sortLiveOrder(teams);

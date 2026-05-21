@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import socket, { API } from "./socket";
 import { normalizeMatchMeta } from "../normalizeMatchMeta";
 import { getRondoRecallChargesRemaining } from "../rondo/recallCharges.js";
-import { buildLiveRankingOrder } from "../teamDisplayOrder";
+import { buildOverlayStreamRankingOrder } from "../teamDisplayOrder";
 
 /** BGMI-style finish (kill) pill + skull — /overlay/finish-badges (standalone from match board). */
 const RED_PILL = "#dc2626";
@@ -243,7 +243,7 @@ export default function FinishBadgesOverlay() {
       });
       return copy;
     }
-    return buildLiveRankingOrder(copy);
+    return buildOverlayStreamRankingOrder(copy);
   }, [teams, stableOrder]);
 
   const adjustFinishes = useCallback(
