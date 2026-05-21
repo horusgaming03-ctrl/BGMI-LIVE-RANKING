@@ -14,8 +14,13 @@ const OVERLAY_TARGETS = [
   { path: "/overlay/themed", label: "Themed match board" },
   { path: "/overlay/themed/overall", label: "Themed overall standings" },
   { path: "/overlay/elimination", label: "Elimination banner" },
+  { path: "/overlay/zone-prediction", label: "Zone prediction cue (admin)" },
+  { path: "/overlay/announcements", label: "Live announcements ticker (admin)" },
+  { path: "/overlay/finish-badges", label: "Finish / kill badges strip" },
+  { path: "/overlay/rondo/finish-badges", label: "Finish badges — Rondo recall package" },
   { path: "/overlay/wwcd", label: "WWCD" },
-  { path: "/overlay/wwcd-four", label: "WWCD 4-squad strip" },
+  { path: "/overlay/wwcd-only", label: "WWCD strip only (4 teams / OBS)" },
+  { path: "/overlay/wwcd-4-teams", label: "WWCD 4-squad strip (alias)" },
   { path: "/overlay", label: "Legacy board" },
 ];
 

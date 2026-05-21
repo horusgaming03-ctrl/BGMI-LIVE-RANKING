@@ -11,6 +11,10 @@ import WWCDOverlay from "./overlays/WWCDOverlay";
 import WwcFourAliveStripOverlay from "./overlays/WwcFourAliveStripOverlay";
 import BroadcastEngineOverlay from "./overlay-engine/BroadcastEngineOverlay";
 import EngineCatalog from "./overlay-engine/EngineCatalog";
+import ZonePredictionOverlay from "./overlays/ZonePredictionOverlay";
+import LiveAnnouncementOverlay from "./overlays/LiveAnnouncementOverlay";
+import FinishBadgesOverlay from "./overlays/FinishBadgesOverlay";
+import ObsSharedTripleSlotOverlay from "./overlays/ObsSharedTripleSlotOverlay";
 
 export default function App() {
   return (
@@ -25,9 +29,18 @@ export default function App() {
       <Route path="/overlay/themes" element={<ThemePreview />} />
       <Route path="/overlay/elimination" element={<EliminationOverlay />} />
       <Route path="/overlay/wwcd" element={<WWCDOverlay />} />
+      {/* Final-squad WWCD strip only (transparent OBS source). Aliases share the same overlay. */}
+      <Route path="/overlay/wwcd-only" element={<WwcFourAliveStripOverlay />} />
+      <Route path="/overlay/wwcd-4-teams" element={<WwcFourAliveStripOverlay />} />
       <Route path="/overlay/wwcd-four" element={<WwcFourAliveStripOverlay />} />
+      <Route path="/overlay/zone-prediction" element={<ZonePredictionOverlay />} />
+      <Route path="/overlay/announcements" element={<LiveAnnouncementOverlay />} />
+      <Route path="/overlay/finish-badges" element={<FinishBadgesOverlay />} />
+      <Route path="/overlay/rondo/finish-badges" element={<FinishBadgesOverlay />} />
       <Route path="/overlay/broadcast-engine" element={<BroadcastEngineOverlay />} />
       <Route path="/overlay/engine-catalog" element={<EngineCatalog />} />
+      {/* One PNG on disk → three OBS browser-source URLs read the same asset (no processing). */}
+      <Route path="/overlay/obs-slot/:slotId" element={<ObsSharedTripleSlotOverlay />} />
     </Routes>
   );
 }

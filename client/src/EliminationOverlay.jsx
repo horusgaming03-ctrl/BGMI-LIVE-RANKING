@@ -38,15 +38,27 @@ export default function EliminationOverlay() {
 
   useEffect(() => {
     const onSettings = (s) => {
+      if (!s || typeof s !== "object") return;
       setThemeColorOverrides(s?.themeColorOverrides && typeof s.themeColorOverrides === "object" ? s.themeColorOverrides : {});
     };
     socket.on("settingsUpdated", onSettings);
     socket.emit("requestSettings");
+    fetch(`${API}/settings`)
+      .then((r) => r.json())
+      .then(onSettings)
+      .catch(() => {});
     return () => socket.off("settingsUpdated", onSettings);
   }, []);
 
   useEffect(() => {
     if (urlTheme) return;
+    fetch(`${API}/overlay/active-theme`)
+      .then((r) => r.json())
+      .then((d) => {
+        const t = d?.theme;
+        if (typeof t === "string" && getThemeNames().includes(t)) setLiveTheme(t);
+      })
+      .catch(() => {});
     const onActiveTheme = (name) => {
       if (getThemeNames().includes(name)) setLiveTheme(name);
     };

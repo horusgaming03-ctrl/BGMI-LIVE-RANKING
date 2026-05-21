@@ -21,6 +21,31 @@ function AliveHeartGlyph({ fill, muted, size }) {
   );
 }
 
+/** Vector sun — consistent in OBS unlike emoji glyphs. */
+function AliveSunGlyph({ fill, muted, size }) {
+  const s = Math.max(12, Math.round(size) + 6);
+  const rays = 8;
+  const inner = 5.2;
+  const outer = 10.2;
+  return (
+    <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: "block", opacity: muted ? 0.28 : 1 }} aria-hidden="true">
+      {Array.from({ length: rays }, (_, i) => {
+        const a = (i / rays) * Math.PI * 2 - Math.PI / 2;
+        const cx = 12;
+        const cy = 12;
+        const x1 = cx + inner * Math.cos(a);
+        const y1 = cy + inner * Math.sin(a);
+        const x2 = cx + outer * Math.cos(a);
+        const y2 = cy + outer * Math.sin(a);
+        return (
+          <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={fill} strokeWidth={2} strokeLinecap="round" />
+        );
+      })}
+      <circle cx="12" cy="12" r="4.3" fill={fill} />
+    </svg>
+  );
+}
+
 function cellStyle(base, alive, deadIgnored, extra = {}) {
   return {
     background: alive ? base.color : base.deadColor,
@@ -205,6 +230,16 @@ function AliveIndicator({ count, theme, styleId = "square", layout = "grid", cus
           <span key={i} style={{ opacity: i < c ? 1 : 0.22, textAlign: "center" }}>
             ★
           </span>
+        ))}
+      </div>
+    );
+  }
+
+  if (styleId === "sun") {
+    return (
+      <div style={makeWrap(lay, size, gap, { heartMode: true })}>
+        {[0, 1, 2, 3].map((i) => (
+          <AliveSunGlyph key={i} fill={i < c ? color : deadColor} muted={i >= c} size={size} />
         ))}
       </div>
     );

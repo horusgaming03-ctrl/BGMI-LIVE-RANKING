@@ -11,7 +11,9 @@
     "client": "cd client && npm run dev",
     "dev:client": "cd client && npm run dev",
     "build:client": "cd client && npm run build",
-    "dev": "cd client && npm run dev",
+    "dev:api": "node scripts/start-backend.js",
+    "dev:vite": "cd client && npm run dev",
+    "dev": "node scripts/run-dev.js",
     "build": "cd client && npm run build",
     "preview": "cd client && npm run preview",
     "wwcd:chars": "node scripts/build-wwcd-characters.mjs",
@@ -22,6 +24,7 @@
     "cors": "^2.8.6",
     "dotenv": "^16.4.7",
     "express": "^5.2.1",
+    "googleapis": "^140.0.1",
     "multer": "^2.1.1",
     "react-router-dom": "^7.15.0",
     "socket.io": "^4.8.3",
@@ -29,6 +32,7 @@
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "sharp": "^0.34.5"
   }
 }

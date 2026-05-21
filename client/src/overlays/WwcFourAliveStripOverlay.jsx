@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getTheme, getThemeNames } from "./themes";
 import socket, { API } from "./socket";
 import { mergeThemeOverride } from "./utils/mergeThemeOverride";
+import { wwcdPercentsForStripTeams, stripTeamsFromAlive } from "../wwcdModel";
 
 function hexToRgba(hex, alpha) {
   if (!hex || typeof hex !== "string" || !hex.startsWith("#")) return `rgba(255,255,255,${alpha})`;
@@ -11,19 +12,6 @@ function hexToRgba(hex, alpha) {
   const g = parseInt(h.substring(2, 4), 16);
   const b = parseInt(h.substring(4, 6), 16);
   return `rgba(${r},${g},${b},${alpha})`;
-}
-
-/** Integer percentages that sum to 100 from non-negative weights */
-function distributePercents(weights) {
-  const safe = weights.map((w) => Math.max(0, Number(w) || 0));
-  const sum = safe.reduce((a, b) => a + b, 0);
-  if (sum <= 0) return safe.map(() => Math.floor(100 / weights.length));
-  const exact = safe.map((w) => (w / sum) * 100);
-  const floors = exact.map((x) => Math.floor(x));
-  let rem = 100 - floors.reduce((a, b) => a + b, 0);
-  const order = exact.map((x, i) => ({ i, r: x - Math.floor(x) })).sort((a, b) => b.r - a.r);
-  for (let k = 0; k < rem; k++) floors[order[k % order.length].i]++;
-  return floors;
 }
 
 function teamLogoUrl(logo) {
@@ -64,6 +52,9 @@ function SquadBars({ alivePlayers, barGreen, barDead, barsBg }) {
   );
 }
 
+/** Fixed pixel width — same card size whether 1, 2, 3, or 4 squads; row stays centered */
+const CARD_STRIP_FIXED_PX = 280;
+
 function TeamCard({
   team,
   wwcdPct,
@@ -85,9 +76,10 @@ function TeamCard({
   return (
     <div
       style={{
-        flex: "1 1 0",
-        minWidth: 0,
-        maxWidth: 280,
+        flex: `0 0 ${CARD_STRIP_FIXED_PX}px`,
+        width: CARD_STRIP_FIXED_PX,
+        minWidth: CARD_STRIP_FIXED_PX,
+        maxWidth: CARD_STRIP_FIXED_PX,
         display: "flex",
         flexDirection: "column",
         borderRadius: 10,
@@ -145,10 +137,15 @@ export default function WwcFourAliveStripOverlay() {
 
   useEffect(() => {
     const onSettings = (s) => {
+      if (!s || typeof s !== "object") return;
       setThemeColorOverrides(s?.themeColorOverrides && typeof s.themeColorOverrides === "object" ? s.themeColorOverrides : {});
     };
     socket.on("settingsUpdated", onSettings);
     socket.emit("requestSettings");
+    fetch(`${API}/settings`)
+      .then((r) => r.json())
+      .then(onSettings)
+      .catch(() => {});
     return () => socket.off("settingsUpdated", onSettings);
   }, []);
 
@@ -157,6 +154,13 @@ export default function WwcFourAliveStripOverlay() {
       if (getThemeNames().includes(urlTheme)) setLiveTheme(urlTheme);
       return undefined;
     }
+    fetch(`${API}/overlay/active-theme`)
+      .then((r) => r.json())
+      .then((d) => {
+        const t = d?.theme;
+        if (typeof t === "string" && getThemeNames().includes(t)) setLiveTheme(t);
+      })
+      .catch(() => {});
     const onActiveTheme = (name) => {
       if (typeof name === "string" && getThemeNames().includes(name)) setLiveTheme(name);
     };
@@ -193,30 +197,29 @@ export default function WwcFourAliveStripOverlay() {
 
   useEffect(() => {
     const onTeams = (data) => setTeams(Array.isArray(data) ? data : []);
+    const onMatchUpdated = (payload) => {
+      if (payload && Array.isArray(payload.teams)) setTeams(payload.teams);
+    };
     socket.on("teamsUpdated", onTeams);
+    socket.on("matchUpdated", onMatchUpdated);
     socket.emit("requestTeams");
-    return () => socket.off("teamsUpdated", onTeams);
+    return () => {
+      socket.off("teamsUpdated", onTeams);
+      socket.off("matchUpdated", onMatchUpdated);
+    };
   }, []);
+
+  /** Show strip for final-circle counts only: 1–4 squads still alive (>4 hidden). */
+  const stripTeams = useMemo(() => {
+    const sorted = stripTeamsFromAlive(teams);
+    return sorted.length ? sorted : null;
+  }, [teams]);
 
   const aliveTeams = useMemo(() => {
     return teams.filter((t) => String(t.status || "").toLowerCase() !== "eliminated");
   }, [teams]);
 
-  const four = useMemo(() => {
-    if (aliveTeams.length !== 4) return null;
-    return [...aliveTeams].sort((a, b) => (b.points || 0) - (a.points || 0) || (b.finishes || 0) - (a.finishes || 0));
-  }, [aliveTeams]);
-
-  const percents = useMemo(() => {
-    if (!four) return [];
-    const weights = four.map((t) => {
-      const ap = Math.max(0, Math.min(4, Number(t.alivePlayers) || 0));
-      const pts = Math.max(0, Number(t.points) || 0);
-      const fin = Math.max(0, Number(t.finishes) || 0);
-      return ap * 24 + pts * 0.45 + fin * 3.5 + 1;
-    });
-    return distributePercents(weights);
-  }, [four]);
+  const percents = useMemo(() => wwcdPercentsForStripTeams(stripTeams), [stripTeams]);
 
   return (
     <div
@@ -229,7 +232,7 @@ export default function WwcFourAliveStripOverlay() {
         overflow: "hidden",
       }}
     >
-      {four && (
+      {stripTeams && (
         <div
           style={{
             position: "absolute",
@@ -237,15 +240,17 @@ export default function WwcFourAliveStripOverlay() {
             ...(position === "bottom"
               ? { bottom: "7%", transform: "translateX(-50%)" }
               : { top: "50%", transform: "translate(-50%, -50%)" }),
-            width: "min(1680px, 96vw)",
+            width: "max-content",
+            maxWidth: "min(1680px, 96vw)",
             display: "flex",
             flexDirection: "row",
             gap: 14,
+            flexWrap: "nowrap",
             alignItems: "stretch",
             justifyContent: "center",
           }}
         >
-          {four.map((team, i) => (
+          {stripTeams.map((team, i) => (
             <TeamCard
               key={team.id ?? `${team.team}-${i}`}
               team={team}
@@ -264,7 +269,7 @@ export default function WwcFourAliveStripOverlay() {
         </div>
       )}
 
-      {debug && !four && (
+      {debug && !stripTeams && (
         <div
           style={{
             position: "fixed",
@@ -275,13 +280,35 @@ export default function WwcFourAliveStripOverlay() {
             fontFamily: "monospace",
           }}
         >
-          WWCD strip hidden ({aliveTeams.length} team{aliveTeams.length === 1 ? "" : "s"} alive, need 4)
+          WWCD strip hidden ({aliveTeams.length} squad{aliveTeams.length === 1 ? "" : "s"} alive — shows for 1–4
+          alive; 5+ hides)
         </div>
       )}
 
       <style>{`
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { overflow: hidden; background: transparent !important; }
+        *,
+        *::before,
+        *::after {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+        html {
+          height: 100%;
+          overflow: hidden;
+          background: transparent !important;
+        }
+        body {
+          overflow: hidden;
+          min-height: 100%;
+          height: 100%;
+          background: transparent !important;
+        }
+        #root {
+          min-height: 100%;
+          height: 100%;
+          background: transparent !important;
+        }
       `}</style>
     </div>
   );

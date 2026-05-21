@@ -8,6 +8,38 @@
     "aliveCustomAlive": null,
     "aliveCustomDead": null
   },
-  "themeColorOverrides": {},
-  "overallStandingsBg": null
+  "themeColorOverrides": {
+    "futuristic": {
+      "colors": {
+        "primary": "#007bff"
+      },
+      "alive": {
+        "color": "#2624a3"
+      }
+    }
+  },
+  "overallStandingsBg": null,
+  "obsSharedTriplePng": "/uploads/obs-shared-triple/obs-slot-1779179027810.png",
+  "obsSharedTripleColumns": "live5",
+  "obsTripleFpMetric": "points",
+  "wwcdCharacterArts": [
+    null,
+    null,
+    null,
+    null
+  ],
+  "googleIntegration": {
+    "enabled": false,
+    "driveFolderId": "",
+    "registrationSpreadsheetId": "",
+    "registrationRange": "Form Responses 1!A:Z",
+    "syncIntervalMs": 120000,
+    "autoUpload": true,
+    "lastExportAt": null,
+    "lastSheetsSyncAt": null,
+    "lastDriveSyncAt": null,
+    "importedDriveFileIds": [],
+    "lastError": null
+  },
+  "activeTheme": "premiumGold"
 }

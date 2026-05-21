@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { connectSocket, getApiBase } from "./apiOrigin";
+import { buildLiveRankingOrder } from "./teamDisplayOrder";
 
 const API = getApiBase();
 
@@ -50,7 +51,7 @@ export default function Overlay() {
       if (cmd.type === "showChickenDinner") {
         let team = teamsRef.current.find((t) => t.eliminationRank === 1);
         if (!team) {
-          const sorted = [...teamsRef.current].sort((a, b) => (b.points || 0) - (a.points || 0));
+          const sorted = buildLiveRankingOrder(teamsRef.current);
           team = sorted[0];
         }
         const winnerData = team
@@ -95,11 +96,7 @@ export default function Overlay() {
   }, []);
 
   const sorted = useMemo(() => {
-    return [...teams].sort(
-      (a, b) =>
-        b.points - a.points ||
-        b.finishes - a.finishes
-    );
+    return buildLiveRankingOrder(teams);
   }, [teams]);
 
   return (

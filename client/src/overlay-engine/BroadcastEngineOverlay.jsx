@@ -7,6 +7,7 @@ import EngineThemedBoard from "./components/EngineThemedBoard";
 import ThemedWWCD from "../overlays/components/ThemedWWCD";
 import BackgroundEffects from "../overlays/effects/BackgroundEffects";
 import socket from "../overlays/socket";
+import { buildLiveRankingOrder } from "../teamDisplayOrder";
 
 function EngineDebugHud() {
   const o = useEngineOverlay();
@@ -68,7 +69,7 @@ function EngineOverlayInner() {
       if (cmd.type === "showChickenDinner") {
         let team = teamsRef.current.find((t) => t.eliminationRank === 1);
         if (!team) {
-          const sorted = [...teamsRef.current].sort((a, b) => (b.points || 0) - (a.points || 0));
+          const sorted = buildLiveRankingOrder(teamsRef.current);
           team = sorted[0];
         }
         const winnerData = team
@@ -105,10 +106,7 @@ function EngineOverlayInner() {
     };
   }, [theme, wwcdColors]);
 
-  const sorted = useMemo(
-    () => [...teams].sort((a, b) => b.points - a.points || b.finishes - a.finishes),
-    [teams]
-  );
+  const sorted = useMemo(() => buildLiveRankingOrder(teams), [teams]);
 
   return (
     <div

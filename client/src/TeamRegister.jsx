@@ -104,6 +104,15 @@ export default function TeamRegister() {
     }
   };
 
+  const onRegistrationEnterCapture = (e) => {
+    if (e.key !== "Enter" || e.repeat) return;
+    if (submitting) return;
+    if ((e.target?.tagName || "").toLowerCase() !== "input") return;
+    if (String(e.target.type || "").toLowerCase() === "file") return;
+    e.preventDefault();
+    void submit();
+  };
+
   return (
     <div style={st.page}>
       <div style={st.container}>
@@ -120,7 +129,11 @@ export default function TeamRegister() {
         )}
 
         <div style={st.grid}>
-          <div style={st.formCard}>
+          <form
+            style={st.formCard}
+            onSubmit={(e) => e.preventDefault()}
+            onKeyDownCapture={onRegistrationEnterCapture}
+          >
             <div style={st.sectionLabel}>TEAM INFORMATION</div>
 
             <label style={st.field}>
@@ -141,7 +154,7 @@ export default function TeamRegister() {
                   {logoPreview ? "" : "+"}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <button onClick={() => logoRef.current?.click()} style={st.uploadBtn}>
+                  <button type="button" onClick={() => logoRef.current?.click()} style={st.uploadBtn}>
                     {logo ? "Change Logo" : "Upload Logo"}
                   </button>
                   <p style={{ margin: "6px 0 0", color: "#5a7a82", fontSize: 12 }}>PNG, JPG, SVG — max 5MB</p>
@@ -159,10 +172,15 @@ export default function TeamRegister() {
               </div>
             </div>
 
-            <button onClick={submit} disabled={submitting} style={{ ...st.submitBtn, opacity: submitting ? 0.6 : 1 }}>
+            <button
+              type="button"
+              onClick={() => void submit()}
+              disabled={submitting}
+              style={{ ...st.submitBtn, opacity: submitting ? 0.6 : 1 }}
+            >
               {submitting ? "Registering..." : "Register Team"}
             </button>
-          </div>
+          </form>
 
           <div style={st.teamsCard}>
             <div style={st.sectionLabel}>REGISTERED TEAMS ({teams.length})</div>

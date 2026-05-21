@@ -7,6 +7,7 @@ import ThemeSwitcher from "./components/ThemeSwitcher";
 import { getPresetConfig } from "./presets";
 import socket, { API } from "./socket";
 import { mergeThemeOverride } from "./utils/mergeThemeOverride";
+import { normalizeMatchMeta } from "../normalizeMatchMeta";
 
 /**
  * Themed overall standings overlay.
@@ -23,11 +24,16 @@ function OverallInner() {
 
   useEffect(() => {
     const onSettings = (s) => {
+      if (!s || typeof s !== "object") return;
       setThemeColorOverrides(s?.themeColorOverrides && typeof s.themeColorOverrides === "object" ? s.themeColorOverrides : {});
       setOverallStandingsBg(s?.overallStandingsBg && typeof s.overallStandingsBg === "string" ? s.overallStandingsBg : null);
     };
     socket.on("settingsUpdated", onSettings);
     socket.emit("requestSettings");
+    fetch(`${API}/settings`)
+      .then((r) => r.json())
+      .then(onSettings)
+      .catch(() => {});
     return () => socket.off("settingsUpdated", onSettings);
   }, []);
 
@@ -38,7 +44,10 @@ function OverallInner() {
 
   useEffect(() => {
     const onTournament = (data) => setStats(Array.isArray(data) ? data : []);
-    const onMatch = (data) => setMatch(data);
+    const onMatch = (data) => {
+      const meta = normalizeMatchMeta(data);
+      if (meta) setMatch(meta);
+    };
     const onCommand = (cmd) => {
       if (cmd.type === "toggleFullscreen") {
         if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
@@ -174,7 +183,7 @@ function OverallInner() {
                   fontWeight: 900,
                 }}
               >
-                AFTER {match.number || 1} MATCHES
+                MATCH #{match.number || 1}
               </span>
             </div>
             <div
@@ -378,7 +387,7 @@ function OverallInner() {
                 letterSpacing: "0.05em",
               }}
             >
-              AFTER {match.number || 1} MATCHES
+              MATCH #{match.number || 1}
             </span>
           </div>
         </div>

@@ -6,6 +6,7 @@ export const LEGACY_ALIVE_STYLE_IDS = [
   "circle",
   "diamond",
   "star",
+  "sun",
   "heart",
   "skull",
   "shield",

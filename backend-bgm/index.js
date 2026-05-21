@@ -7,6 +7,8 @@ const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 const fs = require("fs");
 
+const googleInt = require("./google/googleIntegration");
+
 const ROOT = path.join(__dirname, "..");
 
 const app = express();
@@ -20,8 +22,9 @@ const tournamentDir = path.join(uploadsDir, "tournament");
 const aliveIconsDir = path.join(uploadsDir, "alive-icons");
 const overallStandingsDir = path.join(uploadsDir, "overall-standings");
 const wwcdCharsDir = path.join(uploadsDir, "wwcd-chars");
+const obsSharedTripleDir = path.join(uploadsDir, "obs-shared-triple");
 
-[uploadsDir, logosDir, screenshotsDir, tournamentDir, aliveIconsDir, overallStandingsDir, wwcdCharsDir].forEach((dir) => {
+[uploadsDir, logosDir, screenshotsDir, tournamentDir, aliveIconsDir, overallStandingsDir, wwcdCharsDir, obsSharedTripleDir].forEach((dir) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
@@ -131,9 +134,141 @@ const wwcdCharUpload = multer({
   },
 });
 
-// ── BGMI Position Points ──
+/** PNG only — wired to `/overlay/obs-slot/*`; all three OBS URLs fetch the same file (/uploads/obs-shared-triple/...). */
+const obsSharedTriplePngUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, obsSharedTripleDir),
+    filename: (_req, _file, cb) => {
+      cb(null, `obs-slot-${Date.now()}.png`);
+    },
+  }),
+  limits: { fileSize: 40 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || "").toLowerCase();
+    // Trust `.png` only — multer/OS MIME pairs are inconsistent (often octet-stream or empty).
+    if (ext === ".png") return cb(null, true);
+    cb(new Error("OBS shared-slot upload accepts PNG files only."));
+  },
+});
+
+// ── BGMI placement points + 1 pt per finish (`finishes`) in recalculatePoints ──
+// #1→10, #2→6, #3→5, #4→4, #5→3, #6→2, #7→1, #8→1, #9–#25→0
 const POSITION_POINTS = { 1: 10, 2: 6, 3: 5, 4: 4, 5: 3, 6: 2, 7: 1, 8: 1 };
-const getPositionPoints = (rank) => POSITION_POINTS[rank] || 0;
+function getPositionPoints(rank) {
+  const r = Math.floor(Number(rank));
+  if (!Number.isFinite(r) || r < 1 || r > 25) return 0;
+  return POSITION_POINTS[r] ?? 0;
+}
+
+const ALLOWED_BGMI_MAPS = new Set(["erangel", "miramar", "rondo"]);
+
+function sanitizeMatchMap(raw) {
+  const k = String(raw || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "");
+  if (ALLOWED_BGMI_MAPS.has(k)) return k;
+  return "erangel";
+}
+
+function sanitizeMatchLabel(raw) {
+  if (raw == null || raw === "") return "";
+  const s = String(raw).trim().slice(0, 72);
+  return s;
+}
+
+function extractDriveOrSheetId(raw, kind) {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  if (kind === "folder") {
+    const m = s.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+    if (m) return m[1];
+  }
+  if (kind === "sheet") {
+    const m = s.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+    if (m) return m[1];
+  }
+  if (/^[a-zA-Z0-9_-]{20,}$/.test(s)) return s;
+  return s.split("/")[0] || "";
+}
+
+function sanitizeGoogleIntegration(raw) {
+  const base = {
+    enabled: false,
+    driveFolderId: "",
+    registrationSpreadsheetId: "",
+    registrationRange: "Form Responses 1!A:Z",
+    syncIntervalMs: 120000,
+    autoUpload: true,
+    lastExportAt: null,
+    lastSheetsSyncAt: null,
+    lastDriveSyncAt: null,
+    importedDriveFileIds: [],
+    lastError: null,
+  };
+  if (!raw || typeof raw !== "object") return base;
+  return {
+    enabled: Boolean(raw.enabled),
+    driveFolderId: extractDriveOrSheetId(raw.driveFolderId, "folder"),
+    registrationSpreadsheetId: extractDriveOrSheetId(raw.registrationSpreadsheetId, "sheet"),
+    registrationRange:
+      typeof raw.registrationRange === "string" && raw.registrationRange.trim()
+        ? raw.registrationRange.trim().slice(0, 120)
+        : base.registrationRange,
+    syncIntervalMs: Math.max(30_000, Math.min(3_600_000, Number(raw.syncIntervalMs) || 120_000)),
+    autoUpload: raw.autoUpload !== false,
+    lastExportAt: typeof raw.lastExportAt === "string" ? raw.lastExportAt : null,
+    lastSheetsSyncAt: typeof raw.lastSheetsSyncAt === "string" ? raw.lastSheetsSyncAt : null,
+    lastDriveSyncAt: typeof raw.lastDriveSyncAt === "string" ? raw.lastDriveSyncAt : null,
+    importedDriveFileIds: Array.isArray(raw.importedDriveFileIds)
+      ? raw.importedDriveFileIds.filter((x) => typeof x === "string" && x.length < 120).slice(0, 5000)
+      : [],
+    lastError: typeof raw.lastError === "string" ? raw.lastError.slice(0, 500) : null,
+  };
+}
+
+/** Treat CSV / legacy payloads safely — Boolean("false") === true otherwise. */
+function coerceJsonBool(v, defaultVal = false) {
+  if (v === true || v === 1) return true;
+  if (v === false || v === 0) return false;
+  if (v == null || v === "") return defaultVal;
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    if (s === "true" || s === "1" || s === "yes") return true;
+    if (s === "false" || s === "0" || s === "no") return false;
+    return defaultVal;
+  }
+  return defaultVal;
+}
+
+function isRondoMapActive() {
+  return sanitizeMatchMap(currentMatch.map) === "rondo";
+}
+
+/** Each seated player has one Rondo redeploy credit per match (4 total). Consumed per player recalled. */
+const RONDO_RECALL_CHARGE_CAP = 4;
+
+function coerceRecallChargesFromTeam(team) {
+  const raw = team.rondoRecallChargesRemaining;
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return Math.max(0, Math.min(RONDO_RECALL_CHARGE_CAP, Math.trunc(raw)));
+  }
+  if (typeof raw === "string" && String(raw).trim() !== "") {
+    const n = Number(String(raw).trim());
+    if (Number.isFinite(n)) return Math.max(0, Math.min(RONDO_RECALL_CHARGE_CAP, Math.trunc(n)));
+  }
+  const consumed = coerceJsonBool(team.rondoRecallConsumed, false);
+  return consumed ? 0 : RONDO_RECALL_CHARGE_CAP;
+}
+
+/** Defaults for Rondo recall fields when loading persisted teams. */
+function normalizeTeamRondoFields(team) {
+  if (!team || typeof team !== "object") return team;
+  team.rondoRecallChargesRemaining = coerceRecallChargesFromTeam(team);
+  team.rondoRecallConsumed = team.rondoRecallChargesRemaining <= 0;
+  team.rondoAwaitingRecall = coerceJsonBool(team.rondoAwaitingRecall, false);
+  return team;
+}
 
 // ── State ──
 let teams = [];
@@ -141,6 +276,8 @@ let currentMatch = {
   number: 1,
   status: "live",
   startedAt: Date.now(),
+  map: "erangel",
+  matchLabel: "",
 };
 
 let matchHistory = [];
@@ -153,8 +290,18 @@ let settings = {
   themeColorOverrides: {},
   /** Custom full-bleed PNG for `/overlay/themed/overall` points table */
   overallStandingsBg: null,
+  /** One PNG for three isolated OBS URLs: /overlay/obs-slot/(eliminations|top-four|live-ranking) — no transform, same file. */
+  obsSharedTriplePng: null,
+  /** Overlay cells: gold4 (#·TEAM·FP·STATUS) vs live5 (dashboard FIN·TOTAL·pings). */
+  obsSharedTripleColumns: "live5",
+  /** When obsSharedTripleColumns === gold4, FP shows points or finishes (dashboard Kills). */
+  obsTripleFpMetric: "points",
   /** Per-slot art for `/overlay/wwcd` character cards: null | /uploads/wwcd-chars/... | https://... */
   wwcdCharacterArts: [null, null, null, null],
+  /** Google Drive + Sheets (see .env GOOGLE_APPLICATION_CREDENTIALS) */
+  googleIntegration: sanitizeGoogleIntegration({}),
+  /** Live match board theme id (must match client theme names, e.g. cyberpunk) — persisted across restarts */
+  activeTheme: "esports",
 };
 
 const dataDir = path.join(ROOT, "data");
@@ -198,13 +345,15 @@ function loadMatchState() {
     }
     const raw = JSON.parse(fs.readFileSync(teamsStateFile, "utf8"));
     if (Array.isArray(raw.teams)) {
-      teams = raw.teams;
+      teams = raw.teams.map((t) => normalizeTeamRondoFields({ ...t }));
     }
     if (raw.currentMatch && typeof raw.currentMatch === "object") {
       currentMatch = {
         number: Math.max(1, Number(raw.currentMatch.number) || 1),
         status: typeof raw.currentMatch.status === "string" ? raw.currentMatch.status : "live",
         startedAt: typeof raw.currentMatch.startedAt === "number" ? raw.currentMatch.startedAt : Date.now(),
+        map: sanitizeMatchMap(raw.currentMatch.map),
+        matchLabel: sanitizeMatchLabel(raw.currentMatch.matchLabel),
       };
     }
     if (Array.isArray(raw.matchHistory)) {
@@ -218,6 +367,61 @@ function loadMatchState() {
   }
 }
 
+function emitHistoryUpdated() {
+  io.emit("historyUpdated", matchHistory);
+}
+
+/** Clears live scoring on every roster row (same baseline as after POST /match/new). */
+function resetAllTeamsLiveScores() {
+  teams = teams.map((t) => ({
+    ...t,
+    status: "alive",
+    finishes: 0,
+    points: 0,
+    alivePlayers: 4,
+    positionPoints: 0,
+    eliminationRank: null,
+    rondoRecallChargesRemaining: RONDO_RECALL_CHARGE_CAP,
+    rondoRecallConsumed: false,
+    rondoAwaitingRecall: false,
+  }));
+}
+
+/** Clears saved series history and resets every squad's live scores with Match #1 (current map kept). */
+function performFullTournamentRestart() {
+  matchHistory = [];
+  currentMatch.number = 1;
+  currentMatch.status = "live";
+  currentMatch.startedAt = Date.now();
+  currentMatch.matchLabel = "";
+  resetAllTeamsLiveScores();
+}
+
+/** Push / replace finalized snapshot for currentMatch.number — used when ending a match or starting a new live one while still live */
+function archiveCurrentMatchSnapshot() {
+  if (!Array.isArray(teams) || teams.length === 0) return;
+
+  const num = Number(currentMatch.number);
+  matchHistory = matchHistory.filter((m) => Number(m.number) !== num);
+
+  const winner = teams.find((t) => t.eliminationRank === 1);
+
+  matchHistory.push({
+    id: Date.now(),
+    number: currentMatch.number,
+    status: "ended",
+    startedAt: currentMatch.startedAt,
+    endedAt: Date.now(),
+    map: currentMatch.map || "erangel",
+    matchLabel: currentMatch.matchLabel || "",
+    teams: teams.map((t) => ({ ...t })),
+    winner: winner ? winner.team : null,
+  });
+
+  schedulePersistMatchState();
+  emitHistoryUpdated();
+}
+
 function sanitizeAliveIconPathServer(s) {
   if (typeof s !== "string" || !s.startsWith("/uploads/alive-icons/")) return null;
   if (s.includes("..")) return null;
@@ -228,6 +432,25 @@ function sanitizeOverallStandingsBgServer(s) {
   if (typeof s !== "string" || !s.startsWith("/uploads/overall-standings/")) return null;
   if (s.includes("..")) return null;
   return s;
+}
+
+function sanitizeObsSharedTriplePngServer(s) {
+  if (typeof s !== "string" || !s.startsWith("/uploads/obs-shared-triple/")) return null;
+  if (s.includes("..")) return null;
+  return s;
+}
+
+/** OBS triple overlay row shape — persisted (pick what your PNG artwork shows). */
+function sanitizeObsSharedTripleColumnsServer(v) {
+  if (v === "gold4") return "gold4";
+  if (v === "live5") return "live5";
+  return "live5";
+}
+
+/** FP cell in gold4 maps to dashboard PTS or Kills (`finishes`). */
+function sanitizeObsTripleFpMetricServer(v) {
+  if (v === "finishes") return "finishes";
+  return "points";
 }
 
 function sanitizeWwcdCharacterArts(input) {
@@ -255,6 +478,15 @@ function sanitizeThemedOverlayPrefs(raw) {
   };
 }
 
+/** Theme id for /overlay/themed — same pattern as themeColorOverrides keys */
+function sanitizeActiveThemeServer(v) {
+  if (v == null || v === "") return "esports";
+  if (typeof v !== "string") return "esports";
+  const t = v.trim();
+  if (!/^[a-zA-Z][a-zA-Z0-9_]{0,39}$/.test(t)) return "esports";
+  return t;
+}
+
 function loadPersistedSettings() {
   try {
     if (!fs.existsSync(settingsPersistFile)) return;
@@ -275,8 +507,23 @@ function loadPersistedSettings() {
     if (Object.prototype.hasOwnProperty.call(raw, "overallStandingsBg")) {
       settings.overallStandingsBg = sanitizeOverallStandingsBgServer(raw.overallStandingsBg);
     }
+    if (Object.prototype.hasOwnProperty.call(raw, "obsSharedTriplePng")) {
+      settings.obsSharedTriplePng = sanitizeObsSharedTriplePngServer(raw.obsSharedTriplePng);
+    }
+    if (Object.prototype.hasOwnProperty.call(raw, "obsSharedTripleColumns")) {
+      settings.obsSharedTripleColumns = sanitizeObsSharedTripleColumnsServer(raw.obsSharedTripleColumns);
+    }
+    if (Object.prototype.hasOwnProperty.call(raw, "obsTripleFpMetric")) {
+      settings.obsTripleFpMetric = sanitizeObsTripleFpMetricServer(raw.obsTripleFpMetric);
+    }
     if (Array.isArray(raw.wwcdCharacterArts)) {
       settings.wwcdCharacterArts = sanitizeWwcdCharacterArts(raw.wwcdCharacterArts);
+    }
+    if (raw.googleIntegration && typeof raw.googleIntegration === "object") {
+      settings.googleIntegration = sanitizeGoogleIntegration(raw.googleIntegration);
+    }
+    if (Object.prototype.hasOwnProperty.call(raw, "activeTheme")) {
+      settings.activeTheme = sanitizeActiveThemeServer(raw.activeTheme);
     }
     if (!settings.themedOverlayPrefs && settings.engineOverlayPrefs && typeof settings.engineOverlayPrefs === "object") {
       const op = String(settings.engineOverlayPrefs.overlayPath || "")
@@ -305,7 +552,12 @@ function persistAppSettings() {
           themedOverlayPrefs: settings.themedOverlayPrefs,
           themeColorOverrides: settings.themeColorOverrides,
           overallStandingsBg: settings.overallStandingsBg,
+          obsSharedTriplePng: settings.obsSharedTriplePng,
+          obsSharedTripleColumns: settings.obsSharedTripleColumns,
+          obsTripleFpMetric: settings.obsTripleFpMetric,
           wwcdCharacterArts: settings.wwcdCharacterArts,
+          googleIntegration: settings.googleIntegration,
+          activeTheme: settings.activeTheme,
         },
         null,
         2
@@ -332,7 +584,7 @@ let overlayTheme = {
   textColor: "#ffffff",
 };
 
-let activeThemeName = "esports";
+let activeThemeName = sanitizeActiveThemeServer(settings.activeTheme);
 
 let wwcdColors = {
   primary: "",
@@ -370,19 +622,77 @@ function sanitizeThemeColorOverrides(input) {
   return out;
 }
 
-const sortTeams = () =>
-  [...teams].sort(
-    (a, b) =>
-      b.points - a.points ||
-      b.finishes - a.finishes ||
-      a.team.localeCompare(b.team)
+/** Pin `displayOrder` to row 1…N; unassigned rows filled from auto pool in team id order (no A–Z / points). */
+function buildLiveRankingOrder(teamList) {
+  const arr = Array.isArray(teamList) ? [...teamList] : [];
+  const n = arr.length;
+  if (n === 0) return [];
+
+  const byRow = new Map();
+  const auto = [];
+  const sortedInput = [...arr].sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0));
+
+  for (const t of sortedInput) {
+    const raw = Number(t.displayOrder);
+    if (Number.isFinite(raw) && raw > 0) {
+      let row = Math.trunc(raw);
+      if (row < 1) row = 1;
+      if (row > n) row = n;
+      if (byRow.has(row)) auto.push(t);
+      else byRow.set(row, t);
+    } else {
+      auto.push(t);
+    }
+  }
+  auto.sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0));
+
+  const out = [];
+  let ai = 0;
+  for (let row = 1; row <= n; row++) {
+    if (byRow.has(row)) out.push(byRow.get(row));
+    else if (ai < auto.length) out.push(auto[ai++]);
+  }
+  while (ai < auto.length) out.push(auto[ai++]);
+
+  const seen = new Set(out.map((t) => t.id));
+  for (const t of arr) {
+    if (!seen.has(t.id)) {
+      out.push(t);
+      seen.add(t.id);
+    }
+  }
+  return out;
+}
+
+const sortTeams = () => {
+  for (let i = 0; i < teams.length; i++) normalizeTeamRondoFields(teams[i]);
+  return buildLiveRankingOrder(teams);
+};
+
+/** When moving or placing a team at slot `slot` (1-based), swap with occupant if any. `previousSlot` is this team's old slot (null if none / new team). */
+function reconcileDisplayOrderSlot(teamId, slot, previousSlot) {
+  if (slot == null || !Number.isFinite(Number(slot)) || Number(slot) <= 0) return;
+  const sid = Number(teamId);
+  const n = Math.trunc(Number(slot));
+  const prev =
+    previousSlot != null && Number.isFinite(Number(previousSlot)) && Number(previousSlot) > 0
+      ? Math.trunc(Number(previousSlot))
+      : null;
+  const otherIdx = teams.findIndex(
+    (t) => Number(t.id) !== sid && Number(t.displayOrder) === n,
   );
+  if (otherIdx !== -1) {
+    teams[otherIdx].displayOrder = prev;
+  }
+}
 
 const broadcast = () => {
   const sorted = sortTeams();
   io.emit("teamsUpdated", sorted);
   io.emit("matchUpdated", { ...currentMatch, teams: sorted });
+  io.emit("tournamentUpdated", getTournamentStats());
   schedulePersistMatchState();
+  scheduleGoogleExport();
 };
 
 const broadcastTournament = () => {
@@ -392,17 +702,20 @@ const broadcastTournament = () => {
 
 const recalculatePoints = (team) => {
   if (!settings.autoCalculate) return;
-  team.positionPoints =
-    team.status === "eliminated" && team.eliminationRank !== null
-      ? getPositionPoints(team.eliminationRank)
-      : 0;
-  team.points = team.finishes + team.positionPoints;
+  // Winner stays alive but gets eliminationRank === 1 in checkForWinner — still needs #1 placement pts.
+  team.positionPoints = getPositionPoints(team.eliminationRank);
+  team.points = (Number(team.finishes) || 0) + team.positionPoints;
 };
 
 const eliminateTeam = (team) => {
   team.status = "eliminated";
   team.alivePlayers = 0;
-  const remaining = teams.filter((t) => t.status !== "eliminated").length;
+  team.rondoAwaitingRecall = false;
+  team.rondoRecallChargesRemaining = 0;
+  team.rondoRecallConsumed = true;
+  const remaining = teams.filter(
+    (t) => String(t.status) !== "eliminated" && String(t.status) !== "rondo_benched",
+  ).length;
   team.eliminationRank = remaining + 1;
   recalculatePoints(team);
   io.emit("teamEliminated", {
@@ -415,6 +728,36 @@ const eliminateTeam = (team) => {
   });
   checkForWinner();
 };
+
+function rondoBenchTeam(team) {
+  team.status = "rondo_benched";
+  team.alivePlayers = 0;
+  team.eliminationRank = null;
+  team.rondoAwaitingRecall = true;
+  team.positionPoints = 0;
+  if (settings.autoCalculate) team.points = (Number(team.finishes) || 0) + team.positionPoints;
+  io.emit("rondoBench", {
+    team: team.team,
+    logo: team.logo,
+    id: team.id,
+    awaitingRecall: true,
+  });
+  checkForWinner();
+}
+
+/** Full squad wipe — on Rondo, benches instead of elimination while the squad still has any recall credits. */
+function tryCommitFullElimination(team) {
+  normalizeTeamRondoFields(team);
+  if (!isRondoMapActive()) {
+    eliminateTeam(team);
+    return;
+  }
+  if ((team.rondoRecallChargesRemaining || 0) <= 0) {
+    eliminateTeam(team);
+    return;
+  }
+  rondoBenchTeam(team);
+}
 
 const padSquadNames = (playerList, teamName) => {
   const arr = Array.isArray(playerList) ? playerList.filter(Boolean).map((s) => String(s).trim()) : [];
@@ -448,9 +791,12 @@ const buildWwcdTeamStatsPayload = (winner) => {
 };
 
 const checkForWinner = () => {
-  const alive = teams.filter((t) => t.status !== "eliminated");
-  if (alive.length === 1 && teams.length > 1) {
-    const winner = alive[0];
+  const competing = teams.filter((t) => {
+    const s = String(t.status || "").toLowerCase();
+    return s === "alive" || s === "knocked";
+  });
+  if (competing.length === 1 && teams.length > 1) {
+    const winner = competing[0];
     winner.eliminationRank = 1;
     recalculatePoints(winner);
     io.emit("chickenDinner", buildWwcdTeamStatsPayload(winner));
@@ -486,7 +832,9 @@ const getTournamentStats = () => {
   };
 
   matchHistory.forEach((m) => processTeamList(m.teams, m.number));
-  processTeamList(teams, currentMatch.number);
+  if (String(currentMatch.status || "live").toLowerCase() === "live") {
+    processTeamList(teams, currentMatch.number);
+  }
 
   const result = Object.values(statsMap).sort(
     (a, b) => b.totalPoints - a.totalPoints || b.totalKills - a.totalKills
@@ -502,7 +850,134 @@ const getTournamentStats = () => {
   return result;
 };
 
+function applyRegistrationFromSheet(row) {
+  const teamName = String(row.team || "")
+    .toUpperCase()
+    .trim();
+  if (!teamName) return;
+  const players = Array.isArray(row.players) ? row.players : [];
+  const existing = teams.findIndex((t) => t.team === teamName);
+  if (existing !== -1) {
+    teams[existing].players = padSquadNames(players, teamName);
+  } else {
+    teams.push({
+      id: Date.now() + Math.floor(Math.random() * 9999),
+      team: teamName,
+      status: "alive",
+      finishes: 0,
+      points: 0,
+      displayOrder: null,
+      logo: null,
+      alivePlayers: 4,
+      positionPoints: 0,
+      eliminationRank: null,
+      players: padSquadNames(players, teamName),
+      rondoRecallChargesRemaining: RONDO_RECALL_CHARGE_CAP,
+      rondoRecallConsumed: false,
+      rondoAwaitingRecall: false,
+    });
+  }
+}
+
+let googleExportTimer = null;
+function scheduleGoogleExport() {
+  const gi = settings.googleIntegration;
+  if (!gi?.enabled || !gi?.autoUpload) return;
+  if (!gi.driveFolderId || !googleInt.credentialsPathResolved()) return;
+  clearTimeout(googleExportTimer);
+  googleExportTimer = setTimeout(() => {
+    runGoogleDriveExport().catch((e) => {
+      settings.googleIntegration.lastError = (e.message || String(e)).slice(0, 500);
+      console.warn("[google export]", e.message || e);
+      persistAppSettings();
+    });
+  }, 90000);
+}
+
+async function runGoogleDriveExport() {
+  const gi = settings.googleIntegration;
+  if (!gi.driveFolderId) return;
+  const clients = googleInt.getClients();
+  if (!clients) throw new Error("Set GOOGLE_APPLICATION_CREDENTIALS to your service account JSON path");
+  const stats = getTournamentStats();
+  const bundle = googleInt.buildExportBundle({
+    teams,
+    matchHistory,
+    currentMatch,
+    tournamentStats: stats,
+  });
+  const csv = googleInt.tournamentStatsToCsvRows(stats);
+  await googleInt.uploadTournamentSnapshot(clients, gi.driveFolderId, bundle, csv);
+  gi.lastExportAt = new Date().toISOString();
+  gi.lastError = null;
+  persistAppSettings();
+}
+
+async function runGoogleSheetsSync() {
+  const gi = settings.googleIntegration;
+  if (!gi.registrationSpreadsheetId) return { merged: 0, rows: 0, errors: ["No spreadsheet id configured"] };
+  const clients = googleInt.getClients();
+  if (!clients) throw new Error("Set GOOGLE_APPLICATION_CREDENTIALS");
+  const result = await googleInt.syncRegistrationSheet(
+    clients,
+    gi.registrationSpreadsheetId,
+    gi.registrationRange,
+    teams,
+    (row) => applyRegistrationFromSheet(row)
+  );
+  if (result.merged > 0) broadcast();
+  gi.lastSheetsSyncAt = new Date().toISOString();
+  if (result.errors.length) gi.lastError = result.errors.join("; ").slice(0, 500);
+  else gi.lastError = null;
+  persistAppSettings();
+  return result;
+}
+
+async function runGoogleDriveFolderSync() {
+  const gi = settings.googleIntegration;
+  if (!gi.driveFolderId) return { imported: 0, skipped: 0 };
+  const clients = googleInt.getClients();
+  if (!clients) throw new Error("Set GOOGLE_APPLICATION_CREDENTIALS");
+  const r = await googleInt.syncFolderImages(
+    clients.drive,
+    gi.driveFolderId,
+    teams,
+    logosDir,
+    gi.importedDriveFileIds,
+    (team, relPath) => {
+      team.logo = relPath;
+    }
+  );
+  if (r.imported > 0) broadcast();
+  gi.lastDriveSyncAt = new Date().toISOString();
+  persistAppSettings();
+  return r;
+}
+
+let googlePollTimer = null;
+function restartGooglePoller() {
+  clearInterval(googlePollTimer);
+  const gi = settings.googleIntegration;
+  if (!gi.enabled || !googleInt.credentialsPathResolved()) return;
+  const ms = gi.syncIntervalMs || 120000;
+  googlePollTimer = setInterval(() => {
+    if (!settings.googleIntegration.enabled) return;
+    runGoogleSheetsSync().catch((e) => console.warn("[google sheets]", e.message));
+    runGoogleDriveFolderSync().catch((e) => console.warn("[google drive]", e.message));
+  }, ms);
+  console.log(`[google] Polling Drive + Sheets every ${ms}ms`);
+}
+
 // ── Existing Routes (backward-compatible) ──
+
+/** Admin “Screen order”: 1 = first row; unset / 0 = sort by points (standings). */
+function parseDisplayOrderInput(v) {
+  if (v === undefined || v === null || v === "") return null;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const t = Math.trunc(n);
+  return Math.min(99999, Math.max(1, t));
+}
 
 app.get("/teams", (req, res) => {
   res.json(sortTeams());
@@ -512,20 +987,26 @@ app.post("/teams", (req, res) => {
   const team = String(req.body.team || "").toUpperCase().trim();
   if (!team) return res.status(400).json({ message: "team required" });
 
+  const nextOrder = parseDisplayOrderInput(req.body.displayOrder);
   const item = {
     id: Date.now(),
     team,
     status: req.body.status || "alive",
     finishes: Number(req.body.finishes || 0),
     points: Number(req.body.points || 0),
+    displayOrder: nextOrder,
     logo: null,
     alivePlayers: 4,
     positionPoints: 0,
     eliminationRank: null,
     players: req.body.players || [],
+    rondoRecallChargesRemaining: RONDO_RECALL_CHARGE_CAP,
+    rondoRecallConsumed: false,
+    rondoAwaitingRecall: false,
   };
 
   teams.push(item);
+  if (nextOrder != null) reconcileDisplayOrderSlot(item.id, nextOrder, null);
   broadcast();
   res.status(201).json(item);
 });
@@ -556,11 +1037,15 @@ app.post("/teams/register", (req, res) => {
     status: "alive",
     finishes: 0,
     points: 0,
+    displayOrder: null,
     logo: null,
     alivePlayers: 4,
     positionPoints: 0,
     eliminationRank: null,
     players: req.body.players || [],
+    rondoRecallChargesRemaining: RONDO_RECALL_CHARGE_CAP,
+    rondoRecallConsumed: false,
+    rondoAwaitingRecall: false,
   };
   teams.push(item);
   broadcast();
@@ -572,18 +1057,40 @@ app.post("/teams/:id", (req, res) => {
   const idx = teams.findIndex((t) => t.id === id);
   if (idx === -1) return res.status(404).json({ message: "not found" });
 
-  const wasEliminated = teams[idx].status === "eliminated";
+  const prevStatus = teams[idx].status;
+  const wasEliminated = prevStatus === "eliminated";
+  let nextStatus = req.body.status !== undefined ? req.body.status : teams[idx].status;
+  const wantsEliminated = String(nextStatus || "").toLowerCase() === "eliminated";
+
+  /** Defer writing "eliminated" until elimination pipeline runs — Rondo benches first wipe. Not for finalize-from-bench. */
+  if (!wasEliminated && wantsEliminated && prevStatus !== "rondo_benched") nextStatus = prevStatus;
+
+  const cur = teams[idx];
+  const prevSlot =
+    cur.displayOrder != null && Number(cur.displayOrder) > 0 ? Number(cur.displayOrder) : null;
+  let nextDisplayOrder =
+    req.body.displayOrder !== undefined ? parseDisplayOrderInput(req.body.displayOrder) : cur.displayOrder ?? null;
+
+  if (req.body.displayOrder !== undefined && nextDisplayOrder != null) {
+    if (prevSlot !== nextDisplayOrder) {
+      reconcileDisplayOrderSlot(id, nextDisplayOrder, prevSlot);
+    }
+  }
 
   teams[idx] = {
-    ...teams[idx],
-    team: String(req.body.team || teams[idx].team).toUpperCase(),
-    status: req.body.status || teams[idx].status,
-    finishes: Number(req.body.finishes ?? teams[idx].finishes),
-    points: Number(req.body.points ?? teams[idx].points),
+    ...cur,
+    team: String(req.body.team || cur.team).toUpperCase(),
+    status: nextStatus,
+    finishes: Number(req.body.finishes ?? cur.finishes),
+    points: Number(req.body.points ?? cur.points),
+    displayOrder: nextDisplayOrder,
   };
 
-  if (!wasEliminated && teams[idx].status === "eliminated" && settings.autoCalculate) {
-    eliminateTeam(teams[idx]);
+  if (!wasEliminated && wantsEliminated) {
+    if (prevStatus === "rondo_benched") eliminateTeam(teams[idx]);
+    else tryCommitFullElimination(teams[idx]);
+  } else if (settings.autoCalculate) {
+    recalculatePoints(teams[idx]);
   }
 
   broadcast();
@@ -605,21 +1112,33 @@ app.post("/teams/:id/knock", (req, res) => {
   if (idx === -1) return res.status(404).json({ message: "not found" });
 
   const team = teams[idx];
-  const knockCount = Number(req.body.knockCount || 1);
+  if (team.status === "rondo_benched") {
+    return res.status(400).json({
+      message: "Benched for Rondo recall — use Recall, set eliminated from roster, or Final OUT here",
+    });
+  }
+  const knockReq = Number(req.body.knockCount);
+  const knockCount = Number.isFinite(knockReq) ? knockReq : 1;
 
-  if (knockCount >= 4 || req.body.fullElimination) {
-    eliminateTeam(team);
+  /** Only treat explicit truthy markers as full elimination — stray strings like "false" must not wipe. */
+  const fullFlag = req.body.fullElimination;
+  const forcedFullElimination =
+    fullFlag === true ||
+    fullFlag === 1 ||
+    (typeof fullFlag === "string" && fullFlag.trim().toLowerCase() === "true");
+
+  if (knockCount >= 4 || forcedFullElimination) {
+    tryCommitFullElimination(team);
   } else {
     team.alivePlayers = Math.max(0, 4 - knockCount);
     if (team.alivePlayers === 0) {
-      eliminateTeam(team);
+      tryCommitFullElimination(team);
     } else {
       team.status = "knocked";
     }
   }
 
   broadcast();
-  broadcastTournament();
   res.json(team);
 });
 
@@ -629,10 +1148,13 @@ app.post("/teams/:id/alive", (req, res) => {
   if (idx === -1) return res.status(404).json({ message: "not found" });
 
   const count = Math.max(0, Math.min(4, Number(req.body.alivePlayers)));
+  if (teams[idx].status === "rondo_benched") {
+    return res.status(400).json({ message: "Cannot set alive count while benched — trigger Rondo recall first" });
+  }
   teams[idx].alivePlayers = count;
 
   if (count === 0) {
-    eliminateTeam(teams[idx]);
+    tryCommitFullElimination(teams[idx]);
   } else if (count < 4) {
     teams[idx].status = "knocked";
   } else {
@@ -640,8 +1162,125 @@ app.post("/teams/:id/alive", (req, res) => {
   }
 
   broadcast();
-  broadcastTournament();
   res.json(teams[idx]);
+});
+
+app.post("/teams/:id/rondo-recall", (req, res) => {
+  if (!isRondoMapActive()) return res.status(400).json({ message: "Rondo recall only when match map is Rondo" });
+
+  const id = Number(req.params.id);
+  const idx = teams.findIndex((t) => t.id === id);
+  if (idx === -1) return res.status(404).json({ message: "not found" });
+
+  normalizeTeamRondoFields(teams[idx]);
+  const team = teams[idx];
+  const st = String(team.status || "").toLowerCase();
+  const ap = Math.max(0, Math.min(4, Number(team.alivePlayers) || 0));
+  let charges = team.rondoRecallChargesRemaining;
+  const awaitingRecall = coerceJsonBool(team.rondoAwaitingRecall, false);
+
+  const fromBench = st === "rondo_benched" && awaitingRecall;
+
+  const partialEligible =
+    charges > 0 &&
+    st !== "eliminated" &&
+    st !== "rondo_benched" &&
+    ap >= 1 &&
+    ap <= 3 &&
+    (st === "alive" || st === "knocked");
+
+  if (!fromBench && !partialEligible) {
+    return res.status(400).json({
+      message:
+        charges <= 0
+          ? "No recall credits left on this squad (4 total per match, one per seated player)."
+          : "Recall unavailable — need recall bench awaiting deploy, or 1–3 players up mid-fight.",
+    });
+  }
+
+  team.rondoAwaitingRecall = false;
+
+  if (fromBench) {
+    const maxBenchSlots = Math.min(4, charges);
+    const rawBody = req.body && (req.body.addAliveSlots ?? req.body.redeployCount);
+    let addSlots;
+    if (rawBody === undefined || rawBody === null || rawBody === "") {
+      addSlots = maxBenchSlots;
+    } else {
+      const n = Number(rawBody);
+      if (!Number.isFinite(n)) {
+        return res.status(400).json({ message: "addAliveSlots must be a number (knocked seats to redeploy from bench)." });
+      }
+      addSlots = Math.trunc(n);
+      if (addSlots < 1 || addSlots > maxBenchSlots) {
+        return res.status(400).json({
+          message: `Bench redeploy uses 1–${maxBenchSlots} recall credit(s); each credit returns one seated player.`,
+        });
+      }
+    }
+    charges -= addSlots;
+    team.rondoRecallChargesRemaining = charges;
+    team.alivePlayers = addSlots;
+    team.status = addSlots === 4 ? "alive" : "knocked";
+  } else {
+    const maxAdd = 4 - ap;
+    const rawBody = req.body && (req.body.addAliveSlots ?? req.body.redeployCount);
+    let addSlots;
+    if (rawBody === undefined || rawBody === null || rawBody === "") {
+      addSlots = Math.min(maxAdd, charges);
+    } else {
+      const n = Number(rawBody);
+      if (!Number.isFinite(n)) {
+        return res.status(400).json({ message: "addAliveSlots must be a number (how many knocked players to recall)." });
+      }
+      addSlots = Math.trunc(n);
+      if (addSlots < 1 || addSlots > maxAdd) {
+        return res.status(400).json({
+          message: `Recall must revive 1–${maxAdd} player slot(s) (currently ${ap}/4 up).`,
+        });
+      }
+    }
+    if (addSlots > charges) {
+      return res.status(400).json({
+        message: `Need ${addSlots} recall credits but squad only has ${charges} left (one credit per recalled player).`,
+      });
+    }
+    const nextAlive = Math.min(4, ap + addSlots);
+    team.alivePlayers = nextAlive;
+    team.status = nextAlive === 4 ? "alive" : "knocked";
+    team.rondoRecallChargesRemaining = charges - addSlots;
+  }
+
+  team.rondoRecallConsumed = team.rondoRecallChargesRemaining <= 0;
+  if (settings.autoCalculate) recalculatePoints(team);
+  broadcast();
+  res.json(team);
+});
+
+/** Mistaken OUT on Rondo (first wipe) — bench only. Restores full 4/4 alive; does not spend or refund recall credits. */
+app.post("/teams/:id/rondo-undo-out", (req, res) => {
+  if (!isRondoMapActive()) return res.status(400).json({ message: "Undo OUT only when match map is Rondo" });
+
+  const id = Number(req.params.id);
+  const idx = teams.findIndex((t) => t.id === id);
+  if (idx === -1) return res.status(404).json({ message: "not found" });
+
+  normalizeTeamRondoFields(teams[idx]);
+  const team = teams[idx];
+  if (String(team.status || "").toLowerCase() !== "rondo_benched") {
+    return res.status(400).json({
+      message: "Undo OUT only works while the squad is on recall bench (mistaken wipe). If already eliminated, edit the team in Roster or Match stats.",
+    });
+  }
+
+  team.status = "alive";
+  team.alivePlayers = 4;
+  team.rondoAwaitingRecall = false;
+  team.eliminationRank = null;
+  if (settings.autoCalculate) recalculatePoints(team);
+  checkForWinner();
+  broadcast();
+  res.json(team);
 });
 
 // ── Match Management ──
@@ -651,44 +1290,87 @@ app.get("/match/current", (_req, res) => {
 });
 
 app.post("/match/new", (_req, res) => {
-  if (teams.length > 0) {
-    const winner = teams.find((t) => t.eliminationRank === 1);
-    matchHistory.push({
-      id: Date.now(),
-      number: currentMatch.number,
-      status: "ended",
-      startedAt: currentMatch.startedAt,
-      endedAt: Date.now(),
-      teams: teams.map((t) => ({ ...t })),
-      winner: winner ? winner.team : null,
-    });
+  if (teams.length > 0 && String(currentMatch.status || "live").toLowerCase() === "live") {
+    archiveCurrentMatchSnapshot();
   }
 
   currentMatch = {
     number: currentMatch.number + 1,
     status: "live",
     startedAt: Date.now(),
+    map: currentMatch.map ? sanitizeMatchMap(currentMatch.map) : "erangel",
+    matchLabel: "",
   };
 
-  teams = teams.map((t) => ({
-    ...t,
-    status: "alive",
-    finishes: 0,
-    points: 0,
-    alivePlayers: 4,
-    positionPoints: 0,
-    eliminationRank: null,
-  }));
+  resetAllTeamsLiveScores();
 
   broadcast();
-  broadcastTournament();
   res.json({ match: currentMatch, teams: sortTeams() });
 });
 
+/** Full new tournament: Match #1, cleared history, all squad scores reset (same map). */
+app.post("/match/series-restart", (_req, res) => {
+  performFullTournamentRestart();
+  broadcast();
+  emitHistoryUpdated();
+  persistMatchState();
+  res.json({
+    match: {
+      number: currentMatch.number,
+      status: currentMatch.status,
+      startedAt: currentMatch.startedAt,
+      map: currentMatch.map,
+      matchLabel: currentMatch.matchLabel || "",
+    },
+    tournamentReset: true,
+  });
+});
+
 app.post("/match/end", (_req, res) => {
+  archiveCurrentMatchSnapshot();
   currentMatch.status = "ended";
   broadcast();
   res.json({ match: currentMatch });
+});
+
+app.post("/match/meta", (req, res) => {
+  const body = req.body || {};
+  const prevMatchNumber = Math.max(1, Math.min(99999, Math.floor(Number(currentMatch.number)) || 1));
+  let tournamentReset = false;
+
+  if (Object.prototype.hasOwnProperty.call(body, "map")) {
+    currentMatch.map = sanitizeMatchMap(body.map);
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "matchLabel")) {
+    currentMatch.matchLabel = sanitizeMatchLabel(body.matchLabel);
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "number")) {
+    const n = Number(body.number);
+    if (Number.isFinite(n)) {
+      const nextNum = Math.max(1, Math.min(99999, Math.floor(n)));
+      /** Moving to Match #1 from #2+ = new tournament: clear series history & reset all squad scores. */
+      if (nextNum === 1 && prevMatchNumber !== 1) {
+        performFullTournamentRestart();
+        tournamentReset = true;
+      } else {
+        currentMatch.number = nextNum;
+      }
+    }
+  }
+
+  broadcast();
+  emitHistoryUpdated();
+  persistMatchState();
+  res.json({
+    match: {
+      number: currentMatch.number,
+      status: currentMatch.status,
+      startedAt: currentMatch.startedAt,
+      map: currentMatch.map,
+      matchLabel: currentMatch.matchLabel || "",
+    },
+    tournamentReset: Boolean(tournamentReset),
+  });
 });
 
 // ── Match History ──
@@ -701,6 +1383,7 @@ app.delete("/matches/:id", (req, res) => {
   const id = Number(req.params.id);
   matchHistory = matchHistory.filter((m) => m.id !== id);
   broadcastTournament();
+  emitHistoryUpdated();
   res.json({ ok: true });
 });
 
@@ -714,10 +1397,12 @@ app.post("/matches/:id/restore", (req, res) => {
     number: match.number,
     status: "live",
     startedAt: Date.now(),
+    map: sanitizeMatchMap(match.map),
+    matchLabel: sanitizeMatchLabel(match.matchLabel),
   };
 
   broadcast();
-  broadcastTournament();
+  emitHistoryUpdated();
   res.json({ match: currentMatch, teams: sortTeams() });
 });
 
@@ -774,6 +1459,17 @@ app.post("/settings", (req, res) => {
     if (v === null || v === "") settings.overallStandingsBg = null;
     else settings.overallStandingsBg = sanitizeOverallStandingsBgServer(v);
   }
+  if (Object.prototype.hasOwnProperty.call(req.body, "obsSharedTriplePng")) {
+    const v = req.body.obsSharedTriplePng;
+    if (v === null || v === "") settings.obsSharedTriplePng = null;
+    else settings.obsSharedTriplePng = sanitizeObsSharedTriplePngServer(v);
+  }
+  if (Object.prototype.hasOwnProperty.call(req.body, "obsSharedTripleColumns")) {
+    settings.obsSharedTripleColumns = sanitizeObsSharedTripleColumnsServer(req.body.obsSharedTripleColumns);
+  }
+  if (Object.prototype.hasOwnProperty.call(req.body, "obsTripleFpMetric")) {
+    settings.obsTripleFpMetric = sanitizeObsTripleFpMetricServer(req.body.obsTripleFpMetric);
+  }
   if (Object.prototype.hasOwnProperty.call(req.body, "wwcdCharacterArts")) {
     if (req.body.wwcdCharacterArts === null) {
       settings.wwcdCharacterArts = [null, null, null, null];
@@ -781,6 +1477,12 @@ app.post("/settings", (req, res) => {
       settings.wwcdCharacterArts = sanitizeWwcdCharacterArts(req.body.wwcdCharacterArts);
     }
   }
+  if (Object.prototype.hasOwnProperty.call(req.body, "activeTheme")) {
+    settings.activeTheme = sanitizeActiveThemeServer(req.body.activeTheme);
+    activeThemeName = settings.activeTheme;
+    io.emit("activeThemeChanged", activeThemeName);
+  }
+  persistAppSettings();
   io.emit("settingsUpdated", settings);
   if (Object.prototype.hasOwnProperty.call(req.body, "tournamentLogo")) {
     io.emit("tournamentLogoUpdated", { tournamentLogo: settings.tournamentLogo });
@@ -826,6 +1528,37 @@ app.post("/upload/overall-standings-bg", (req, res) => {
     persistAppSettings();
     io.emit("settingsUpdated", settings);
     res.json({ path: settings.overallStandingsBg, ok: true });
+  });
+});
+
+/** Isolated OBS triple-slot PNG — each /overlay/obs-slot/* route renders this file as-is (PNG only). */
+app.post("/upload/obs-shared-triple", (req, res) => {
+  obsSharedTriplePngUpload.single("file")(req, res, (err) => {
+    if (err) {
+      console.error("obs-shared-triple:", err.message);
+      if (err instanceof multer.MulterError) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+          return res.status(400).json({ message: "PNG too large (max 40 MB)." });
+        }
+        return res.status(400).json({ message: err.message || "Upload failed" });
+      }
+      return res.status(400).json({ message: err.message || "Upload failed" });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file — form field name must be "file".' });
+    }
+    settings.obsSharedTriplePng = `/uploads/obs-shared-triple/${req.file.filename}`;
+    persistAppSettings();
+    io.emit("settingsUpdated", settings);
+    res.json({
+      path: settings.obsSharedTriplePng,
+      ok: true,
+      overlayUrls: [
+        "/overlay/obs-slot/eliminations",
+        "/overlay/obs-slot/top-four",
+        "/overlay/obs-slot/live-ranking",
+      ],
+    });
   });
 });
 
@@ -917,8 +1650,11 @@ app.get("/overlay/active-theme", (_req, res) => res.json({ theme: activeThemeNam
 
 app.post("/overlay/active-theme", (req, res) => {
   if (req.body.theme) {
-    activeThemeName = req.body.theme;
+    activeThemeName = sanitizeActiveThemeServer(req.body.theme);
+    settings.activeTheme = activeThemeName;
+    persistAppSettings();
     io.emit("activeThemeChanged", activeThemeName);
+    io.emit("settingsUpdated", settings);
   }
   res.json({ theme: activeThemeName });
 });
@@ -1047,7 +1783,6 @@ app.post("/apply-screenshot", (req, res) => {
   });
 
   broadcast();
-  broadcastTournament();
   res.json({ ok: true, teams: sortTeams() });
 });
 
@@ -1055,6 +1790,52 @@ app.post("/apply-screenshot", (req, res) => {
 
 app.get("/tournament/overall", (_req, res) => {
   res.json(getTournamentStats());
+});
+
+// ── Google Drive + Sheets (service account) ──
+
+app.get("/integrations/google/status", (_req, res) => {
+  const cred = googleInt.credentialsPathResolved();
+  res.json({
+    credentialsConfigured: Boolean(cred),
+    credentialsFile: cred ? path.basename(cred) : null,
+    integration: settings.googleIntegration,
+  });
+});
+
+app.post("/integrations/google/config", (req, res) => {
+  const body = req.body || {};
+  settings.googleIntegration = sanitizeGoogleIntegration({
+    ...settings.googleIntegration,
+    ...body,
+  });
+  persistAppSettings();
+  restartGooglePoller();
+  io.emit("settingsUpdated", settings);
+  res.json({ ok: true, googleIntegration: settings.googleIntegration });
+});
+
+app.post("/integrations/google/export", async (_req, res) => {
+  try {
+    await runGoogleDriveExport();
+    io.emit("settingsUpdated", settings);
+    res.json({ ok: true, lastExportAt: settings.googleIntegration.lastExportAt });
+  } catch (e) {
+    settings.googleIntegration.lastError = (e.message || String(e)).slice(0, 500);
+    persistAppSettings();
+    res.status(500).json({ ok: false, message: e.message || String(e) });
+  }
+});
+
+app.post("/integrations/google/sync", async (_req, res) => {
+  try {
+    const sheets = await runGoogleSheetsSync();
+    const drive = await runGoogleDriveFolderSync();
+    io.emit("settingsUpdated", settings);
+    res.json({ ok: true, sheets, drive, teams: sortTeams() });
+  } catch (e) {
+    res.status(500).json({ ok: false, message: e.message || String(e) });
+  }
 });
 
 // ── Overlay Commands ──
@@ -1087,6 +1868,7 @@ if (serveSpa && fs.existsSync(path.join(clientDist, "index.html"))) {
 io.on("connection", (socket) => {
   socket.emit("teamsUpdated", sortTeams());
   socket.emit("matchUpdated", { ...currentMatch, teams: sortTeams() });
+  socket.emit("tournamentUpdated", getTournamentStats());
   socket.emit("settingsUpdated", settings);
   socket.emit("themeUpdated", overlayTheme);
   socket.emit("activeThemeChanged", activeThemeName);
@@ -1113,16 +1895,22 @@ server.on("error", (err) => {
   if (err.code === "EADDRINUSE") {
     console.error(`\n[${err.code}] Port ${PORT} is already in use.`);
     console.error("You probably already have this API running — use that terminal, or stop it first.");
-    console.error("Windows (PowerShell): Get-NetTCPConnection -LocalPort " + PORT + " | Select-Object OwningProcess");
+    console.error("From the project root you can free the port and start in one step:");
+    console.error(`  npm run start:fresh`);
+    console.error("Or only kill the listener, then run node again:");
+    console.error(`  node scripts/kill-port-listeners.mjs ${PORT}`);
+    console.error("Windows (PowerShell) manual: Get-NetTCPConnection -LocalPort " + PORT + " -State Listen | Select-Object OwningProcess");
     console.error("Then: Stop-Process -Id <PID> -Force\n");
     process.exit(1);
   }
   throw err;
 });
 
-server.listen(PORT, () => {
-  console.log(`API + Socket.IO listening on http://127.0.0.1:${PORT}`);
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`API + Socket.IO listening on http://127.0.0.1:${PORT} (all interfaces — use your LAN IP from another PC/OBS)`);
   console.log(`Overall PNG upload: POST /upload/overall-standings-bg (admin → Tournament → custom background)`);
+  console.log(`OBS shared PNG (3 URLs): POST /upload/obs-shared-triple → /overlay/obs-slot/eliminations | top-four | live-ranking`);
+  restartGooglePoller();
   if (!serveSpa) {
     console.log(`(SERVE_SPA=false — API only. Run Vite dev in ./client or use "npm start" for built UI.)`);
   } else if (fs.existsSync(path.join(clientDist, "index.html"))) {

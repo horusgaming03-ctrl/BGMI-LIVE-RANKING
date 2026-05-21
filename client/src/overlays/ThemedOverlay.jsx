@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { ThemeProvider, useTheme } from "./ThemeContext";
 import useAnimation from "./animations/useAnimation";
 import keyframes from "./animations/keyframes";
@@ -7,14 +7,15 @@ import ThemedWWCD from "./components/ThemedWWCD";
 import ThemeSwitcher from "./components/ThemeSwitcher";
 import BackgroundEffects from "./effects/BackgroundEffects";
 import { getPresetConfig } from "./presets";
-import socket from "./socket";
+import socket, { API } from "./socket";
 import { engineKeyframeCss } from "../overlay-engine/animations/keyframes";
 import { resolveAliveStyle } from "./utils/resolveAliveStyle";
 import { resolveAliveLayout, resolveAliveCustomIcons } from "./utils/resolveAliveExtras";
 import { mergeThemeOverride } from "./utils/mergeThemeOverride";
 import { overlayPathMatches } from "./utils/overlayPrefsMatch";
+import { buildLiveRankingOrder } from "../teamDisplayOrder";
 
-function OverlayInner() {
+function OverlayInner({ cumulativeOverall = false }) {
   const { theme: baseTheme, themeName, config } = useTheme();
   const anim = useAnimation(config);
   const [urlTick, setUrlTick] = useState(0);
@@ -24,12 +25,17 @@ function OverlayInner() {
 
   useEffect(() => {
     const onSettings = (s) => {
+      if (!s || typeof s !== "object") return;
       setEngineSavedPrefs(s?.engineOverlayPrefs && typeof s.engineOverlayPrefs === "object" ? s.engineOverlayPrefs : null);
       setThemedSavedPrefs(s?.themedOverlayPrefs && typeof s.themedOverlayPrefs === "object" ? s.themedOverlayPrefs : null);
       setThemeColorOverrides(s?.themeColorOverrides && typeof s.themeColorOverrides === "object" ? s.themeColorOverrides : {});
     };
     socket.on("settingsUpdated", onSettings);
     socket.emit("requestSettings");
+    fetch(`${API}/settings`)
+      .then((r) => r.json())
+      .then(onSettings)
+      .catch(() => {});
     return () => socket.off("settingsUpdated", onSettings);
   }, []);
 
@@ -70,6 +76,7 @@ function OverlayInner() {
   }, [theme, urlTick, matchBoardSavedPrefs]);
 
   const [teams, setTeams] = useState([]);
+  const [tournamentStats, setTournamentStats] = useState([]);
   const [showWWCD, setShowWWCD] = useState(false);
   const [winner, setWinner] = useState(null);
   const [wwcdColors, setWwcdColors] = useState(null);
@@ -87,6 +94,13 @@ function OverlayInner() {
   }, []);
 
   useEffect(() => {
+    const onTour = (data) => setTournamentStats(Array.isArray(data) ? data : []);
+    socket.on("tournamentUpdated", onTour);
+    socket.emit("requestTournament");
+    return () => socket.off("tournamentUpdated", onTour);
+  }, []);
+
+  useEffect(() => {
     const onTeams = (data) => setTeams(Array.isArray(data) ? data : []);
 
     const onChicken = (data) => {
@@ -96,19 +110,18 @@ function OverlayInner() {
     };
 
     const onCommand = (cmd) => {
-      if (cmd.type === "showChickenDinner") {
-        let team = teamsRef.current.find((t) => t.eliminationRank === 1);
-        if (!team) {
-          const sorted = [...teamsRef.current].sort((a, b) => (b.points || 0) - (a.points || 0));
-          team = sorted[0];
-        }
-        const winnerData = team
-          ? { team: team.team, logo: team.logo }
-          : { team: cmd.team || "CHAMPION", logo: null };
-        setWinner(winnerData);
-        setShowWWCD(true);
-        setTimeout(() => setShowWWCD(false), config.wwcd?.duration || 8000);
+      if (!cmd || typeof cmd !== "object" || cmd.type !== "showChickenDinner") return;
+      let team = teamsRef.current.find((t) => t.eliminationRank === 1);
+      if (!team) {
+        const sorted = buildLiveRankingOrder(teamsRef.current);
+        team = sorted[0];
       }
+      const winnerData = team
+        ? { team: team.team, logo: team.logo }
+        : { team: cmd.team || "CHAMPION", logo: null };
+      setWinner(winnerData);
+      setShowWWCD(true);
+      setTimeout(() => setShowWWCD(false), config.wwcd?.duration || 8000);
     };
 
     socket.on("teamsUpdated", onTeams);
@@ -136,10 +149,28 @@ function OverlayInner() {
     };
   }, [theme, wwcdColors]);
 
-  const sorted = useMemo(
-    () => [...teams].sort((a, b) => b.points - a.points || b.finishes - a.finishes),
-    [teams]
-  );
+  const sortLiveOrder = useCallback((list) => buildLiveRankingOrder(list), []);
+
+  const boardTeams = useMemo(() => {
+    if (!cumulativeOverall) return sortLiveOrder(teams);
+
+    const byName = {};
+    tournamentStats.forEach((s) => {
+      const k = String(s.team || "").toUpperCase();
+      if (k) byName[k] = s;
+    });
+
+    const merged = teams.map((t) => {
+      const st = byName[String(t.team || "").toUpperCase()];
+      if (!st) return { ...t };
+      return {
+        ...t,
+        finishes: Number(st.totalKills) || 0,
+        points: Number(st.totalPoints) || 0,
+      };
+    });
+    return sortLiveOrder(merged);
+  }, [teams, tournamentStats, cumulativeOverall, sortLiveOrder]);
 
   return (
     <div
@@ -167,7 +198,7 @@ function OverlayInner() {
       )}
 
       <ThemedBoard
-        teams={sorted}
+        teams={boardTeams}
         theme={theme}
         anim={anim}
         config={config}
@@ -193,6 +224,19 @@ export default function ThemedOverlay() {
   const themeName = params.get("theme") || undefined;
   const presetName = params.get("preset");
   const preset = presetName ? getPresetConfig(presetName) : null;
+  const explicitOff =
+    params.get("overall") === "0" ||
+    params.get("cumulative") === "0" ||
+    params.get("live") === "1" ||
+    params.get("matchOnly") === "1";
+  const explicitOn =
+    params.get("overall") === "1" ||
+    params.get("overall") === "true" ||
+    params.get("cumulative") === "1" ||
+    params.get("cumulative") === "true";
+
+  /** Default = series totals aligned with Tournament / Overall. Use live=1 for current-match PTS+FIN only. */
+  const cumulativeOverall = explicitOn || !explicitOff;
 
   return (
     <ThemeProvider
@@ -200,7 +244,7 @@ export default function ThemedOverlay() {
       initialConfig={preset || undefined}
       listenForLive={true}
     >
-      <OverlayInner />
+      <OverlayInner cumulativeOverall={cumulativeOverall} />
     </ThemeProvider>
   );
 }

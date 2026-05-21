@@ -7,6 +7,7 @@ import keyframes from "./animations/keyframes";
 import { engineKeyframeCss } from "../overlay-engine/animations/keyframes";
 import AliveIndicator, { ALIVE_STYLE_IDS } from "../overlay-engine/alive-styles/AliveIndicator";
 import socket, { API } from "./socket";
+import { getOverlayPageOrigin } from "../apiOrigin";
 import { overlayPathMatches } from "./utils/overlayPrefsMatch";
 import { mergeThemeOverride } from "./utils/mergeThemeOverride";
 
@@ -42,10 +43,14 @@ export default function ThemePreview() {
   const [themeColorOverridesServer, setThemeColorOverridesServer] = useState({});
   const [colorDraft, setColorDraft] = useState({});
   const [colorSaveMsg, setColorSaveMsg] = useState("");
-  const initRef = useRef(false);
+  /** First successful server theme (HTTP or socket) seeds the preview selection once */
+  const previewBootstrappedRef = useRef(false);
   const colorHydrateKeyRef = useRef("");
   const colorAutoLastSigRef = useRef("");
   const colorAutoTimerRef = useRef(null);
+  /** When true, skip re-hydrating colorDraft from server until save succeeds — avoids wiping mid-edit edits. */
+  const colorDraftDirtyRef = useRef(false);
+  const lastHydratedThemeRef = useRef(null);
   const baseTheme = useMemo(() => getTheme(selected), [selected]);
   const theme = useMemo(() => mergeThemeOverride(baseTheme, colorDraft), [baseTheme, colorDraft]);
 
@@ -70,13 +75,21 @@ export default function ThemePreview() {
   }, []);
 
   useEffect(() => {
-    const onActive = (name) => {
+    const applyServerTheme = (name) => {
+      if (!name || !themeNames.includes(name)) return;
       setLiveTheme(name);
-      if (!initRef.current) {
-        initRef.current = true;
-        if (themeNames.includes(name)) setSelected(name);
+      if (!previewBootstrappedRef.current) {
+        previewBootstrappedRef.current = true;
+        setSelected(name);
       }
     };
+
+    fetch(`${API}/overlay/active-theme`)
+      .then((r) => r.json())
+      .then((d) => applyServerTheme(d?.theme))
+      .catch(() => {});
+
+    const onActive = (name) => applyServerTheme(name);
     socket.on("activeThemeChanged", onActive);
     socket.emit("requestActiveTheme");
     return () => socket.off("activeThemeChanged", onActive);
@@ -117,8 +130,22 @@ export default function ThemePreview() {
     const patch = themeColorOverridesServer[selected];
     const sig = JSON.stringify(patch ?? null);
     const hydrateKey = `${selected}|${sig}`;
-    if (colorHydrateKeyRef.current === hydrateKey) return;
+
+    const themeChanged = lastHydratedThemeRef.current !== selected;
+    lastHydratedThemeRef.current = selected;
+
+    if (themeChanged) {
+      colorHydrateKeyRef.current = "";
+      colorDraftDirtyRef.current = false;
+    }
+
+    if (!themeChanged && colorDraftDirtyRef.current) {
+      return;
+    }
+
+    if (colorHydrateKeyRef.current === hydrateKey && !themeChanged) return;
     colorHydrateKeyRef.current = hydrateKey;
+
     if (patch && typeof patch === "object") {
       const nextDraft = {
         colors: { ...(patch.colors || {}) },
@@ -134,14 +161,25 @@ export default function ThemePreview() {
   }, [selected, themeColorOverridesServer]);
 
   useEffect(() => {
-    const onSettings = () => {
+    const onSettings = (payload) => {
+      const s =
+        payload && typeof payload === "object"
+          ? payload
+          : null;
+      if (s) {
+        if (s.themeColorOverrides && typeof s.themeColorOverrides === "object") {
+          setThemeColorOverridesServer(s.themeColorOverrides);
+        }
+        hydrateAliveFromSettings(s);
+        return;
+      }
       fetch(`${API}/settings`)
         .then((r) => r.json())
-        .then((s) => {
-          if (s?.themeColorOverrides && typeof s.themeColorOverrides === "object") {
-            setThemeColorOverridesServer(s.themeColorOverrides);
+        .then((body) => {
+          if (body?.themeColorOverrides && typeof body.themeColorOverrides === "object") {
+            setThemeColorOverridesServer(body.themeColorOverrides);
           }
-          hydrateAliveFromSettings(s);
+          hydrateAliveFromSettings(body);
         })
         .catch(() => {});
     };
@@ -152,7 +190,10 @@ export default function ThemePreview() {
   useEffect(() => {
     const cleaned = pruneColorOverrideDraft(colorDraft);
     const sig = `${selected}|${JSON.stringify(cleaned)}`;
-    if (Object.keys(cleaned).length === 0) return;
+    if (Object.keys(cleaned).length === 0) {
+      if (sig === colorAutoLastSigRef.current) colorDraftDirtyRef.current = false;
+      return;
+    }
     if (sig === colorAutoLastSigRef.current) return;
 
     if (colorAutoTimerRef.current) clearTimeout(colorAutoTimerRef.current);
@@ -169,6 +210,7 @@ export default function ThemePreview() {
         });
         if (res.ok) {
           const data = await res.json();
+          colorDraftDirtyRef.current = false;
           if (data?.themeColorOverrides && typeof data.themeColorOverrides === "object") {
             setThemeColorOverridesServer(data.themeColorOverrides);
           }
@@ -289,6 +331,7 @@ export default function ThemePreview() {
       });
       if (res.ok) {
         const data = await res.json();
+        colorDraftDirtyRef.current = false;
         if (data?.themeColorOverrides && typeof data.themeColorOverrides === "object") {
           setThemeColorOverridesServer(data.themeColorOverrides);
         }
@@ -303,6 +346,7 @@ export default function ThemePreview() {
   };
 
   const resetThemeColors = async () => {
+    colorDraftDirtyRef.current = false;
     setColorDraft({});
     try {
       const cur = await fetch(`${API}/settings`).then((r) => r.json());
@@ -629,7 +673,7 @@ export default function ThemePreview() {
               <p style={{ fontSize: 11, color: "#666", margin: "0 0 14px", lineHeight: 1.45 }}>
                 Pickers update this page immediately; changes are <strong style={{ color: "#888" }}>saved automatically</strong> (≈½s) to the server for{" "}
                 <code style={{ color: "#6ff3cb" }}>/overlay/themed</code> and <code style={{ color: "#6ff3cb" }}>/overlay/themed/overall</code> and{" "}
-                <code style={{ color: "#6ff3cb" }}>/overlay/elimination</code> and <code style={{ color: "#6ff3cb" }}>/overlay/wwcd-four</code> when they follow the
+                <code style={{ color: "#6ff3cb" }}>/overlay/elimination</code> and <code style={{ color: "#6ff3cb" }}>/overlay/wwcd-only</code> when they follow the
                 live theme id (see <strong style={{ color: "#888" }}>Save &amp; Apply</strong>). You can still use{" "}
                 <strong style={{ color: "#888" }}>Save colors (live)</strong> to force an immediate write.
               </p>
@@ -640,12 +684,13 @@ export default function ThemePreview() {
                     <input
                       type="color"
                       value={toInputColor(colorDraft.colors?.[key] ?? baseTheme.colors[key])}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        colorDraftDirtyRef.current = true;
                         setColorDraft((d) => ({
                           ...d,
                           colors: { ...(d.colors || {}), [key]: e.target.value },
-                        }))
-                      }
+                        }));
+                      }}
                       style={{
                         width: 48,
                         height: 36,
@@ -667,12 +712,13 @@ export default function ThemePreview() {
                     <input
                       type="color"
                       value={toInputColor(colorDraft.alive?.[key] ?? baseTheme.alive?.[key] ?? "#888888")}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        colorDraftDirtyRef.current = true;
                         setColorDraft((d) => ({
                           ...d,
                           alive: { ...(d.alive || {}), [key]: e.target.value },
-                        }))
-                      }
+                        }));
+                      }}
                       style={{
                         width: 48,
                         height: 36,
@@ -693,12 +739,13 @@ export default function ThemePreview() {
                     <input
                       type="color"
                       value={toInputColor(colorDraft.row?.[key] ?? baseTheme.row?.[key] ?? "#1a1a1a")}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        colorDraftDirtyRef.current = true;
                         setColorDraft((d) => ({
                           ...d,
                           row: { ...(d.row || {}), [key]: e.target.value },
-                        }))
-                      }
+                        }));
+                      }}
                       style={{
                         width: 48,
                         height: 36,
@@ -716,18 +763,27 @@ export default function ThemePreview() {
 
             <div style={{ background: "rgba(255,255,255,.03)", borderRadius: 12, padding: 20, border: "1px solid rgba(255,255,255,.06)", marginBottom: 20 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: "#888", marginBottom: 10 }}>OBS URLS</div>
-              <UrlRow label="Match Board" url={`/overlay/themed?${buildThemedSearch()}`} />
+              <UrlRow label="Match board · series totals (default)" url={`/overlay/themed?${buildThemedSearch()}`} />
               <UrlRow
                 label="Overall Standings"
                 url={activePreset ? `/overlay/themed/overall?preset=${encodeURIComponent(activePreset)}` : `/overlay/themed/overall?theme=${selected}`}
               />
+              <UrlRow label="Match board · this lobby only" url={`/overlay/themed?${buildThemedSearch()}&live=1`} />
               <UrlRow label="Elimination Banner (same theme id + saved colors)" url={`/overlay/elimination?theme=${selected}`} />
               <UrlRow label="With Switcher" url={`/overlay/themed?${buildThemedSearch()}&switcher=1`} />
+              <UrlRow
+                label="WWCD 4-squad strip only (transparent — no match board)"
+                url={`/overlay/wwcd-only?theme=${encodeURIComponent(selected)}&position=bottom`}
+              />
               <div style={{ marginTop: 10, padding: "8px 10px", background: "rgba(65,232,184,.06)", borderRadius: 6, border: "1px solid rgba(65,232,184,.15)" }}>
-                <div style={{ fontSize: 10, color: "#6FF3CB", fontWeight: 700, marginBottom: 2 }}>Live Mode (auto-updates when you Save)</div>
+                <div style={{ fontSize: 10, color: "#6FF3CB", fontWeight: 700, marginBottom: 2 }}>Live Mode (same origin as this page — copy for OBS)</div>
                 <code style={{ fontSize: 11, color: "#6ff3cb", background: "rgba(0,0,0,.3)", padding: "4px 8px", borderRadius: 4, display: "block", wordBreak: "break-all" }}>
-                  http://localhost:5173/overlay/themed
+                  {`${getOverlayPageOrigin() || "(open this page in the browser)"}/overlay/themed`}
                 </code>
+                <div style={{ fontSize: 10, color: "#888", marginTop: 8, lineHeight: 1.45 }}>
+                  Other PCs cannot use <code style={{ color: "#aaa" }}>localhost</code> — open Admin / Theme Preview via your PC&apos;s LAN IP (e.g.{" "}
+                  <code style={{ color: "#6ff3cb" }}>http://192.168.x.x:5173</code>) and paste those URLs. Allow port <strong style={{ color: "#ccc" }}>3001</strong> through Windows Firewall for the API / sockets.
+                </div>
               </div>
             </div>
 
@@ -781,11 +837,12 @@ function toInputColor(hex) {
 }
 
 function UrlRow({ label, url }) {
+  const origin = getOverlayPageOrigin() || "http://127.0.0.1:5173";
   return (
     <div style={{ marginBottom: 8 }}>
       <div style={{ fontSize: 10, color: "#666", fontWeight: 700, marginBottom: 2 }}>{label}</div>
       <code style={{ fontSize: 11, color: "#6ff3cb", background: "rgba(0,0,0,.3)", padding: "4px 8px", borderRadius: 4, display: "block", wordBreak: "break-all" }}>
-        http://localhost:5173{url}
+        {`${origin}${url}`}
       </code>
     </div>
   );

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { connectSocket, getApiBase } from "../apiOrigin";
 import { getTheme, getThemeNames } from "./themes";
 import { mergeThemeOverride } from "./utils/mergeThemeOverride";
+import { normalizeMatchMeta } from "../normalizeMatchMeta";
+import { buildLiveRankingOrder } from "../teamDisplayOrder";
 
 const API = getApiBase();
 const sock = connectSocket();
@@ -609,11 +611,11 @@ export default function WWCDOverlay() {
       teamsRef.current = Array.isArray(data) ? data : [];
     };
     const onMatch = (m) => {
-      if (m && typeof m.number === "number") {
-        matchRef.current.number = m.number;
-        setMatchNum(m.number);
-      }
-      if (m && m.startedAt) matchRef.current.startedAt = m.startedAt;
+      const meta = normalizeMatchMeta(m);
+      if (!meta) return;
+      matchRef.current.number = meta.number;
+      matchRef.current.startedAt = meta.startedAt;
+      setMatchNum(meta.number);
     };
     const onTheme = (name) => {
       if (typeof name === "string" && getThemeNames().includes(name)) setThemeName(name);
@@ -637,7 +639,7 @@ export default function WWCDOverlay() {
       if (cmd.type === "showChickenDinner") {
         let team = teamsRef.current.find((t) => t.eliminationRank === 1);
         if (!team) {
-          const sorted = [...teamsRef.current].sort((a, b) => (b.points || 0) - (a.points || 0));
+          const sorted = buildLiveRankingOrder(teamsRef.current);
           team = sorted[0];
         }
         const raw = team
@@ -666,6 +668,14 @@ export default function WWCDOverlay() {
     fetch(`${API}/settings`)
       .then((r) => r.json())
       .then((s) => refreshSettingsSlice(s))
+      .catch(() => {});
+
+    fetch(`${API}/overlay/active-theme`)
+      .then((r) => r.json())
+      .then((d) => {
+        const t = d?.theme;
+        if (typeof t === "string" && getThemeNames().includes(t)) setThemeName(t);
+      })
       .catch(() => {});
 
     return () => {

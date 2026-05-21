@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { connectSocket, getApiBase } from "./apiOrigin";
+import { normalizeMatchMeta } from "./normalizeMatchMeta";
 
 const API = getApiBase();
 const socket = connectSocket();
@@ -10,7 +11,10 @@ export default function OverlayOverall() {
 
   useEffect(() => {
     const onTournament = (data) => setStats(Array.isArray(data) ? data : []);
-    const onMatch = (data) => setMatch(data);
+    const onMatch = (data) => {
+      const meta = normalizeMatchMeta(data);
+      if (meta) setMatch(meta);
+    };
     const onCommand = (cmd) => {
       if (cmd.type === "toggleFullscreen") {
         if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
@@ -58,7 +62,7 @@ export default function OverlayOverall() {
             <span style={s.headerMatch}>OVERALL STANDINGS</span>
           </div>
           <div style={s.headerRight}>
-            <span style={s.matchBadge}>AFTER {match.number || 1} MATCHES</span>
+            <span style={s.matchBadge}>MATCH #{match.number || 1}</span>
           </div>
         </div>
 
