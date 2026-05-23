@@ -1019,6 +1019,42 @@ export default function AdminPanel() {
     });
   }, [teams]);
 
+  /** Team Knock Control (standard map only): display numbers in row order — local UI state, never sent to the server. */
+  const [knockTeamRowNumbers, setKnockTeamRowNumbers] = useState({});
+  const getKnockControlDisplayNumber = useCallback((teamId, idx) => {
+    const v = knockTeamRowNumbers[teamId];
+    return typeof v === "number" && Number.isFinite(v) ? v : idx + 1;
+  }, [knockTeamRowNumbers]);
+
+  const commitKnockRowNumberFromIndex = useCallback(
+    (idx, raw) => {
+      const t = typeof raw === "string" ? raw.trim() : String(raw ?? "");
+      if (t === "" || t === "-" || t === "+") return;
+      const vNum = Number.parseInt(t, 10);
+      if (!Number.isFinite(vNum)) return;
+      setKnockTeamRowNumbers((prev) => {
+        const ids = knockStableOrderTeams.map((x) => x.id);
+        if (idx < 0 || idx >= ids.length) return prev;
+        const disp = (i) => {
+          const id = ids[i];
+          if (id == null) return i + 1;
+          const stored = prev[id];
+          return typeof stored === "number" && Number.isFinite(stored) ? stored : i + 1;
+        };
+        let cleaned = Math.trunc(Math.max(1, Math.min(99999, vNum)));
+        const minN = idx > 0 ? disp(idx - 1) + 1 : 1;
+        cleaned = Math.max(minN, cleaned);
+        const next = { ...prev };
+        next[ids[idx]] = cleaned;
+        for (let j = idx + 1; j < ids.length; j += 1) {
+          next[ids[j]] = cleaned + (j - idx);
+        }
+        return next;
+      });
+    },
+    [knockStableOrderTeams],
+  );
+
   const matchBoardMeta = useMemo(() => normalizeMatchMeta(currentMatch), [currentMatch]);
   const rondoKnockMode = matchBoardMeta?.map === "rondo";
 
@@ -2262,11 +2298,38 @@ export default function AdminPanel() {
             </div>
             {!rondoKnockMode ? (
               <div style={ns.knockGrid}>
-                {knockStableOrderTeams.map((team) => {
+                {knockStableOrderTeams.map((team, idx) => {
                   const alive = team.alivePlayers ?? 4;
                   const isOut = team.status === "eliminated";
+                  const rowNumVal = getKnockControlDisplayNumber(team.id, idx);
+                  const minSelectable = idx > 0 ? getKnockControlDisplayNumber(knockStableOrderTeams[idx - 1].id, idx - 1) + 1 : 1;
                   return (
                     <div key={team.id} style={{ ...ns.knockRow, opacity: isOut ? 0.4 : 1 }}>
+                      <div style={ns.knockTeamNum}>
+                        <span style={ns.knockTeamNumLabel}>Team #</span>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          aria-label={`Team number for ${team.team}`}
+                          title="Teams below adjust automatically · must stay above row above · no duplicates"
+                          min={minSelectable}
+                          max={99999}
+                          value={rowNumVal}
+                          onChange={(e) => commitKnockRowNumberFromIndex(idx, e.target.value)}
+                          style={{
+                            width: "100%",
+                            boxSizing: "border-box",
+                            padding: "4px 4px",
+                            fontSize: 13,
+                            fontWeight: 900,
+                            textAlign: "center",
+                            borderRadius: 8,
+                            border: "1px solid rgba(255,255,255,.14)",
+                            background: "rgba(0,0,0,.32)",
+                            color: "#e8eef5",
+                          }}
+                        />
+                      </div>
                       <div style={ns.knockTeam}>
                         <div
                           style={{
@@ -5309,13 +5372,28 @@ const ns = {
   knockGrid: { display: "grid", gap: 6 },
   knockRow: {
     display: "grid",
-    gridTemplateColumns: "minmax(140px, 200px) 150px minmax(120px, 150px) 1fr",
+    gridTemplateColumns: "52px minmax(140px, 200px) 150px minmax(120px, 150px) 1fr",
     alignItems: "center",
     gap: 12,
     padding: "10px 14px",
     borderRadius: 12,
     background: "rgba(255,255,255,.02)",
     border: "1px solid rgba(255,255,255,.04)",
+  },
+  knockTeamNum: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    minWidth: 0,
+  },
+  knockTeamNumLabel: {
+    fontSize: 9,
+    fontWeight: 900,
+    letterSpacing: 1,
+    color: "#6b8490",
+    textTransform: "uppercase",
   },
   knockTeam: { display: "flex", alignItems: "center", gap: 10 },
   aliveBars: { display: "flex", alignItems: "center", gap: 4 },
