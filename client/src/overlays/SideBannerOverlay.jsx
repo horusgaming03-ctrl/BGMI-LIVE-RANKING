@@ -215,9 +215,12 @@ export default function SideBannerOverlay() {
         }
 
         .side-banner-shell {
-          display: flex;
-          flex-direction: row;
-          width: min(900px, 86vw);
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 5px minmax(0, 1fr);
+          align-items: stretch;
+          /* Equal logo / map halves; total width scales for duel art + headline */
+          width: clamp(420px, min(760px, 72vw), 880px);
+          max-width: min(880px, 96vw);
           transform-origin: top center;
           border-radius: 16px;
           overflow: hidden;
@@ -231,12 +234,14 @@ export default function SideBannerOverlay() {
         }
 
         .side-banner-logo-cell {
+          grid-column: 1;
           position: relative;
-          flex: 0 0 clamp(150px, 27vw, 198px);
-          min-height: 132px;
+          min-height: 152px;
+          min-width: 0;
           display: grid;
-          place-items: center;
-          padding: 16px;
+          place-items: stretch;
+          padding: 0;
+          overflow: hidden;
           box-shadow: inset -1px 0 0 rgba(0,0,0,.14), inset -8px 0 24px rgba(0,0,0,.04);
         }
         .side-banner-logo-accent {
@@ -244,18 +249,28 @@ export default function SideBannerOverlay() {
           inset: 0;
           opacity: 0.18;
           pointer-events: none;
+          z-index: 0;
         }
         .side-banner-logo-img {
-          position: relative;
-          max-width: 90%;
-          max-height: 108px;
-          width: auto;
-          height: auto;
-          object-fit: contain;
+          position: absolute;
+          inset: 0;
+          z-index: 1;
+          display: block;
+          box-sizing: border-box;
+          width: 100%;
+          height: 100%;
+          padding: 0;
+          margin: 0;
+          object-fit: cover;
+          object-position: center center;
           filter: drop-shadow(0 12px 18px rgba(0,0,0,.42));
         }
         .side-banner-logo-ph {
           position: relative;
+          z-index: 2;
+          justify-self: center;
+          align-self: center;
+          padding: 12px;
           font-weight: 800;
           font-size: clamp(9px, 1.65vw, 11px);
           letter-spacing: 0.32em;
@@ -266,7 +281,8 @@ export default function SideBannerOverlay() {
         }
 
         .side-banner-rail {
-          flex-shrink: 0;
+          grid-column: 2;
+          grid-row: 1 / -1;
           width: 5px;
           box-shadow:
             inset 0 0 0 1px rgba(255,255,255,.08),
@@ -281,10 +297,16 @@ export default function SideBannerOverlay() {
         }
 
         .side-banner-info {
-          flex: 1;
+          grid-column: 3;
           display: flex;
           flex-direction: column;
           min-width: 0;
+          flex: unset;
+          width: auto;
+          min-height: 0;
+          align-self: stretch;
+          container-type: inline-size;
+          container-name: side-banner-info;
           background: #060a11;
           background-image: radial-gradient(circle at 15% -10%, rgba(255,255,255,.035) 0%, transparent 40%);
         }
@@ -294,9 +316,10 @@ export default function SideBannerOverlay() {
           flex-direction: row;
           align-items: center;
           gap: 12px;
-          min-height: 48px;
-          padding: 12px 20px;
-          padding-left: 18px;
+          flex: 0 0 auto;
+          min-height: 52px;
+          padding: 8px 14px;
+          padding-left: 14px;
           border-bottom: 1px solid rgba(0,0,0,.16);
           box-shadow:
             inset 0 -2px 0 rgba(255,255,255,.05),
@@ -309,7 +332,7 @@ export default function SideBannerOverlay() {
           text-overflow: ellipsis;
           white-space: nowrap;
           font-weight: 800;
-          font-size: clamp(13px, 2vw, 17px);
+          font-size: clamp(11px, 6cqw, 15px);
           letter-spacing: 0.12em;
           line-height: 1.05;
           opacity: 0.94;
@@ -333,11 +356,11 @@ export default function SideBannerOverlay() {
 
         .side-banner-map {
           position: relative;
-          flex: 1;
-          min-height: 104px;
+          flex: 1 1 auto;
+          min-height: 118px;
           display: grid;
           place-items: center;
-          padding: 20px;
+          padding: 0;
           overflow: hidden;
           box-shadow: inset 0 3px 10px rgba(0,0,0,.38);
         }
@@ -368,8 +391,9 @@ export default function SideBannerOverlay() {
 
         .side-banner-map-txt {
           position: relative;
+          z-index: 1;
           font-weight: 900;
-          font-size: clamp(30px, 5.75vw, 56px);
+          font-size: clamp(26px, 26cqw, 56px);
           line-height: 1;
           letter-spacing: 0.16em;
           padding-bottom: 0.06em;

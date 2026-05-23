@@ -2690,7 +2690,7 @@ export default function AdminPanel() {
                 <div style={{ fontWeight: 800, fontSize: 16 }}>Elimination Banner</div>
                 <div style={{ color: "#8CB7BE", fontSize: 12, marginTop: 4 }}>Opens in separate window</div>
               </div>
-              <div style={ns.overlayCard} onClick={() => window.open("/overlay/side-banner", "_blank", "width=980,height=360")}>
+              <div style={ns.overlayCard} onClick={() => window.open("/overlay/side-banner", "_blank", "width=900,height=400")}>
                 <div style={{ fontSize: 36, marginBottom: 8 }}>▦</div>
                 <div style={{ fontWeight: 800, fontSize: 16 }}>Side match banner</div>
                 <div style={{ color: "#8CB7BE", fontSize: 12, marginTop: 4 }}>
