@@ -136,6 +136,8 @@ function PhaseRail({ phase }) {
  *   undoRondoMistakenBench: (id: number) => void,
  *   finalizeBenchedElimination: (team: Team) => void,
  *   finishBadgesObsUrl: string,
+ *   getKnockControlDisplayNumber?: (teamId: number, idx: number) => number,
+ *   commitKnockRowNumberFromIndex?: (idx: number, raw: unknown) => void,
  * }} props
  */
 export default function RondoKnockMatrix({
@@ -151,8 +153,12 @@ export default function RondoKnockMatrix({
   undoRondoMistakenBench,
   finalizeBenchedElimination,
   finishBadgesObsUrl,
+  getKnockControlDisplayNumber,
+  commitKnockRowNumberFromIndex,
 }) {
   const sorted = teams;
+  const showTeamNumbers =
+    typeof getKnockControlDisplayNumber === "function" && typeof commitKnockRowNumberFromIndex === "function";
 
   return (
     <div className="rkm-root">
@@ -179,7 +185,7 @@ export default function RondoKnockMatrix({
       </div>
 
       <div className="rkm-grid">
-        {sorted.map((team) => {
+        {sorted.map((team, idx) => {
           const alive = team.alivePlayers ?? 4;
           const st = String(team.status || "").toLowerCase();
           const isElim = st === "eliminated";
@@ -212,8 +218,39 @@ export default function RondoKnockMatrix({
                       ? "#94a3b8"
                       : "#5cff72";
 
+          const rowNumVal = showTeamNumbers ? getKnockControlDisplayNumber(team.id, idx) : 0;
+          const minSelectable =
+            showTeamNumbers && idx > 0 ? getKnockControlDisplayNumber(sorted[idx - 1].id, idx - 1) + 1 : 1;
+
           return (
-            <div key={team.id} className={rowClass.join(" ")} data-phase={phase}>
+            <div key={team.id} className={`${rowClass.join(" ")}${showTeamNumbers ? " rkm-row--numbers" : ""}`} data-phase={phase}>
+              {showTeamNumbers ? (
+                <div className="rkm-row__teamnum" style={ns.knockTeamNum}>
+                  <span style={ns.knockTeamNumLabel}>Team #</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    aria-label={`Team number for ${team.team}`}
+                    title="Teams below adjust automatically · must stay above row above · no duplicates"
+                    min={minSelectable}
+                    max={99999}
+                    value={rowNumVal}
+                    onChange={(e) => commitKnockRowNumberFromIndex(idx, e.target.value)}
+                    style={{
+                      width: "100%",
+                      boxSizing: "border-box",
+                      padding: "4px 4px",
+                      fontSize: 13,
+                      fontWeight: 900,
+                      textAlign: "center",
+                      borderRadius: 8,
+                      border: "1px solid rgba(255,255,255,.14)",
+                      background: "rgba(0,0,0,.32)",
+                      color: "#e8eef5",
+                    }}
+                  />
+                </div>
+              ) : null}
               <div className="rkm-row__recall">
                 {(isBenched && credits > 0) || partialRecallEligible ? (
                   <RecallGlyph animated uid={String(team.id)} />
@@ -481,6 +518,9 @@ export default function RondoKnockMatrix({
           background: linear-gradient(160deg, rgba(10, 28, 42, 0.55), rgba(6, 10, 22, 0.88));
           box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.04);
           transition: border-color 0.35s ease, box-shadow 0.35s ease, transform 0.25s ease;
+        }
+        .rkm-row--numbers {
+          grid-template-columns: 52px 56px minmax(160px, 1.1fr) minmax(200px, 1.4fr) 180px minmax(200px, 1.2fr);
         }
         .rkm-row:hover {
           border-color: rgba(34, 211, 238, 0.18);
@@ -784,29 +824,61 @@ export default function RondoKnockMatrix({
         }
 
         @media (max-width: 1180px) {
-          .rkm-row {
+          .rkm-row:not(.rkm-row--numbers) {
             grid-template-columns: 48px 1fr;
             grid-template-rows: auto auto auto auto;
           }
-          .rkm-row__recall {
+          .rkm-row:not(.rkm-row--numbers) .rkm-row__recall {
             grid-row: 1 / span 2;
           }
-          .rkm-row__identity {
+          .rkm-row:not(.rkm-row--numbers) .rkm-row__identity {
             grid-column: 2;
           }
-          .rkm-row__status {
+          .rkm-row:not(.rkm-row--numbers) .rkm-row__status {
             grid-column: 1 / -1;
           }
-          .rkm-row__meters {
+          .rkm-row:not(.rkm-row--numbers) .rkm-row__meters {
             grid-column: 1 / -1;
             flex-direction: row;
             justify-content: space-between;
             width: 100%;
           }
-          .rkm-row__actions {
+          .rkm-row:not(.rkm-row--numbers) .rkm-row__actions {
             grid-column: 1 / -1;
             justify-content: stretch;
           }
+
+          .rkm-row--numbers {
+            grid-template-columns: 44px 48px 1fr;
+            grid-template-rows: auto auto auto auto;
+          }
+          .rkm-row--numbers .rkm-row__teamnum {
+            grid-column: 1;
+            grid-row: 1;
+            align-self: start;
+          }
+          .rkm-row--numbers .rkm-row__recall {
+            grid-column: 2;
+            grid-row: 1 / span 2;
+          }
+          .rkm-row--numbers .rkm-row__identity {
+            grid-column: 3;
+            grid-row: 1;
+          }
+          .rkm-row--numbers .rkm-row__status {
+            grid-column: 1 / -1;
+          }
+          .rkm-row--numbers .rkm-row__meters {
+            grid-column: 1 / -1;
+            flex-direction: row;
+            justify-content: space-between;
+            width: 100%;
+          }
+          .rkm-row--numbers .rkm-row__actions {
+            grid-column: 1 / -1;
+            justify-content: stretch;
+          }
+
           .rkm-actions-stack {
             max-width: none;
           }

@@ -2408,6 +2408,8 @@ export default function AdminPanel() {
                 undoRondoMistakenBench={undoRondoMistakenBench}
                 finalizeBenchedElimination={finalizeBenchedElimination}
                 finishBadgesObsUrl={finishBadgesObsUrl}
+                getKnockControlDisplayNumber={getKnockControlDisplayNumber}
+                commitKnockRowNumberFromIndex={commitKnockRowNumberFromIndex}
               />
             )}
           </section>
