@@ -14,6 +14,7 @@ import { resolveAliveLayout, resolveAliveCustomIcons } from "./utils/resolveAliv
 import { mergeThemeOverride } from "./utils/mergeThemeOverride";
 import { overlayPathMatches } from "./utils/overlayPrefsMatch";
 import { buildOverlayStreamRankingOrder } from "../teamDisplayOrder";
+import { normalizeMatchMeta } from "../normalizeMatchMeta";
 
 function OverlayInner({ cumulativeOverall = false }) {
   const { theme: baseTheme, themeName, config } = useTheme();
@@ -77,6 +78,13 @@ function OverlayInner({ cumulativeOverall = false }) {
 
   const [teams, setTeams] = useState([]);
   const [tournamentStats, setTournamentStats] = useState([]);
+  const [matchMeta, setMatchMeta] = useState(() => ({
+    number: 1,
+    status: "live",
+    startedAt: Date.now(),
+    map: "erangel",
+    matchLabel: "",
+  }));
   const [showWWCD, setShowWWCD] = useState(false);
   const [winner, setWinner] = useState(null);
   const [wwcdColors, setWwcdColors] = useState(null);
@@ -98,6 +106,16 @@ function OverlayInner({ cumulativeOverall = false }) {
     socket.on("tournamentUpdated", onTour);
     socket.emit("requestTournament");
     return () => socket.off("tournamentUpdated", onTour);
+  }, []);
+
+  useEffect(() => {
+    const onMatch = (data) => {
+      const meta = normalizeMatchMeta(data);
+      if (meta) setMatchMeta(meta);
+    };
+    socket.on("matchUpdated", onMatch);
+    socket.emit("requestMatch");
+    return () => socket.off("matchUpdated", onMatch);
   }, []);
 
   useEffect(() => {
@@ -152,7 +170,16 @@ function OverlayInner({ cumulativeOverall = false }) {
   const sortLiveOrder = useCallback((list) => buildOverlayStreamRankingOrder(list), []);
 
   const boardTeams = useMemo(() => {
-    if (!cumulativeOverall) return sortLiveOrder(teams);
+    const matchIsLive = String(matchMeta.status || "live").toLowerCase() === "live";
+
+    if (!cumulativeOverall) {
+      return sortLiveOrder(
+        teams.map((t) => ({
+          ...t,
+          finishes: matchIsLive ? Math.max(0, Number(t.finishes) || 0) : 0,
+        })),
+      );
+    }
 
     const byName = {};
     tournamentStats.forEach((s) => {
@@ -160,17 +187,20 @@ function OverlayInner({ cumulativeOverall = false }) {
       if (k) byName[k] = s;
     });
 
+    /** FIN = kills this live match only; TOTAL = summed points across series (same as Tournament stats backend). */
     const merged = teams.map((t) => {
       const st = byName[String(t.team || "").toUpperCase()];
-      if (!st) return { ...t };
+      const currentMatchFinishes = matchIsLive ? Math.max(0, Number(t.finishes) || 0) : 0;
+      const seriesTotalPoints =
+        st != null ? Math.max(0, Number(st.totalPoints) || 0) : Math.max(0, Number(t.points) || 0);
       return {
         ...t,
-        finishes: Number(st.totalKills) || 0,
-        points: Number(st.totalPoints) || 0,
+        finishes: currentMatchFinishes,
+        points: seriesTotalPoints,
       };
     });
     return sortLiveOrder(merged);
-  }, [teams, tournamentStats, cumulativeOverall, sortLiveOrder]);
+  }, [teams, tournamentStats, cumulativeOverall, sortLiveOrder, matchMeta.status]);
 
   return (
     <div
@@ -235,7 +265,7 @@ export default function ThemedOverlay() {
     params.get("cumulative") === "1" ||
     params.get("cumulative") === "true";
 
-  /** Default = series totals aligned with Tournament / Overall. Use live=1 for current-match PTS+FIN only. */
+  /** Default = TOTAL from series leaderboard + FIN from current live match kills. Use live=1 for both columns match-only. */
   const cumulativeOverall = explicitOn || !explicitOff;
 
   return (
