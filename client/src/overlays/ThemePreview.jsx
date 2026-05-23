@@ -796,6 +796,23 @@ export default function ThemePreview() {
                 label="WWCD 4-squad strip only (transparent — no match board)"
                 url={`/overlay/wwcd-only?theme=${encodeURIComponent(selected)}&position=bottom`}
               />
+              <UrlRow
+                label="Rondo · recall success popup (2nd OBS source · transparent BG)"
+                url="/overlay/rondo/recall-popup"
+                hint={
+                  <>
+                    Use a <strong style={{ color: "#9dd" }}>separate Browser Source</strong>: full canvas (e.g. 1920×1080). Enable{" "}
+                    <strong style={{ color: "#9dd" }}>transparent</strong> where your OBS preset allows · layer above gameplay to center the toast.
+                    {""} Optional chime → duplicate URL row below or append <code style={{ color: "#6ff3cb" }}>&amp;sound=1</code>
+                    {""} · custom lines →{" "}
+                    <code style={{ color: "#6ff3cb" }}>
+                      ?headline=…&amp;sub=…
+                    </code>
+                  </>
+                }
+                copyable
+              />
+              <UrlRow label="Rondo · recall popup (with optional sound)" url="/overlay/rondo/recall-popup?sound=1" copyable />
               <div style={{ marginTop: 10, padding: "8px 10px", background: "rgba(65,232,184,.06)", borderRadius: 6, border: "1px solid rgba(65,232,184,.15)" }}>
                 <div style={{ fontSize: 10, color: "#6FF3CB", fontWeight: 700, marginBottom: 2 }}>Live Mode (same origin as this page — copy for OBS)</div>
                 <code style={{ fontSize: 11, color: "#6ff3cb", background: "rgba(0,0,0,.3)", padding: "4px 8px", borderRadius: 4, display: "block", wordBreak: "break-all" }}>
@@ -857,17 +874,51 @@ function toInputColor(hex) {
   return /^#[0-9a-f]{6}$/i.test(h) ? h : "#000000";
 }
 
-function UrlRow({ label, url }) {
+function UrlRow({ label, url, hint, copyable }) {
   const origin = getOverlayPageOrigin() || "http://127.0.0.1:5173";
+  const full = `${origin}${url}`;
+  const [copied, setCopied] = useState(false);
+
+  const onCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(full);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1700);
+    } catch {
+      /* clipboard may block without https / permission */
+    }
+  }, [full]);
+
   return (
-    <div style={{ marginBottom: 8 }}>
-      <div style={{ fontSize: 10, color: "#666", fontWeight: 700, marginBottom: 2 }}>{label}</div>
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+        <div style={{ fontSize: 10, color: "#666", fontWeight: 700 }}>{label}</div>
+        {copyable ? (
+          <button type="button" onClick={() => void onCopy()} style={overlayCopyBtn}>
+            {copied ? "Copied" : "Copy URL"}
+          </button>
+        ) : null}
+      </div>
       <code style={{ fontSize: 11, color: "#6ff3cb", background: "rgba(0,0,0,.3)", padding: "4px 8px", borderRadius: 4, display: "block", wordBreak: "break-all" }}>
-        {`${origin}${url}`}
+        {full}
       </code>
+      {hint ? (
+        <div style={{ fontSize: 10, color: "#707a90", marginTop: 6, lineHeight: 1.5 }}>{hint}</div>
+      ) : null}
     </div>
   );
 }
+
+const overlayCopyBtn = {
+  padding: "4px 10px",
+  fontSize: 10,
+  fontWeight: 800,
+  borderRadius: 6,
+  border: "1px solid rgba(111,243,203,.42)",
+  background: "rgba(65,232,184,.12)",
+  color: "#9FFBE4",
+  cursor: "pointer",
+};
 
 const saveAliveBtn = {
   padding: "6px 12px",

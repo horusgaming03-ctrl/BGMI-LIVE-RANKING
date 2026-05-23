@@ -16,6 +16,7 @@ import LiveAnnouncementOverlay from "./overlays/LiveAnnouncementOverlay";
 import FinishBadgesOverlay from "./overlays/FinishBadgesOverlay";
 import ObsSharedTripleSlotOverlay from "./overlays/ObsSharedTripleSlotOverlay";
 import SideBannerOverlay from "./overlays/SideBannerOverlay";
+import RondoRecallPopupOverlay from "./overlays/RondoRecallPopupOverlay";
 
 export default function App() {
   return (
@@ -38,6 +39,7 @@ export default function App() {
       <Route path="/overlay/announcements" element={<LiveAnnouncementOverlay />} />
       <Route path="/overlay/finish-badges" element={<FinishBadgesOverlay />} />
       <Route path="/overlay/rondo/finish-badges" element={<FinishBadgesOverlay />} />
+      <Route path="/overlay/rondo/recall-popup" element={<RondoRecallPopupOverlay />} />
       <Route path="/overlay/broadcast-engine" element={<BroadcastEngineOverlay />} />
       <Route path="/overlay/engine-catalog" element={<EngineCatalog />} />
       {/* One PNG on disk → three OBS browser-source URLs read the same asset (no processing). */}
