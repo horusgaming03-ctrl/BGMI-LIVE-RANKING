@@ -11,10 +11,17 @@ import { applyDesignToTheme } from "./utils/applyDesign";
 
 const OVERLAY_TARGETS = [
   { path: "/overlay/broadcast-engine", label: "Broadcast engine" },
+  { path: "/overlay/bgmi-layered-ranking", label: "BGMI layered (3 PNG plates + rows)" },
+  { path: "/overlay/bgmi-layered-rows", label: "BGMI layered — data rows only" },
+  { path: "/overlay/finish-points-ranking", label: "Finish points ranking (themed · FIN column only)" },
+  { path: "/overlay/bgmi-layer-plate/ranking", label: "BGMI plate · live ranking PNG only" },
+  { path: "/overlay/bgmi-layer-plate/eliminator", label: "BGMI plate · eliminator PNG only" },
+  { path: "/overlay/bgmi-layer-plate/top4", label: "BGMI plate · top‑4 alive strip PNG only" },
   { path: "/overlay/themed", label: "Themed match board" },
   { path: "/overlay/themed/overall", label: "Themed overall standings" },
   { path: "/overlay/elimination", label: "Elimination banner" },
   { path: "/overlay/side-banner", label: "Side match banner (logo + match + map)" },
+  { path: "/overlay/obs-slot/live-ranking", label: "OBS shared PNG triple slot (live ranking URL; same PNG for eliminations & top-four)" },
   { path: "/overlay/zone-prediction", label: "Zone prediction cue (admin)" },
   { path: "/overlay/announcements", label: "Live announcements ticker (admin)" },
   { path: "/overlay/finish-badges", label: "Finish / kill badges strip" },

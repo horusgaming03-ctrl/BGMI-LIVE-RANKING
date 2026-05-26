@@ -65,11 +65,22 @@ function overlayAliveCountForSort(t) {
  * **OBS / stream output only** — dynamic leaderboard order for overlays.
  * Ignores `displayOrder` row pins (unlike `buildLiveRankingOrder` used by Admin + backend).
  *
- * Sort: total points DESC → alive players DESC → team id ASC (stable tie-break).
+ * Default sort: total points DESC → alive players DESC → team id ASC (stable tie-break).
+ * Options.sortPrimary `'finishes'`: FIN column DESC → alive → id — total points are not used for ordering.
  */
-export function buildOverlayStreamRankingOrder(teams) {
+export function buildOverlayStreamRankingOrder(teams, options = {}) {
   const arr = Array.isArray(teams) ? [...teams] : [];
+  const primary = options.sortPrimary === "finishes" ? "finishes" : "points";
   return arr.sort((a, b) => {
+    if (primary === "finishes") {
+      const fa = Number(a?.finishes) || 0;
+      const fb = Number(b?.finishes) || 0;
+      if (fb !== fa) return fb - fa;
+      const va = overlayAliveCountForSort(a);
+      const vb = overlayAliveCountForSort(b);
+      if (vb !== va) return vb - va;
+      return (Number(a?.id) || 0) - (Number(b?.id) || 0);
+    }
     const pa = Number(a?.points) || 0;
     const pb = Number(b?.points) || 0;
     if (pb !== pa) return pb - pa;

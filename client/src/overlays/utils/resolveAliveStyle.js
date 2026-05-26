@@ -1,7 +1,7 @@
 import { isValidAliveId } from "../../overlay-engine/alive-styles/aliveCatalog";
 import { getPresetConfig } from "../presets";
 import { defaultAliveStyleForPathname } from "./overlayDefaultAlive";
-import { overlayPathMatches } from "./overlayPrefsMatch";
+import { themedMatchBoardPrefsApply } from "./overlayPrefsMatch";
 
 /** URL ?alive= wins; then ?preset= aliveStyle; then saved prefs for /overlay/themed; then theme.alive.shape hint; else route default.
  * Saved shape must beat theme.defaults — otherwise Premium Gold etc. force "circle" whenever colors merge into the theme. */
@@ -20,7 +20,7 @@ export function resolveAliveStyle(searchOrParams, theme, savedPrefs = null) {
     typeof savedPrefs === "object" &&
     savedPrefs.aliveStyle &&
     isValidAliveId(savedPrefs.aliveStyle) &&
-    overlayPathMatches(savedPrefs.overlayPath, path)
+    themedMatchBoardPrefsApply(savedPrefs.overlayPath, path)
   ) {
     return savedPrefs.aliveStyle;
   }

@@ -4,7 +4,18 @@ import AliveIndicator from "../../overlay-engine/alive-styles/AliveIndicator";
 
 const API = getApiBase();
 
-function ThemedRow({ team, index, theme, anim, columns, aliveStyle = "rounded", aliveLayout = "grid", aliveCustomAlive = null, aliveCustomDead = null }) {
+function ThemedRow({
+  team,
+  index,
+  theme,
+  anim,
+  columns,
+  finishPointsRankingOnly = false,
+  aliveStyle = "rounded",
+  aliveLayout = "grid",
+  aliveCustomAlive = null,
+  aliveCustomDead = null,
+}) {
   const cols = columns || "52px 92px 38px 52px 46px";
   const t = theme.typography;
   const r = theme.row;
@@ -94,16 +105,18 @@ function ThemedRow({ team, index, theme, anim, columns, aliveStyle = "rounded", 
         {team.finishes ?? 0}
       </div>
 
-      <div
-        style={{
-          textAlign: "center",
-          color: theme.colors.text,
-          fontSize: t.numberSize,
-          fontWeight: 700,
-        }}
-      >
-        {team.points ?? 0}
-      </div>
+      {finishPointsRankingOnly ? null : (
+        <div
+          style={{
+            textAlign: "center",
+            color: theme.colors.text,
+            fontSize: t.numberSize,
+            fontWeight: 700,
+          }}
+        >
+          {team.points ?? 0}
+        </div>
+      )}
 
       <div
         style={{

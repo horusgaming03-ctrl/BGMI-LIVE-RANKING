@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useLocation } from "react-router-dom";
 import { ThemeProvider, useTheme } from "./ThemeContext";
 import useAnimation from "./animations/useAnimation";
 import keyframes from "./animations/keyframes";
@@ -17,6 +18,12 @@ import { buildOverlayStreamRankingOrder } from "../teamDisplayOrder";
 import { normalizeMatchMeta } from "../normalizeMatchMeta";
 
 function OverlayInner({ cumulativeOverall = false }) {
+  const location = useLocation();
+  const finishPointsRankingOnly =
+    String(location.pathname || "")
+      .replace(/\/+$/, "")
+      .endsWith("/finish-points-ranking");
+
   const { theme: baseTheme, themeName, config } = useTheme();
   const anim = useAnimation(config);
   const [urlTick, setUrlTick] = useState(0);
@@ -131,7 +138,7 @@ function OverlayInner({ cumulativeOverall = false }) {
       if (!cmd || typeof cmd !== "object" || cmd.type !== "showChickenDinner") return;
       let team = teamsRef.current.find((t) => t.eliminationRank === 1);
       if (!team) {
-        const sorted = buildOverlayStreamRankingOrder(teamsRef.current);
+        const sorted = buildOverlayStreamRankingOrder(teamsRef.current, {});
         team = sorted[0];
       }
       const winnerData = team
@@ -167,7 +174,11 @@ function OverlayInner({ cumulativeOverall = false }) {
     };
   }, [theme, wwcdColors]);
 
-  const sortLiveOrder = useCallback((list) => buildOverlayStreamRankingOrder(list), []);
+  const sortLiveOrder = useCallback(
+    (list) =>
+      buildOverlayStreamRankingOrder(list, finishPointsRankingOnly ? { sortPrimary: "finishes" } : {}),
+    [finishPointsRankingOnly],
+  );
 
   const boardTeams = useMemo(() => {
     const matchIsLive = String(matchMeta.status || "live").toLowerCase() === "live";
@@ -232,6 +243,7 @@ function OverlayInner({ cumulativeOverall = false }) {
         theme={theme}
         anim={anim}
         config={config}
+        finishPointsRankingOnly={finishPointsRankingOnly}
         aliveStyle={aliveDisplay.style}
         aliveLayout={aliveDisplay.layout}
         aliveCustomAlive={aliveDisplay.customAlive}

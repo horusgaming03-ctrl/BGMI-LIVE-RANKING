@@ -1,9 +1,9 @@
 {
   "autoCalculate": true,
-  "tournamentLogo": null,
+  "tournamentLogo": "/uploads/tournament/tournament-logo-1779527454385.jpeg",
   "engineOverlayPrefs": null,
   "themedOverlayPrefs": {
-    "aliveStyle": "circle",
+    "aliveStyle": "bolt",
     "aliveLayout": "line",
     "aliveCustomAlive": null,
     "aliveCustomDead": null
@@ -16,12 +16,26 @@
       "alive": {
         "color": "#2624a3"
       }
+    },
+    "cleanBroadcast": {
+      "colors": {
+        "accent": "#008cff",
+        "primary": "#1c3e5a",
+        "secondary": "#0d2b59"
+      },
+      "alive": {
+        "color": "#399d3c"
+      },
+      "row": {
+        "bgA": "#1b2431",
+        "bgB": "#262d36"
+      }
     }
   },
   "overallStandingsBg": null,
-  "obsSharedTriplePng": "/uploads/obs-shared-triple/obs-slot-1779179027810.png",
-  "obsSharedTripleColumns": "live5",
-  "obsTripleFpMetric": "points",
+  "obsSharedTriplePng": "/uploads/obs-shared-triple/obs-slot-1779702640974.png",
+  "obsSharedTripleColumns": "gold4",
+  "obsTripleFpMetric": "finishes",
   "wwcdCharacterArts": [
     null,
     null,
@@ -41,5 +55,74 @@
     "importedDriveFileIds": [],
     "lastError": null
   },
-  "activeTheme": "premiumGold"
+  "activeTheme": "cleanBroadcast",
+  "sideOverlayPrefs": {
+    "groupLabel": "GROUP A",
+    "useLiveMatchNumber": true,
+    "matchNumberManual": 4,
+    "useLiveMapName": true,
+    "mapNameManual": "",
+    "mapOrdinal": null,
+    "logoPanelBg": "#f7931e",
+    "topBarBg": "#ffffff",
+    "topBarText": "#151515",
+    "mapAreaBgStart": "#0f5f5f",
+    "mapAreaBgEnd": "#073030",
+    "mapNameColor": "#ffffff",
+    "sparkleColor": "#e63946",
+    "showSparkle": true,
+    "bannerScale": 1
+  },
+  "obsBgmiLayerPack": {
+    "layers": {
+      "main_ranking_png": {
+        "id": "main_ranking_png",
+        "leftPct": 69,
+        "topPct": 7,
+        "widthPct": 29,
+        "heightPct": 86,
+        "scalePct": 100,
+        "zIndex": 12,
+        "visible": true,
+        "path": "/uploads/obs-bgmi-layered/main_ranking_png-1779764063915.png"
+      },
+      "eliminator_png": {
+        "id": "eliminator_png",
+        "leftPct": 2,
+        "topPct": 8,
+        "widthPct": 34,
+        "heightPct": 22,
+        "scalePct": 100,
+        "zIndex": 50,
+        "visible": true,
+        "path": "/uploads/obs-bgmi-layered/eliminator_png-1779757579871.png"
+      },
+      "top_four_alive_png": {
+        "id": "top_four_alive_png",
+        "leftPct": 2,
+        "topPct": 68,
+        "widthPct": 42,
+        "heightPct": 18,
+        "scalePct": 100,
+        "zIndex": 40,
+        "visible": true,
+        "path": null
+      }
+    },
+    "dataPanel": {
+      "visible": true,
+      "topPct": 10,
+      "leftPct": 71.6,
+      "widthPct": 26.5,
+      "heightPct": 70,
+      "rowCap": 16,
+      "fpMetric": "points",
+      "showAliveDots": true,
+      "accent": "#22c55e",
+      "chrome": "minimal",
+      "dataAnchor": "contain",
+      "metricLayout": "split",
+      "showRankPill": true
+    }
+  }
 }

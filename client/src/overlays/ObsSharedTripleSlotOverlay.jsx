@@ -9,6 +9,14 @@ const SLOT_LABEL = {
   "live-ranking": "Live ranking",
 };
 
+/** Large enough for broadcast (1080p); old 22–34px read as dust on full-frame PNG backdrops */
+const OBS_TRIPLE_LOGO_WH = "clamp(38px, min(6vmin, 5.9vh), 86px)";
+const OBS_TRIPLE_ROW_FONT_LIVE = "clamp(11px, min(2.85vw, 3.05vh), 22px)";
+const OBS_TRIPLE_ROW_FONT_GOLD = "clamp(11px, min(2.85vw, 3.05vh), 21px)";
+const OBS_TRIPLE_STATUS_FONT_LIVE = "clamp(10px, min(2.15vw, 2.05vh), 18px)";
+const OBS_TRIPLE_STATUS_FONT_GOLD = "clamp(10px, min(2.05vw, 2vh), 17px)";
+const OBS_TRIPLE_LOGO_FALLBACK_PT = "clamp(9px, min(1.35vh, 1.8vmin), 14px)";
+
 function eliminationStatus(t) {
   const r = t.eliminationRank;
   return r != null ? `OUT #${r}` : "OUT";
@@ -450,13 +458,13 @@ export default function ObsSharedTripleSlotOverlay() {
 
   const dotPx = useMemo(() => {
     const n = rows.length || 1;
-    return Math.max(5, Math.min(11, 220 / n));
+    return Math.max(6, Math.min(13, Math.round(280 / n)));
   }, [rows.length]);
 
   const gridTplLive =
-    "minmax(3rem,.48fr) minmax(112px,2.72fr) minmax(3.25rem,.5fr) minmax(3.5rem,.53fr) minmax(4.85rem,.85fr)";
+    "minmax(3.35rem,.5fr) minmax(154px,2.88fr) minmax(3.35rem,.52fr) minmax(3.65rem,.55fr) minmax(5rem,.88fr)";
   const gridTplGold =
-    "minmax(2.65rem,.4fr) minmax(116px,2.65fr) minmax(3.15rem,.45fr) minmax(5.2rem,.95fr)";
+    "minmax(3.1rem,.42fr) minmax(154px,2.78fr) minmax(3.25rem,.46fr) minmax(5.35rem,.98fr)";
 
   return (
     <div
@@ -555,7 +563,7 @@ export default function ObsSharedTripleSlotOverlay() {
                       columnGap: "0.4rem",
                       minHeight: 0,
                       ...themeColors.rowBase,
-                      fontSize: "clamp(8.5px, min(2vw, 2vh), 17px)",
+                      fontSize: OBS_TRIPLE_ROW_FONT_GOLD,
                       opacity: row.empty ? 0 : 1,
                     }}
                   >
@@ -567,8 +575,8 @@ export default function ObsSharedTripleSlotOverlay() {
                         <>
                           <div
                             style={{
-                              width: "clamp(22px, 3.25vh, 34px)",
-                              height: "clamp(22px, 3.25vh, 34px)",
+                              width: OBS_TRIPLE_LOGO_WH,
+                              height: OBS_TRIPLE_LOGO_WH,
                               borderRadius: 6,
                               flexShrink: 0,
                               overflow: "hidden",
@@ -576,7 +584,7 @@ export default function ObsSharedTripleSlotOverlay() {
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
-                              fontSize: "clamp(7px, 1.05vh, 11px)",
+                              fontSize: OBS_TRIPLE_LOGO_FALLBACK_PT,
                               color: themeColors.logoText,
                               fontWeight: 800,
                               border:
@@ -625,7 +633,7 @@ export default function ObsSharedTripleSlotOverlay() {
                       style={{
                         textAlign: "center",
                         color: themeColors.status,
-                        fontSize: "clamp(7.5px, min(1.75vw, 1.72vh), 15px)",
+                        fontSize: OBS_TRIPLE_STATUS_FONT_GOLD,
                         whiteSpace: "nowrap",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
@@ -645,7 +653,7 @@ export default function ObsSharedTripleSlotOverlay() {
                       columnGap: "0.35rem",
                       minHeight: 0,
                       ...themeColors.rowBase,
-                      fontSize: "clamp(8.5px, min(2vw, 2vh), 17px)",
+                      fontSize: OBS_TRIPLE_ROW_FONT_LIVE,
                       opacity: row.empty ? 0 : 1,
                     }}
                   >
@@ -663,8 +671,8 @@ export default function ObsSharedTripleSlotOverlay() {
                         <>
                           <div
                             style={{
-                              width: "clamp(22px, 3.25vh, 34px)",
-                              height: "clamp(22px, 3.25vh, 34px)",
+                              width: OBS_TRIPLE_LOGO_WH,
+                              height: OBS_TRIPLE_LOGO_WH,
                               borderRadius: 6,
                               flexShrink: 0,
                               overflow: "hidden",
@@ -672,7 +680,7 @@ export default function ObsSharedTripleSlotOverlay() {
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
-                              fontSize: "clamp(7px, 1.05vh, 11px)",
+                              fontSize: OBS_TRIPLE_LOGO_FALLBACK_PT,
                               color: themeColors.logoText,
                               fontWeight: 800,
                               border:
@@ -734,7 +742,7 @@ export default function ObsSharedTripleSlotOverlay() {
                         textAlign: "center",
                         minWidth: 0,
                         color: themeColors.status,
-                        fontSize: "clamp(7.5px, min(1.75vw, 1.7vh), 15px)",
+                        fontSize: OBS_TRIPLE_STATUS_FONT_LIVE,
                       }}
                     >
                       {row.showAliveDots ? (

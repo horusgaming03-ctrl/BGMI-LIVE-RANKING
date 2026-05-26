@@ -1,8 +1,9 @@
 import { memo } from "react";
 
-function ThemedHeader({ theme, anim, columns }) {
+function ThemedHeader({ theme, anim, columns, finishPointsRankingOnly }) {
   const cols = columns || "52px 92px 38px 52px 46px";
   const t = theme.typography;
+  const labels = finishPointsRankingOnly ? ["RANK", "TEAM", "FIN", "ALIVE"] : ["RANK", "TEAM", "FIN", "TOTAL", "ALIVE"];
 
   return (
     <div
@@ -16,7 +17,7 @@ function ThemedHeader({ theme, anim, columns }) {
         animation: anim,
       }}
     >
-      {["RANK", "TEAM", "FIN", "TOTAL", "ALIVE"].map((label, i) => (
+      {labels.map((label, i) => (
         <div
           key={label}
           style={{

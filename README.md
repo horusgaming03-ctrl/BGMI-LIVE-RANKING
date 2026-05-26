@@ -53,3 +53,7 @@ Opens the app from **Node** only, e.g. http://127.0.0.1:3001/overlay/themes (por
 | `npm run dev:vite` | Vite only (in `./client`) |
 | `npm run start:app` | Build client + serve **everything** from **3001** |
 | `npm start` | API + serves **built** client if **`client/dist`** exists |
+
+## Overlay engine (OBS)
+
+See **`docs/OVERLAY_ENGINE.md`** for themes, separate `/overlay/...` URLs, the shared PNG triple-slot, live socket data, and how that compares to a future “static theme folder” (`index.html` + `layout.json`) workflow.

@@ -23,8 +23,9 @@ const aliveIconsDir = path.join(uploadsDir, "alive-icons");
 const overallStandingsDir = path.join(uploadsDir, "overall-standings");
 const wwcdCharsDir = path.join(uploadsDir, "wwcd-chars");
 const obsSharedTripleDir = path.join(uploadsDir, "obs-shared-triple");
+const obsBgmiLayeredDir = path.join(uploadsDir, "obs-bgmi-layered");
 
-[uploadsDir, logosDir, screenshotsDir, tournamentDir, aliveIconsDir, overallStandingsDir, wwcdCharsDir, obsSharedTripleDir].forEach((dir) => {
+[uploadsDir, logosDir, screenshotsDir, tournamentDir, aliveIconsDir, overallStandingsDir, wwcdCharsDir, obsSharedTripleDir, obsBgmiLayeredDir].forEach((dir) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
@@ -148,6 +149,31 @@ const obsSharedTriplePngUpload = multer({
     // Trust `.png` only — multer/OS MIME pairs are inconsistent (often octet-stream or empty).
     if (ext === ".png") return cb(null, true);
     cb(new Error("OBS shared-slot upload accepts PNG files only."));
+  },
+});
+
+const ALLOWED_BGMI_LAYER_IDS = new Set(["main_ranking_png", "eliminator_png", "top_four_alive_png"]);
+
+const obsBgmiLayeredPngUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, obsBgmiLayeredDir),
+    filename: (req, _file, cb) => {
+      const id = ALLOWED_BGMI_LAYER_IDS.has(String(req.params.layerId || "").trim())
+        ? String(req.params.layerId).trim()
+        : "layer";
+      cb(null, `${id}-${Date.now()}.png`);
+    },
+  }),
+  limits: { fileSize: 45 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || "").toLowerCase();
+    const mime = String(file.mimetype || "").toLowerCase();
+    /** Browsers often label PNG as octet-stream or omit a filename extension on drag-and-drop. */
+    const isPngMime = mime === "image/png" || mime === "image/x-png";
+    if (ext === ".png") return cb(null, true);
+    if (isPngMime) return cb(null, true);
+    if (mime === "application/octet-stream" && ext === ".png") return cb(null, true);
+    cb(new Error("BGMI layer upload accepts PNG files only (.png / image/png)."));
   },
 });
 
@@ -383,6 +409,8 @@ let settings = {
   activeTheme: "esports",
   /** Banner strip for `/overlay/side-banner` (tournament graphic + match / map titles) */
   sideOverlayPrefs: sanitizeSideOverlayPrefs({}),
+  /** Multi-layer BGMI ranking overlay — `/overlay/bgmi-layered-ranking` */
+  obsBgmiLayerPack: sanitizeObsBgmiLayerPackServer({}),
 };
 
 const dataDir = path.join(ROOT, "data");
@@ -534,6 +562,130 @@ function sanitizeObsTripleFpMetricServer(v) {
   return "points";
 }
 
+function sanitizeObsBgmiLayerPathServer(s) {
+  if (typeof s !== "string" || !s.startsWith("/uploads/obs-bgmi-layered/")) return null;
+  if (s.includes("..")) return null;
+  return s;
+}
+
+function clampPctSrv(n, fb) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return fb;
+  return Math.max(0, Math.min(100, x));
+}
+
+function clampIntSrv(n, min, max, fb) {
+  const x = Math.trunc(Number(n));
+  if (!Number.isFinite(x)) return fb;
+  return Math.max(min, Math.min(max, x));
+}
+
+function defaultObsBgmiLayerPackServer() {
+  const layers = {};
+  const defaults = [
+    { id: "main_ranking_png", leftPct: 69, topPct: 7, widthPct: 29, heightPct: 86, scalePct: 100, zIndex: 12, visible: true, path: null },
+    { id: "eliminator_png", leftPct: 2, topPct: 8, widthPct: 34, heightPct: 22, scalePct: 100, zIndex: 50, visible: true, path: null },
+    { id: "top_four_alive_png", leftPct: 2, topPct: 68, widthPct: 42, heightPct: 18, scalePct: 100, zIndex: 40, visible: true, path: null },
+  ];
+  for (const d of defaults) layers[d.id] = { ...d };
+  return {
+    layers,
+    dataPanel: {
+      visible: true,
+      topPct: 10,
+      leftPct: 71.5,
+      widthPct: 26.5,
+      heightPct: 80,
+      rowCap: 18,
+      fpMetric: "finishes",
+      showAliveDots: true,
+      accent: "#22c55e",
+      chrome: "minimal",
+      dataAnchor: "viewport",
+      metricLayout: "merged",
+      showRankPill: true,
+    },
+  };
+}
+
+/**
+ * Normalize + validate layer pack. When `prevPack` is provided, fields omitted in `raw` keep
+ * their previous values (fixes partial Admin saves / socket patches wiping PNG paths).
+ */
+function sanitizeObsBgmiLayerPackServer(raw, prevPack) {
+  const defaults = defaultObsBgmiLayerPackServer();
+  if (!raw || typeof raw !== "object") return defaults;
+
+  const prev = prevPack && typeof prevPack === "object" ? prevPack : null;
+  const prevLayers = prev?.layers && typeof prev.layers === "object" ? prev.layers : {};
+
+  const out = JSON.parse(JSON.stringify(defaults));
+  const incomingLayers = raw.layers && typeof raw.layers === "object" ? raw.layers : {};
+
+  const applyDataPanel = (dp) => {
+    if (!dp || typeof dp !== "object") return;
+    if ("visible" in dp) out.dataPanel.visible = coerceJsonBool(dp.visible, out.dataPanel.visible);
+    if ("topPct" in dp) out.dataPanel.topPct = clampPctSrv(dp.topPct, out.dataPanel.topPct);
+    if ("leftPct" in dp) out.dataPanel.leftPct = clampPctSrv(dp.leftPct, out.dataPanel.leftPct);
+    if ("widthPct" in dp) out.dataPanel.widthPct = clampPctSrv(dp.widthPct, out.dataPanel.widthPct);
+    if ("heightPct" in dp) out.dataPanel.heightPct = clampPctSrv(dp.heightPct, out.dataPanel.heightPct);
+    if ("rowCap" in dp) out.dataPanel.rowCap = clampIntSrv(dp.rowCap, 4, 32, out.dataPanel.rowCap);
+    if ("fpMetric" in dp) out.dataPanel.fpMetric = String(dp.fpMetric) === "points" ? "points" : "finishes";
+    if ("showAliveDots" in dp) out.dataPanel.showAliveDots = coerceJsonBool(dp.showAliveDots, out.dataPanel.showAliveDots);
+    if ("accent" in dp) {
+      const t = typeof dp.accent === "string" ? dp.accent.trim() : "";
+      const ac = t && /^#[0-9A-Fa-f]{6}$/.test(t) ? t.toLowerCase() : out.dataPanel.accent;
+      out.dataPanel.accent = ac;
+    }
+    if ("chrome" in dp && typeof dp.chrome === "string") {
+      const c = dp.chrome.trim().toLowerCase();
+      out.dataPanel.chrome = c === "board" ? "board" : "minimal";
+    }
+    if ("dataAnchor" in dp && typeof dp.dataAnchor === "string") {
+      const a = dp.dataAnchor.trim().toLowerCase();
+      out.dataPanel.dataAnchor = a === "contain" ? "contain" : "viewport";
+    }
+    if ("metricLayout" in dp && typeof dp.metricLayout === "string") {
+      const m = dp.metricLayout.trim().toLowerCase();
+      out.dataPanel.metricLayout = m === "split" ? "split" : "merged";
+    }
+    if ("showRankPill" in dp) out.dataPanel.showRankPill = coerceJsonBool(dp.showRankPill, out.dataPanel.showRankPill !== false);
+  };
+  applyDataPanel(prev?.dataPanel);
+  applyDataPanel(raw.dataPanel);
+
+  for (const id of Object.keys(defaults.layers)) {
+    const baseL = defaults.layers[id];
+    const prevL = prevLayers[id] && typeof prevLayers[id] === "object" ? prevLayers[id] : {};
+    const srcL = incomingLayers[id];
+
+    const mix = {
+      ...baseL,
+      ...prevL,
+      ...(srcL && typeof srcL === "object" ? srcL : {}),
+    };
+
+    let pathResolved = mix.path;
+    if (srcL && typeof srcL === "object" && Object.prototype.hasOwnProperty.call(srcL, "path")) {
+      pathResolved = srcL.path;
+    }
+
+    out.layers[id] = {
+      ...baseL,
+      path: sanitizeObsBgmiLayerPathServer(pathResolved) ?? null,
+      visible: coerceJsonBool(mix.visible, baseL.visible !== false),
+      leftPct: clampPctSrv(mix.leftPct, baseL.leftPct),
+      topPct: clampPctSrv(mix.topPct, baseL.topPct),
+      widthPct: Math.max(0.5, clampPctSrv(mix.widthPct, baseL.widthPct)),
+      heightPct: mix.heightPct == null ? baseL.heightPct : clampPctSrv(mix.heightPct, baseL.heightPct),
+      scalePct: clampIntSrv(mix.scalePct, 20, 300, baseL.scalePct),
+      zIndex: clampIntSrv(mix.zIndex, 0, 999, baseL.zIndex),
+    };
+    if (!out.layers[id].path) out.layers[id].path = null;
+  }
+  return out;
+}
+
 function sanitizeWwcdCharacterArts(input) {
   const src = Array.isArray(input) ? input : [];
   return [0, 1, 2, 3].map((i) => {
@@ -616,6 +768,10 @@ function loadPersistedSettings() {
       /* Older app-settings.json omitted this block — write once so overlays + admin share the same snapshot */
       persistAppSettings();
     }
+    if (Object.prototype.hasOwnProperty.call(raw, "obsBgmiLayerPack")) {
+      const prevSnap = settings.obsBgmiLayerPack;
+      settings.obsBgmiLayerPack = sanitizeObsBgmiLayerPackServer(raw.obsBgmiLayerPack, prevSnap);
+    }
     if (!settings.themedOverlayPrefs && settings.engineOverlayPrefs && typeof settings.engineOverlayPrefs === "object") {
       const op = String(settings.engineOverlayPrefs.overlayPath || "")
         .replace(/\/+$/, "")
@@ -650,6 +806,7 @@ function persistAppSettings() {
           googleIntegration: settings.googleIntegration,
           activeTheme: settings.activeTheme,
           sideOverlayPrefs: settings.sideOverlayPrefs,
+          obsBgmiLayerPack: settings.obsBgmiLayerPack,
         },
         null,
         2
@@ -1572,6 +1729,10 @@ app.post("/settings", (req, res) => {
   if (Object.prototype.hasOwnProperty.call(req.body, "sideOverlayPrefs")) {
     settings.sideOverlayPrefs = sanitizeSideOverlayPrefs(req.body.sideOverlayPrefs || {});
   }
+  if (Object.prototype.hasOwnProperty.call(req.body, "obsBgmiLayerPack")) {
+    const prevObs = settings.obsBgmiLayerPack;
+    settings.obsBgmiLayerPack = sanitizeObsBgmiLayerPackServer(req.body.obsBgmiLayerPack || {}, prevObs);
+  }
   if (Object.prototype.hasOwnProperty.call(req.body, "activeTheme")) {
     settings.activeTheme = sanitizeActiveThemeServer(req.body.activeTheme);
     activeThemeName = settings.activeTheme;
@@ -1654,6 +1815,42 @@ app.post("/upload/obs-shared-triple", (req, res) => {
         "/overlay/obs-slot/live-ranking",
       ],
     });
+  });
+});
+
+/** Per-layer PNG for `/overlay/bgmi-layered-ranking` — path stored in `settings.obsBgmiLayerPack.layers[layerId]`. */
+app.post("/upload/obs-bgmi-layer/:layerId", (req, res) => {
+  const lid = String(req.params.layerId || "").trim();
+  if (!ALLOWED_BGMI_LAYER_IDS.has(lid)) {
+    return res.status(400).json({ message: "Unknown layer id." });
+  }
+  obsBgmiLayeredPngUpload.single("file")(req, res, (err) => {
+    if (err) {
+      console.error("obs-bgmi-layer:", err.message);
+      if (err instanceof multer.MulterError) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+          return res.status(400).json({ message: "PNG too large (max 45 MB)." });
+        }
+        return res.status(400).json({ message: err.message || "Upload failed" });
+      }
+      return res.status(400).json({ message: err.message || "Upload failed" });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file — form field name must be "file".' });
+    }
+    const rel = `/uploads/obs-bgmi-layered/${req.file.filename}`;
+    const prevObs = settings.obsBgmiLayerPack;
+    settings.obsBgmiLayerPack = sanitizeObsBgmiLayerPackServer(prevObs || {}, prevObs);
+    if (!settings.obsBgmiLayerPack.layers[lid]) {
+      return res.status(500).json({ message: "Layer pack misconfigured." });
+    }
+    settings.obsBgmiLayerPack.layers[lid] = {
+      ...settings.obsBgmiLayerPack.layers[lid],
+      path: rel,
+    };
+    persistAppSettings();
+    io.emit("settingsUpdated", settings);
+    res.json({ path: rel, layerId: lid, ok: true, obsBgmiLayerPack: settings.obsBgmiLayerPack });
   });
 });
 
@@ -2005,6 +2202,7 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log(`API + Socket.IO listening on http://127.0.0.1:${PORT} (all interfaces — use your LAN IP from another PC/OBS)`);
   console.log(`Overall PNG upload: POST /upload/overall-standings-bg (admin → Tournament → custom background)`);
   console.log(`OBS shared PNG (3 URLs): POST /upload/obs-shared-triple → /overlay/obs-slot/eliminations | top-four | live-ranking`);
+  console.log(`BGMI layered OBS: POST /upload/obs-bgmi-layer/:layerId → GET /overlay/bgmi-layered-ranking`);
   restartGooglePoller();
   if (!serveSpa) {
     console.log(`(SERVE_SPA=false — API only. Run Vite dev in ./client or use "npm start" for built UI.)`);

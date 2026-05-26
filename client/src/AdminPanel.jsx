@@ -6,6 +6,7 @@ import RondoKnockMatrix from "./rondo/RondoKnockMatrix";
 import { getRondoRecallChargesRemaining } from "./rondo/recallCharges.js";
 import { buildLiveRankingOrder } from "./teamDisplayOrder";
 import { SIDE_OVERLAY_DEFAULT_PREFS, mergeSideOverlayPrefs, clampHexColor, stableCanonSidePrefs } from "./sideOverlayPrefs";
+import { mergeObsBgmiLayerPack, OBS_BGMI_LAYER_IDS, OBS_BGMI_LAYER_META } from "./obsBgmiLayerPack";
 
 const API = getApiBase();
 const socket = connectSocket();
@@ -80,6 +81,7 @@ export default function AdminPanel() {
   const [obsSharedTriplePng, setObsSharedTriplePng] = useState(null);
   const [obsSharedTripleColumns, setObsSharedTripleColumns] = useState("live5");
   const [obsTripleFpMetric, setObsTripleFpMetric] = useState("points");
+  const [bgmiLayerPackDraft, setBgmiLayerPackDraft] = useState(() => mergeObsBgmiLayerPack({}));
   const [overallBgUploadMsg, setOverallBgUploadMsg] = useState("");
   const [zoneCueHeadline, setZoneCueHeadline] = useState("");
   const [zoneCueSubtitle, setZoneCueSubtitle] = useState("");
@@ -148,6 +150,9 @@ export default function AdminPanel() {
       }
       if (data && Object.prototype.hasOwnProperty.call(data, "obsTripleFpMetric")) {
         setObsTripleFpMetric(String(data.obsTripleFpMetric) === "finishes" ? "finishes" : "points");
+      }
+      if (data && Object.prototype.hasOwnProperty.call(data, "obsBgmiLayerPack") && data.obsBgmiLayerPack && typeof data.obsBgmiLayerPack === "object") {
+        setBgmiLayerPackDraft(mergeObsBgmiLayerPack({}, data.obsBgmiLayerPack));
       }
       if (Array.isArray(data?.wwcdCharacterArts)) {
         setWwcdCharacterArts(normalizeWwcdArts(data.wwcdCharacterArts));
@@ -1454,6 +1459,17 @@ export default function AdminPanel() {
         >
           <span aria-hidden>🖥</span>
           <span style={{ flex: 1 }}>Overlay control</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => goSection("obsBgmiLayered")}
+          style={{
+            ...dash.navItem,
+            ...(expandedSection === "obsBgmiLayered" ? dash.navItemActive : {}),
+          }}
+        >
+          <span aria-hidden>📐</span>
+          <span style={{ flex: 1 }}>BGMI layered OBS</span>
         </button>
         <button
           type="button"
@@ -3217,6 +3233,442 @@ export default function AdminPanel() {
           </section>
         )}
 
+        {expandedSection === "obsBgmiLayered" ? (
+          <section style={ns.sectionCard}>
+            <div style={ns.sectionHeader}>
+              <div>
+                <p style={styles.cardLabel}>OBS · 3 PNG LAYERS · LIVE RANKING</p>
+                <h2 style={styles.cardTitle}>BGMI / PUBG layered ranking</h2>
+              </div>
+            </div>
+
+            <p style={{ margin: "0 0 14px", color: "#8CB7BE", fontSize: 13, lineHeight: 1.55, maxWidth: 960 }}>
+              <strong style={{ color: "#C8E8E4" }}>Three deco plates:</strong> live ranking overlay, eliminator, and top 4 alive strip — each upload + position independently.
+              Live data rows overlay shows <strong style={{ color: "#C8E8E4" }}>#rank</strong>, logos, kills/PTS, and alive dots.
+              Stack in OBS using the URLs below (plates underneath, rows on top).
+              Append <code style={{ color: "#F1CF69" }}>?debug=1</code> to outline the data panel box.
+            </p>
+
+            <p style={{ margin: "0 0 14px", color: "#FDE68A", fontSize: 12, lineHeight: 1.5, maxWidth: 960 }}>
+              <strong style={{ color: "#FCD34D" }}>Visible checkbox:</strong> affects the <em>combined</em> URL only. Each{" "}
+              <code style={{ color: "#7dd3fc" }}>/overlay/bgmi-layer-plate/…</code> source still shows its PNG after upload. LAN / OBS: use full URLs from this list; refresh OBS after re-upload.
+              URL overrides: append <code style={{ color: "#7dd3fc" }}>?debug=1</code> (panel outline), <code style={{ color: "#7dd3fc" }}>?chrome=board</code> (gold rows) or{" "}
+              <code style={{ color: "#7dd3fc" }}>?chrome=minimal</code> (text on PNG only). Use <code style={{ color: "#7dd3fc" }}>?anchor=contain</code> to snap the data grid to{" "}
+              the <em>visible</em> ranking PNG instead of fullscreen (fixes letterboxing drift).
+            </p>
+
+            {(() => {
+              const overlayOrigin =
+                typeof window !== "undefined" ? getOverlayPageOrigin() || window.location.origin.replace(/\/$/, "") : "";
+              const base = `${overlayOrigin}/overlay`;
+
+              const layeredUrls = [
+                { label: "Combined (all 3 plates + rows)", path: "/bgmi-layered-ranking", hint: "One browser source — every visible PNG + table" },
+                { label: "Rows only", path: "/bgmi-layered-rows", hint: "Table + logos; add each PNG plate below as extra sources" },
+                { label: "Plate · live ranking", path: "/bgmi-layer-plate/ranking", hint: "\"Live ranking overlay\" PNG only" },
+                { label: "Plate · eliminator", path: "/bgmi-layer-plate/eliminator", hint: "\"Eliminator\" PNG only" },
+                {
+                  label: "Plate · top 4 alive strip",
+                  path: "/bgmi-layer-plate/top4",
+                  hint: '"Top 4 alive strip" PNG only (aliases: /plate/strip)',
+                },
+              ];
+
+              const inputSm = {
+                width: 72,
+                padding: "6px 8px",
+                borderRadius: 8,
+                border: "1px solid rgba(148,163,184,.35)",
+                background: "#0f172a",
+                color: "#e2e8f0",
+                fontSize: 13,
+              };
+
+              const persistPack = async (next) => {
+                try {
+                  const res = await fetch(`${API}/settings`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ obsBgmiLayerPack: next }),
+                  });
+                  if (!res.ok) throw new Error(String(res.status));
+                  const d = await res.json().catch(() => ({}));
+                  if (d.obsBgmiLayerPack && typeof d.obsBgmiLayerPack === "object") {
+                    setBgmiLayerPackDraft(mergeObsBgmiLayerPack({}, d.obsBgmiLayerPack));
+                  } else setBgmiLayerPackDraft(next);
+                  setMessage("BGMI layered pack saved.");
+                } catch {
+                  setMessage("Could not save layered pack — check API on port 3001.");
+                }
+              };
+
+              const dp = bgmiLayerPackDraft.dataPanel;
+
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  <div
+                    style={{
+                      padding: "12px 14px",
+                      borderRadius: 12,
+                      border: "1px solid rgba(115,231,190,.38)",
+                      background: "rgba(56,189,248,.06)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 10,
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, fontSize: 14, color: "#e2e8f0" }}>OBS browser source URLs</div>
+                    <p style={{ margin: 0, fontSize: 12, color: "#94a3b8", lineHeight: 1.5 }}>
+                      After changing PNGs in admin, refresh each OBS source (<strong style={{ color: "#c8e8e4" }}>right-click → Refresh</strong>) or add{" "}
+                      <code style={{ color: "#7dd3fc" }}>?v=1</code> to bust cache. Typical stack: plates on bottom, <strong style={{ color: "#c8e8e4" }}>rows</strong> source on top.
+                    </p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {layeredUrls.map((row) => {
+                        const href = `${base}${row.path}`;
+                        return (
+                          <div
+                            key={row.path}
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "minmax(140px, 1fr) auto",
+                              gap: 8,
+                              alignItems: "start",
+                              padding: "8px 10px",
+                              borderRadius: 8,
+                              background: "rgba(15,23,42,.55)",
+                              border: "1px solid rgba(148,163,184,.2)",
+                            }}
+                          >
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontWeight: 700, fontSize: 12, color: "#e2e8f0", marginBottom: 2 }}>{row.label}</div>
+                              <code style={{ fontSize: 11, color: "#7dd3fc", wordBreak: "break-all", display: "block" }}>{href}</code>
+                              <div style={{ fontSize: 10, color: "#64748b", marginTop: 4, lineHeight: 1.35 }}>{row.hint}</div>
+                            </div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "flex-end" }}>
+                              <button
+                                type="button"
+                                style={{ ...ns.matchBtn, padding: "6px 10px", fontSize: 11 }}
+                                onClick={() => void navigator.clipboard.writeText(href).then(() => setMessage(`Copied: ${row.label}`)).catch(() => {})}
+                              >
+                                Copy
+                              </button>
+                              <button
+                                type="button"
+                                style={{ ...ns.matchBtnPrimary, padding: "6px 10px", fontSize: 11 }}
+                                onClick={() =>
+                                  window.open(
+                                    `${href}${href.includes("?") ? "&" : "?"}debug=1`,
+                                    "_blank",
+                                    "noopener,noreferrer,width=1280,height=720"
+                                  )
+                                }
+                              >
+                                Preview
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div style={{ padding: "14px 16px", borderRadius: 12, border: "1px solid rgba(148,163,184,.32)", background: "rgba(15,23,42,.42)" }}>
+                    <p style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 800, color: "#94a3b8", letterSpacing: "0.08em" }}>DATA PANEL (# · TEAM · FF or FF/TF · STATUS)</p>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+                      <label style={{ fontSize: 11, color: "#94a3b8" }}>
+                        Show rows
+                        <input
+                          type="checkbox"
+                          checked={dp.visible !== false}
+                          onChange={(e) => setBgmiLayerPackDraft((p) => mergeObsBgmiLayerPack({ dataPanel: { visible: e.target.checked } }, p))}
+                          style={{ marginLeft: 8 }}
+                        />
+                      </label>
+                      <label style={{ fontSize: 11, color: "#94a3b8" }}>
+                        FP shows
+                        <select
+                          value={dp.fpMetric === "points" ? "points" : "finishes"}
+                          onChange={(e) =>
+                            setBgmiLayerPackDraft((p) => mergeObsBgmiLayerPack({ dataPanel: { fpMetric: e.target.value === "points" ? "points" : "finishes" } }, p))
+                          }
+                          style={{ ...inputSm, width: "100%", marginTop: 6 }}
+                        >
+                          <option value="finishes">Finishes only (FF column)</option>
+                          <option value="points">FF + TF columns (Total PTS)</option>
+                        </select>
+                      </label>
+                      <label style={{ fontSize: 11, color: "#94a3b8" }}>
+                        Data anchor (% box)
+                        <select
+                          value={dp.dataAnchor === "contain" ? "contain" : "viewport"}
+                          onChange={(e) =>
+                            setBgmiLayerPackDraft((p) =>
+                              mergeObsBgmiLayerPack({ dataPanel: { dataAnchor: e.target.value === "contain" ? "contain" : "viewport" } }, p),
+                            )
+                          }
+                          style={{ ...inputSm, width: "100%", marginTop: 6 }}
+                        >
+                          <option value="viewport">Fullscreen (legacy)</option>
+                          <option value="contain">PNG drawable area (recommended for object-fit PNGs)</option>
+                        </select>
+                      </label>
+                      <label style={{ fontSize: 11, color: "#94a3b8" }}>
+                        Total PTS columns
+                        <select
+                          value={dp.metricLayout === "split" ? "split" : "merged"}
+                          onChange={(e) =>
+                            setBgmiLayerPackDraft((p) =>
+                              mergeObsBgmiLayerPack({ dataPanel: { metricLayout: e.target.value === "split" ? "split" : "merged" } }, p),
+                            )
+                          }
+                          style={{ ...inputSm, width: "100%", marginTop: 6 }}
+                          disabled={dp.fpMetric !== "points"}
+                        >
+                          <option value="merged">One cell (FF / TF merged)</option>
+                          <option value="split">Separate FIN and TOT cells (matches two-column PNG)</option>
+                        </select>
+                      </label>
+                      <label style={{ fontSize: 11, color: "#94a3b8" }}>
+                        Show # pill
+                        <input
+                          type="checkbox"
+                          checked={dp.showRankPill !== false}
+                          onChange={(e) =>
+                            setBgmiLayerPackDraft((p) => mergeObsBgmiLayerPack({ dataPanel: { showRankPill: e.target.checked } }, p))
+                          }
+                          style={{ marginLeft: 8 }}
+                          title='Uncheck when your PNG already prints rank numbers beside each row.'
+                        />
+                      </label>
+                      <label style={{ fontSize: 11, color: "#94a3b8" }}>
+                        Row chrome
+                        <select
+                          value={dp.chrome === "board" ? "board" : "minimal"}
+                          onChange={(e) =>
+                            setBgmiLayerPackDraft((p) =>
+                              mergeObsBgmiLayerPack({ dataPanel: { chrome: e.target.value === "board" ? "board" : "minimal" } }, p),
+                            )
+                          }
+                          style={{ ...inputSm, width: "100%", marginTop: 6 }}
+                        >
+                          <option value="minimal">Minimal — text on your PNG only (no duplicate table art)</option>
+                          <option value="board">Gold board — headers + gradient rows in browser</option>
+                        </select>
+                      </label>
+                      <label style={{ fontSize: 11, color: "#94a3b8" }}>
+                        Row cap (max teams)
+                        <input
+                          type="number"
+                          min={4}
+                          max={32}
+                          value={dp.rowCap}
+                          onChange={(e) =>
+                            setBgmiLayerPackDraft((p) => mergeObsBgmiLayerPack({ dataPanel: { rowCap: Math.max(4, Math.min(32, Number(e.target.value) || 18)) } }, p))
+                          }
+                          style={{ ...inputSm, width: "100%", marginTop: 6 }}
+                        />
+                      </label>
+                      <label style={{ fontSize: 11, color: "#94a3b8" }}>
+                        Accent (#hex)
+                        <input
+                          type="text"
+                          value={dp.accent || "#22c55e"}
+                          onChange={(e) => setBgmiLayerPackDraft((p) => mergeObsBgmiLayerPack({ dataPanel: { accent: e.target.value } }, p))}
+                          style={{ ...inputSm, width: "100%", marginTop: 6, fontFamily: "monospace" }}
+                        />
+                      </label>
+                      <label style={{ fontSize: 11, color: "#94a3b8" }}>
+                        Top %
+                        <input type="number" value={dp.topPct} step={0.1} onChange={(e) => setBgmiLayerPackDraft((p) => mergeObsBgmiLayerPack({ dataPanel: { topPct: Number(e.target.value) } }, p))} style={{ ...inputSm, width: "100%", marginTop: 6 }} />
+                      </label>
+                      <label style={{ fontSize: 11, color: "#94a3b8" }}>
+                        Left %
+                        <input type="number" value={dp.leftPct} step={0.1} onChange={(e) => setBgmiLayerPackDraft((p) => mergeObsBgmiLayerPack({ dataPanel: { leftPct: Number(e.target.value) } }, p))} style={{ ...inputSm, width: "100%", marginTop: 6 }} />
+                      </label>
+                      <label style={{ fontSize: 11, color: "#94a3b8" }}>
+                        Width %
+                        <input type="number" value={dp.widthPct} step={0.1} onChange={(e) => setBgmiLayerPackDraft((p) => mergeObsBgmiLayerPack({ dataPanel: { widthPct: Number(e.target.value) } }, p))} style={{ ...inputSm, width: "100%", marginTop: 6 }} />
+                      </label>
+                      <label style={{ fontSize: 11, color: "#94a3b8" }}>
+                        Height %
+                        <input type="number" value={dp.heightPct} step={0.1} onChange={(e) => setBgmiLayerPackDraft((p) => mergeObsBgmiLayerPack({ dataPanel: { heightPct: Number(e.target.value) } }, p))} style={{ ...inputSm, width: "100%", marginTop: 6 }} />
+                      </label>
+                      <label style={{ fontSize: 11, color: "#94a3b8" }}>
+                        Alive mini-dots
+                        <input
+                          type="checkbox"
+                          checked={dp.showAliveDots !== false}
+                          onChange={(e) => setBgmiLayerPackDraft((p) => mergeObsBgmiLayerPack({ dataPanel: { showAliveDots: e.target.checked } }, p))}
+                          style={{ marginLeft: 8 }}
+                        />
+                      </label>
+                    </div>
+                    <p style={{ margin: "10px 0 0", fontSize: 11, color: "#64748b", lineHeight: 1.55 }}>
+                      <strong style={{ color: "#94a3b8" }}>Tip:</strong> Misaligned FIN/TOT rows usually mean the data panel was keyed to fullscreen while the PNG uses letterboxing —
+                      enable <strong>PNG drawable area</strong> above, refresh OBS, then nudge Top/Left/Width/Height (percent of <em>art</em>). Use <strong>Separate FIN/TOT cells</strong>{" "}
+                      when your PNG has two score columns (requires <strong>FF + TF</strong> mode).
+                    </p>
+                    <button
+                      type="button"
+                      style={{ ...ns.matchBtnPrimary, padding: "10px 18px", fontSize: 13, marginTop: 12 }}
+                      onClick={() => void persistPack(mergeObsBgmiLayerPack({}, bgmiLayerPackDraft))}
+                    >
+                      Save layout to server
+                    </button>
+                  </div>
+
+                  <p style={{ margin: "0 0 4px", fontSize: 12, fontWeight: 800, color: "#94a3b8", letterSpacing: "0.06em" }}>
+                    PNG LAYERS · 3 slots · upload &amp; transform
+                  </p>
+
+                  {OBS_BGMI_LAYER_IDS.map((layerId) => {
+                    const L = bgmiLayerPackDraft.layers[layerId];
+                    const meta = OBS_BGMI_LAYER_META[layerId] || { label: layerId, hint: "" };
+                    if (!L) return null;
+                    return (
+                      <div
+                        key={layerId}
+                        style={{
+                          padding: "12px 14px",
+                          borderRadius: 12,
+                          border: "1px solid rgba(148,163,184,.26)",
+                          background: "rgba(15,23,42,.52)",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 10,
+                        }}
+                      >
+                        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, justifyContent: "space-between" }}>
+                          <div style={{ minWidth: 200 }}>
+                            <div style={{ fontWeight: 800, fontSize: 14, color: "#f1f5f9" }}>{meta.label}</div>
+                            <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4, lineHeight: 1.45 }}>{meta.hint}</div>
+                          </div>
+                          <label
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              padding: "8px 14px",
+                              borderRadius: 8,
+                              ...ns.matchBtnPrimary,
+                              cursor: "pointer",
+                              position: "relative",
+                              overflow: "hidden",
+                              fontSize: 12,
+                              fontWeight: 800,
+                            }}
+                          >
+                            Upload PNG…
+                            <input
+                              type="file"
+                              accept=".png,.PNG"
+                              style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }}
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                e.target.value = "";
+                                if (!file) return;
+                                const nameOk = String(file.name || "").toLowerCase().endsWith(".png");
+                                const typeOk =
+                                  typeof file.type === "string" &&
+                                  (file.type.toLowerCase() === "image/png" || file.type.toLowerCase() === "image/x-png");
+                                if (!nameOk && !typeOk) {
+                                  setMessage("PNG only (.png extension or image/png) for BGMI layered uploads.");
+                                  return;
+                                }
+                                const fd = new FormData();
+                                fd.append("file", file);
+                                try {
+                                  const res = await fetch(`${API}/upload/obs-bgmi-layer/${layerId}`, {
+                                    method: "POST",
+                                    body: fd,
+                                  });
+                                  const j = await res.json().catch(() => ({}));
+                                  if (!res.ok) {
+                                    setMessage(String(j?.message || `Upload failed (${res.status})`));
+                                    return;
+                                  }
+                                  let synced = false;
+                                  if (j.obsBgmiLayerPack && typeof j.obsBgmiLayerPack === "object") {
+                                    setBgmiLayerPackDraft(mergeObsBgmiLayerPack({}, j.obsBgmiLayerPack));
+                                    synced = true;
+                                  }
+                                  try {
+                                    if (!synced) {
+                                      const gs = await fetch(`${API}/settings`, { cache: "no-store" });
+                                      if (gs.ok) {
+                                        const d = await gs.json();
+                                        if (d.obsBgmiLayerPack && typeof d.obsBgmiLayerPack === "object") {
+                                          setBgmiLayerPackDraft(mergeObsBgmiLayerPack({}, d.obsBgmiLayerPack));
+                                          synced = true;
+                                        }
+                                      }
+                                    }
+                                  } catch {
+                                    /* offline */
+                                  }
+                                  if (!synced && j.path) {
+                                    setBgmiLayerPackDraft((p) =>
+                                      mergeObsBgmiLayerPack({ layers: { [layerId]: { path: String(j.path) } } }, p)
+                                    );
+                                  }
+                                  setMessage(`Uploaded ${meta.label}`);
+                                } catch {
+                                  setMessage("Upload failed — is the API running on port 3001?");
+                                }
+                              }}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            style={{ ...ns.matchBtn, padding: "8px 12px", fontSize: 12 }}
+                            onClick={() => {
+                              setBgmiLayerPackDraft((p) => mergeObsBgmiLayerPack({ layers: { [layerId]: { path: null } } }, p));
+                            }}
+                          >
+                            Clear PNG
+                          </button>
+                          <label style={{ fontSize: 12, color: "#cbd5e1", display: "flex", alignItems: "center", gap: 8 }}>
+                            <input type="checkbox" checked={L.visible !== false} onChange={(e) => setBgmiLayerPackDraft((p) => mergeObsBgmiLayerPack({ layers: { [layerId]: { visible: e.target.checked } } }, p))} /> Visible
+                          </label>
+                        </div>
+
+                        <div style={{ fontSize: 11, fontFamily: "ui-monospace,monospace", color: "#6FF3CB", wordBreak: "break-all" }}>
+                          {L.path ? <>Stored: {L.path}</> : <>No PNG assigned.</>}
+                        </div>
+
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(132px, 1fr))", gap: 8 }}>
+                          {[
+                            ["leftPct", "Left %"],
+                            ["topPct", "Top %"],
+                            ["widthPct", "Width %"],
+                            ["heightPct", "Height %"],
+                            ["scalePct", "Scale %"],
+                            ["zIndex", "z-index"],
+                          ].map(([k, lab]) => (
+                            <label key={k} style={{ fontSize: 11, color: "#94a3b8" }}>
+                              {lab}
+                              <input
+                                type="number"
+                                step={k === "zIndex" ? 1 : 0.25}
+                                value={L[k] ?? ""}
+                                onChange={(e) => {
+                                  const v = k === "zIndex" ? parseInt(e.target.value, 10) : parseFloat(e.target.value);
+                                  setBgmiLayerPackDraft((p) => mergeObsBgmiLayerPack({ layers: { [layerId]: { [k]: v } } }, p));
+                                }}
+                                style={{ ...inputSm, width: "100%", marginTop: 4 }}
+                              />
+                            </label>
+                          ))}
+                        </div>
+
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </section>
+        ) : null}
+
         {expandedSection === "obsTriplePng" ? (
           <section style={ns.sectionCard}>
             <div style={ns.sectionHeader}>
@@ -3524,20 +3976,33 @@ export default function AdminPanel() {
                 <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 800, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em" }}>
                   Assigned image preview
                 </p>
+                <p style={{ margin: "0 0 10px", fontSize: 12, color: "#8CB7BE", lineHeight: 1.5, maxWidth: 720 }}>
+                  Shown in a <strong style={{ color: "#C8E8E4" }}>16∶9</strong> frame (typical OBS canvas). If badges look tiny, your PNG may use a huge empty canvas — crop to 1920×1080 around the art, or open{" "}
+                  <strong style={{ color: "#C8E8E4" }}>Preview</strong> on an overlay URL for full-size.
+                </p>
                 <div
                   style={{
                     borderRadius: 12,
                     border: "1px solid rgba(34,211,238,.28)",
                     background: "repeating-conic-gradient(rgba(100,116,139,.08) 0% 25%,transparent 25% 50%)50% / 24px 24px",
-                    maxHeight: 320,
-                    display: "flex",
-                    justifyContent: "center",
+                    width: "100%",
+                    maxWidth: 1120,
+                    aspectRatio: "16 / 9",
+                    position: "relative",
+                    overflow: "hidden",
                   }}
                 >
                   <img
                     alt=""
                     src={`${API}${obsSharedTriplePng}?adminPreview=1`}
-                    style={{ maxWidth: "100%", maxHeight: 320, objectFit: "contain", display: "block" }}
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "contain",
+                      display: "block",
+                    }}
                   />
                 </div>
               </div>

@@ -1,4 +1,4 @@
-import { overlayPathMatches } from "./overlayPrefsMatch";
+import { themedMatchBoardPrefsApply } from "./overlayPrefsMatch";
 import { getPresetConfig } from "../presets";
 
 const ICON_PREFIX = "/uploads/alive-icons/";
@@ -23,7 +23,7 @@ export function resolveAliveLayout(searchOrParams, savedPrefs = null) {
     savedPrefs &&
     typeof savedPrefs === "object" &&
     savedPrefs.overlayPath &&
-    overlayPathMatches(savedPrefs.overlayPath, path)
+    themedMatchBoardPrefsApply(savedPrefs.overlayPath, path)
   ) {
     return normalizeAliveLayout(savedPrefs.aliveLayout);
   }
@@ -40,7 +40,7 @@ export function resolveAliveCustomIcons(searchOrParams, savedPrefs = null) {
   const p = typeof searchOrParams === "string" ? new URLSearchParams(searchOrParams) : searchOrParams;
   const path = typeof window !== "undefined" ? window.location.pathname : "";
   const saved =
-    savedPrefs && typeof savedPrefs === "object" && savedPrefs.overlayPath && overlayPathMatches(savedPrefs.overlayPath, path)
+    savedPrefs && typeof savedPrefs === "object" && savedPrefs.overlayPath && themedMatchBoardPrefsApply(savedPrefs.overlayPath, path)
       ? savedPrefs
       : null;
   const urlA = p?.get?.("aliveIconAlive");

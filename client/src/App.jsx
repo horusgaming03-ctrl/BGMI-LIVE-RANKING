@@ -15,6 +15,7 @@ import ZonePredictionOverlay from "./overlays/ZonePredictionOverlay";
 import LiveAnnouncementOverlay from "./overlays/LiveAnnouncementOverlay";
 import FinishBadgesOverlay from "./overlays/FinishBadgesOverlay";
 import ObsSharedTripleSlotOverlay from "./overlays/ObsSharedTripleSlotOverlay";
+import ObsBgmiLayeredRankingOverlay from "./overlays/ObsBgmiLayeredRankingOverlay";
 import SideBannerOverlay from "./overlays/SideBannerOverlay";
 import RondoRecallPopupOverlay from "./overlays/RondoRecallPopupOverlay";
 
@@ -27,6 +28,8 @@ export default function App() {
       <Route path="/overlay/overall" element={<OverlayOverall />} />
       <Route path="/register" element={<TeamRegister />} />
       <Route path="/overlay/themed" element={<ThemedOverlay />} />
+      {/* Same data + theme + alive as /overlay/themed; FIN column only, sorted by finishes (TOTAL hidden). */}
+      <Route path="/overlay/finish-points-ranking" element={<ThemedOverlay />} />
       <Route path="/overlay/themed/overall" element={<ThemedOverlayOverall />} />
       <Route path="/overlay/themes" element={<ThemePreview />} />
       <Route path="/overlay/elimination" element={<EliminationOverlay />} />
@@ -44,6 +47,10 @@ export default function App() {
       <Route path="/overlay/engine-catalog" element={<EngineCatalog />} />
       {/* One PNG on disk → three OBS browser-source URLs read the same asset (no processing). */}
       <Route path="/overlay/obs-slot/:slotId" element={<ObsSharedTripleSlotOverlay />} />
+      <Route path="/overlay/bgmi-layered-ranking" element={<ObsBgmiLayeredRankingOverlay />} />
+      {/* Split OBS sources — same layout numbers as combined route; add each as its own browser source. */}
+      <Route path="/overlay/bgmi-layered-rows" element={<ObsBgmiLayeredRankingOverlay />} />
+      <Route path="/overlay/bgmi-layer-plate/:plateId" element={<ObsBgmiLayeredRankingOverlay />} />
       <Route path="/overlay/side-banner" element={<SideBannerOverlay />} />
     </Routes>
   );

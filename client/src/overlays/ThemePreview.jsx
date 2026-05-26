@@ -10,6 +10,11 @@ import socket, { API } from "./socket";
 import { getOverlayPageOrigin } from "../apiOrigin";
 import { overlayPathMatches } from "./utils/overlayPrefsMatch";
 import { mergeThemeOverride } from "./utils/mergeThemeOverride";
+import {
+  themePreviewPremiumKeyframes,
+  resolveThemePreviewPremiumPack,
+  listThemePreviewPremiumPackOptions,
+} from "./themePreviewPremiumAnimations";
 
 const SAMPLE_TEAMS = [
   { id: 1, team: "SOUL", finishes: 4, points: 42, logo: null, alivePlayers: 4, status: "alive" },
@@ -70,7 +75,25 @@ export default function ThemePreview() {
     return base;
   }, [activePreset]);
 
+  /** Theme Preview demo board only — not wired to `/overlay/themed`. */
+  const [previewEnterMode, setPreviewEnterMode] = useState("preset");
+
   const anim = useAnimation(previewConfig);
+  const previewPremiumAnim = useMemo(
+    () => (previewEnterMode === "preset" ? null : resolveThemePreviewPremiumPack(previewEnterMode)),
+    [previewEnterMode],
+  );
+
+  /** Demo ordering for FIN-only strip — mirrors live overlay sortPrimary: "finishes". */
+  const finishPreviewTeams = useMemo(
+    () =>
+      [...SAMPLE_TEAMS].sort((a, b) => {
+        if (b.finishes !== a.finishes) return b.finishes - a.finishes;
+        if (b.alivePlayers !== a.alivePlayers) return b.alivePlayers - a.alivePlayers;
+        return a.id - b.id;
+      }),
+    [],
+  );
 
   const applyPreset = useCallback((name) => {
     const cfg = getPresetConfig(name);
@@ -604,7 +627,40 @@ export default function ThemePreview() {
                 {saved ? "Saved!" : "Save & Apply"}
               </button>
             </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 6 }}>
+                DEMO ENTER ANIMATION (THIS PAGE ONLY)
+              </label>
+              <select
+                value={previewEnterMode}
+                onChange={(e) => setPreviewEnterMode(e.target.value)}
+                style={{
+                  width: "100%",
+                  maxWidth: 334,
+                  padding: "9px 10px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(148,163,184,.35)",
+                  background: "#0f172a",
+                  color: "#e2e8f0",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                <option value="preset">Preset — overlay config animations</option>
+                {listThemePreviewPremiumPackOptions().map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <div style={{ fontSize: 10, color: "#64748b", marginTop: 6, lineHeight: 1.45 }}>
+                12 preview-only packs · live OBS overlays still follow{" "}
+                <strong style={{ color: "#94a3b8" }}>presets</strong>/<strong style={{ color: "#94a3b8" }}>overlayConfig</strong>. Re-play by toggling packs.
+              </div>
+            </div>
             <div
+              key={`demo-${previewEnterMode}-${selected}-${activePreset || "nopreset"}`}
               style={{
                 width: 334,
                 background: theme.gradients.panel,
@@ -612,7 +668,7 @@ export default function ThemePreview() {
                 overflow: "hidden",
                 boxShadow: theme.shadows.board,
                 fontFamily: theme.typography.fontFamily,
-                animation: anim.board,
+                animation: previewPremiumAnim ? previewPremiumAnim.board : anim.board,
               }}
             >
               <div style={{ height: theme.topLine?.height || 3, background: theme.gradients.topLine }} />
@@ -624,7 +680,7 @@ export default function ThemePreview() {
                   padding: "8px 6px",
                   background: theme.gradients.header,
                   borderBottom: theme.borders.header,
-                  animation: anim.header,
+                  animation: previewPremiumAnim ? previewPremiumAnim.header : anim.header,
                 }}
               >
                 {["RANK", "TEAM", "FIN", "TOTAL", "ALIVE"].map((l, i) => (
@@ -644,7 +700,7 @@ export default function ThemePreview() {
                       padding: "5px 6px",
                       background: i % 2 === 0 ? theme.row.bgA : theme.row.bgB,
                       borderBottom: theme.borders.row,
-                      animation: anim.row(i),
+                      animation: previewPremiumAnim ? previewPremiumAnim.row(i) : anim.row(i),
                     }}
                   >
                     <div style={{ color: theme.colors.text, fontSize: theme.typography.rankSize, fontWeight: 700, textAlign: "center", fontStyle: "italic" }}>#{i + 1}</div>
@@ -669,6 +725,78 @@ export default function ThemePreview() {
                   </div>
                 );
               })}
+            </div>
+            <div style={{ marginTop: 22, marginBottom: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#94a3b8", letterSpacing: "0.08em" }}>FINISH POINTS RANKING OVERLAY</div>
+              <div style={{ fontSize: 10, color: "#64748b", marginTop: 4, maxWidth: 334, lineHeight: 1.45 }}>
+                Separate OBS URL (below) — identical live connection as the match board; TOTAL hidden; leaderboard order uses FIN only.
+              </div>
+            </div>
+            <div
+              key={`demo-finish-${previewEnterMode}-${selected}-${activePreset || "nopreset"}`}
+              style={{
+                width: 334,
+                background: theme.gradients.panel,
+                border: theme.borders.panel,
+                overflow: "hidden",
+                boxShadow: theme.shadows.board,
+                fontFamily: theme.typography.fontFamily,
+                animation: previewPremiumAnim ? previewPremiumAnim.board : anim.board,
+              }}
+            >
+              <div style={{ height: theme.topLine?.height || 3, background: theme.gradients.topLine }} />
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "52px 108px 48px 88px",
+                  alignItems: "center",
+                  padding: "8px 6px",
+                  background: theme.gradients.header,
+                  borderBottom: theme.borders.header,
+                  animation: previewPremiumAnim ? previewPremiumAnim.header : anim.header,
+                }}
+              >
+                {["RANK", "TEAM", "FIN", "ALIVE"].map((l, i) => (
+                  <div key={l} style={{ textAlign: i === 1 ? "left" : "center", color: theme.colors.gold, fontSize: theme.typography.headerSize, fontWeight: 700, letterSpacing: 1, paddingLeft: i === 1 ? 2 : 0 }}>{l}</div>
+                ))}
+              </div>
+              {finishPreviewTeams.map((t, rankIdx) => {
+                  const alive = t.alivePlayers;
+                  return (
+                    <div
+                      key={t.id}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "52px 108px 48px 88px",
+                        alignItems: "center",
+                        minHeight: theme.row.height,
+                        padding: "5px 6px",
+                        background: rankIdx % 2 === 0 ? theme.row.bgA : theme.row.bgB,
+                        borderBottom: theme.borders.row,
+                        animation: previewPremiumAnim ? previewPremiumAnim.row(rankIdx) : anim.row(rankIdx),
+                      }}
+                    >
+                      <div style={{ color: theme.colors.text, fontSize: theme.typography.rankSize, fontWeight: 700, textAlign: "center", fontStyle: "italic" }}>#{rankIdx + 1}</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                        <div style={{ width: 24, height: 24, border: `1px solid ${theme.colors.primary}40`, background: theme.gradients.panel, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                          <span style={{ color: theme.colors.gold, fontSize: 9, fontWeight: 800 }}>{t.team.slice(0, 2)}</span>
+                        </div>
+                        <div style={{ color: theme.colors.text, fontWeight: 700, fontSize: theme.typography.teamSize, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.team}</div>
+                      </div>
+                      <div style={{ textAlign: "center", color: t.finishes > 0 ? theme.colors.gold : theme.colors.textMuted, fontSize: theme.typography.numberSize, fontWeight: 700 }}>{t.finishes}</div>
+                      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minWidth: 0, overflow: "visible" }}>
+                        <AliveIndicator
+                          count={alive}
+                          theme={theme}
+                          styleId={aliveStyle}
+                          layout={aliveLayout}
+                          customAlivePath={custIconAlive}
+                          customDeadPath={custIconDead}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
             </div>
           </div>
 
@@ -786,6 +914,11 @@ export default function ThemePreview() {
               <div style={{ fontSize: 12, fontWeight: 700, color: "#888", marginBottom: 10 }}>OBS URLS</div>
               <UrlRow label="Match board · series totals (default)" url={`/overlay/themed?${buildThemedSearch()}`} />
               <UrlRow
+                label="Finish points ranking overlay (FIN only · same theme + alive as match board)"
+                url={`/overlay/finish-points-ranking?${buildThemedSearch()}`}
+                hint="TOTAL column hidden. Rows sorted by FIN (match finishes), not series points."
+              />
+              <UrlRow
                 label="Overall Standings"
                 url={activePreset ? `/overlay/themed/overall?preset=${encodeURIComponent(activePreset)}` : `/overlay/themed/overall?theme=${selected}`}
               />
@@ -859,7 +992,7 @@ export default function ThemePreview() {
           </div>
         </div>
       </div>
-      <style>{`${keyframes}\n${engineKeyframeCss}`}</style>
+      <style>{`${keyframes}\n${engineKeyframeCss}\n${themePreviewPremiumKeyframes}`}</style>
     </div>
   );
 }
