@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 520" role="img" aria-label="Sanhok">
+  <rect width="400" height="520" fill="#1a4a3a"/>
+  <ellipse cx="200" cy="300" rx="180" ry="200" fill="#2d7a55"/>
+  <ellipse cx="150" cy="250" rx="60" ry="80" fill="#1e5c40"/>
+  <ellipse cx="280" cy="280" rx="70" ry="90" fill="#22884e"/>
+  <path d="M0 400 Q200 350 400 380 L400 520 L0 520 Z" fill="#145032"/>
+</svg>

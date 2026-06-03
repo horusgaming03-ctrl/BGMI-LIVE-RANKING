@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 520" role="img" aria-label="Erangel">
+  <defs>
+    <linearGradient id="er-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7eb8e8"/>
+      <stop offset="45%" stop-color="#a8d4f0"/>
+      <stop offset="100%" stop-color="#5a9a6a"/>
+    </linearGradient>
+    <linearGradient id="er-hill1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3d7a52"/>
+      <stop offset="100%" stop-color="#2a5538"/>
+    </linearGradient>
+    <linearGradient id="er-hill2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4a8f5e"/>
+      <stop offset="100%" stop-color="#356848"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="520" fill="url(#er-sky)"/>
+  <ellipse cx="280" cy="360" rx="200" ry="110" fill="url(#er-hill2)" opacity="0.95"/>
+  <ellipse cx="140" cy="390" rx="160" ry="95" fill="url(#er-hill1)"/>
+  <ellipse cx="220" cy="320" rx="120" ry="70" fill="#4d9160" opacity="0.7"/>
+  <path d="M0 430 Q120 400 220 420 T400 410 L400 520 L0 520 Z" fill="#2d5a40"/>
+  <rect x="0" y="0" width="400" height="120" fill="#8ec0ea" opacity="0.25"/>
+</svg>

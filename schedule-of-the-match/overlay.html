@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>SCHEDULE OF THE MATCH — Overlay</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Teko:wght@500;600&family=Rajdhani:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/overlay.css" />
+    <link rel="stylesheet" href="css/animations.css" />
+  </head>
+  <body>
+    <!-- SCHEDULE OF THE MATCH — OBS Browser Source: set width 1920, height 1080 -->
+    <div id="som-viewport" class="som-viewport">
+    <div id="som-stage" class="som-stage" data-section="SCHEDULE OF THE MATCH">
+      <div id="som-bg" class="som-bg" aria-hidden="true"></div>
+      <div id="som-root" class="som-content">
+        <header id="som-header" class="som-header">
+          <h1 id="som-title" class="som-title">SCHEDULE</h1>
+          <p id="som-subtitle" class="som-subtitle">SURVIVAL - DAY 1</p>
+        </header>
+        <div class="som-cards-wrap">
+          <div id="som-cards" class="som-cards" data-count="6"></div>
+        </div>
+      </div>
+    </div>
+    </div>
+    <script src="js/schedule-overlay.bundle.js" defer></script>
+  </body>
+</html>

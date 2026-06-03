@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 140" role="img" aria-label="WWCD Trophy">
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffe566"/>
+      <stop offset="50%" stop-color="#f5a623"/>
+      <stop offset="100%" stop-color="#c47a12"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="60" cy="118" rx="42" ry="10" fill="#8a5a10" opacity="0.4"/>
+  <path d="M30 48 C30 20 90 20 90 48 C90 72 72 82 60 88 C48 82 30 72 30 48 Z" fill="url(#gold)" stroke="#b8730a" stroke-width="2"/>
+  <path d="M42 38 C48 28 72 28 78 38" fill="none" stroke="#fff8c0" stroke-width="3" opacity="0.6"/>
+  <rect x="48" y="88" width="24" height="22" rx="3" fill="url(#gold)" stroke="#b8730a"/>
+  <rect x="38" y="108" width="44" height="12" rx="4" fill="#c47a12"/>
+  <path d="M18 52 L8 38 M102 52 L112 38" stroke="url(#gold)" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="60" cy="52" r="14" fill="#fff4c0" opacity="0.35"/>
+</svg>

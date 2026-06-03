@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 520" role="img" aria-label="Livik">
+  <rect width="400" height="520" fill="#6b9a4a"/>
+  <circle cx="200" cy="280" r="150" fill="#5a8840"/>
+  <circle cx="200" cy="280" r="90" fill="#7cb058"/>
+  <path d="M0 420 L400 400 L400 520 L0 520 Z" fill="#4a7035"/>
+</svg>

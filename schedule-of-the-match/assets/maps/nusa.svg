@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 520" role="img" aria-label="Nusa">
+  <defs>
+    <linearGradient id="nusa" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4ab8d4"/>
+      <stop offset="100%" stop-color="#e8a84a"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="520" fill="url(#nusa)"/>
+  <ellipse cx="200" cy="420" rx="190" ry="60" fill="#f0d080"/>
+  <path d="M120 350 L200 300 L280 350 L240 420 L160 420 Z" fill="#2a8a6a"/>
+</svg>

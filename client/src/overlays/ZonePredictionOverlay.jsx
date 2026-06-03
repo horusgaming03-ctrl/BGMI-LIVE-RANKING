@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import socket from "./socket";
 
-const GOLD = "#F1CF69";
+/** Matches Admin dashboard Live rankings · `Open overlay` (`dash.editRowBtn`) blue. */
+const ACCENT = "#eaf0ff";
+const ACCENT_BORDER = "rgba(80,142,255,.5)";
+const PANEL_BG = "linear-gradient(180deg, rgba(24,42,118,.94), rgba(18,26,72,.92))";
 const TEXT = "#e8eef5";
 
 /**
@@ -10,9 +13,11 @@ const TEXT = "#e8eef5";
  */
 export default function ZonePredictionOverlay() {
   const [cue, setCue] = useState(null);
+  /** `null` unknown, `true` wired, `false` cannot reach socket server */
+  const [socketReady, setSocketReady] = useState(null);
 
   useEffect(() => {
-    const on = (cmd) => {
+    const onCmd = (cmd) => {
       if (!cmd || typeof cmd !== "object" || cmd.type !== "adminZoneCue") return;
       if (cmd.clear) {
         setCue(null);
@@ -23,8 +28,35 @@ export default function ZonePredictionOverlay() {
         subtitle: String(cmd.subtitle ?? cmd.detail ?? "").trim(),
       });
     };
-    socket.on("overlayCommand", on);
-    return () => socket.off("overlayCommand", on);
+
+    const flagErr = () => setSocketReady(false);
+    const flagOk = () => setSocketReady(true);
+
+    const onDisconnect = () => setSocketReady(false);
+
+    socket.on("connect", flagOk);
+    socket.on("disconnect", onDisconnect);
+    socket.on("connect_error", flagErr);
+    socket.on("overlayCommand", onCmd);
+    try {
+      socket.io.on("error", flagErr);
+    } catch {
+      /* ignore */
+    }
+
+    setSocketReady(Boolean(socket.connected));
+
+    return () => {
+      socket.off("connect", flagOk);
+      socket.off("disconnect", onDisconnect);
+      socket.off("connect_error", flagErr);
+      socket.off("overlayCommand", onCmd);
+      try {
+        socket.io.off("error", flagErr);
+      } catch {
+        /* ignore */
+      }
+    };
   }, []);
 
   return (
@@ -49,9 +81,10 @@ export default function ZonePredictionOverlay() {
             padding: "14px 22px",
             borderRadius: 14,
             textAlign: "center",
-            background: "linear-gradient(180deg, rgba(12,16,22,.94), rgba(8,10,14,.90))",
-            border: `1px solid ${GOLD}55`,
-            boxShadow: "0 12px 40px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.04)",
+            background: PANEL_BG,
+            border: `1px solid ${ACCENT_BORDER}`,
+            boxShadow:
+              "0 12px 40px rgba(0,0,0,.55), 0 0 28px rgba(80,142,255,.18), 0 0 0 1px rgba(255,255,255,.04)",
           }}
         >
           <div
@@ -60,7 +93,7 @@ export default function ZonePredictionOverlay() {
               fontWeight: 900,
               letterSpacing: 1.2,
               textTransform: "uppercase",
-              color: GOLD,
+              color: ACCENT,
             }}
           >
             {cue.headline}
@@ -72,9 +105,60 @@ export default function ZonePredictionOverlay() {
           ) : null}
         </div>
       ) : null}
+
+      {socketReady === false ? (
+        <div
+          role="status"
+          style={{
+            position: "absolute",
+            left: "50%",
+            bottom: "12%",
+            transform: "translateX(-50%)",
+            maxWidth: "min(94vw, 520px)",
+            padding: "12px 18px",
+            borderRadius: 12,
+            textAlign: "center",
+            fontSize: 13,
+            fontWeight: 700,
+            color: "#fecaca",
+            background: "rgba(40,10,10,.88)",
+            border: "1px solid rgba(248,113,113,.45)",
+            boxShadow: "0 8px 28px rgba(0,0,0,.45)",
+          }}
+        >
+          Cannot reach live server (Socket.IO). Run the API on port 3001 (<code style={{ color: "#fcd34d" }}>npm run dev</code> or{" "}
+          <code style={{ color: "#fcd34d" }}>npm run dev:api</code>
+          ). LAN: use this page through the same Vite port (e.g. <code style={{ color: "#fcd34d" }}>5173</code>) — not{" "}
+          <code style={{ color: "#fcd34d" }}>:3001</code> for the React UI.
+        </div>
+      ) : null}
+
+      {socketReady === true && !cue ? (
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            left: "50%",
+            bottom: "8%",
+            transform: "translateX(-50%)",
+            padding: "10px 16px",
+            borderRadius: 12,
+            fontSize: 12,
+            fontWeight: 700,
+            color: "rgba(226,232,240,.82)",
+            letterSpacing: 0.35,
+            background: "rgba(15,23,42,.92)",
+            border: "1px solid rgba(80,142,255,.28)",
+            boxShadow: "0 6px 20px rgba(0,0,0,.35)",
+          }}
+        >
+          Zone cue · standby — send from Admin → Zone prediction
+        </div>
+      ) : null}
+
       <style>{`
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { overflow: hidden; background: transparent; }
+        html, body { overflow: hidden; background: transparent !important; }
       `}</style>
     </div>
   );

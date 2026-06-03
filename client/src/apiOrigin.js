@@ -90,9 +90,17 @@ export function connectSocket(options = {}) {
   const base = getApiBase();
   const opts = { transports: ["polling", "websocket"], ...options };
 
-  /** Skip Vite’s `/socket.io` ws proxy → fewer `write ECONNABORTED` errors on Windows reloads */
+  /**
+   * Vite dev: loopback opens UI as `localhost` / `127.0.0.1` → direct Socket.IO to Node avoids flaky ws proxy churn.
+   * LAN / hostname (e.g. `http://192.168.x.x:5173`) must use **same-origin** Socket.IO so Vite proxies `/socket.io` →
+   * `:3001`. Otherwise the client tries `hostname:3001`, which fails when Node only listens on `127.0.0.1` (blank overlays).
+   */
   const port = typeof window !== "undefined" ? String(window.location.port || "") : "";
   if (base === "/api" && viteDevUiPorts().has(port)) {
+    const host = typeof window !== "undefined" ? window.location.hostname : "";
+    if (host && !isBrowserLoopbackHostname(host)) {
+      return io(typeof window !== "undefined" ? window.location.origin : undefined, opts);
+    }
     return io(directSocketBackendOrigin(), opts);
   }
 

@@ -1,0 +1,344 @@
+/* SCHEDULE OF THE MATCH — OBS overlay (1920×1080, transparent) */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #05080c;
+}
+
+body {
+  font-family: "Rajdhani", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Centers 1920×1080 design; scales down only when preview window is smaller */
+.som-viewport {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #05080c;
+}
+
+.som-viewport:not(.has-bg) {
+  background: transparent;
+}
+
+.som-stage {
+  position: relative;
+  width: 1920px;
+  height: 1080px;
+  flex: 0 0 auto;
+  transform-origin: center center;
+  background: transparent;
+  overflow: hidden;
+}
+
+.som-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: #05080c;
+  overflow: hidden;
+}
+
+/* Sized by JS from natural dimensions (true cover + bleed) */
+.som-bg__cover,
+.som-bg__cover-video {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: block;
+  pointer-events: none;
+  max-width: none;
+  max-height: none;
+  border: 0;
+  object-fit: cover;
+}
+
+.som-bg__fill {
+  position: absolute;
+  inset: 0;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center center;
+}
+
+.som-bg__fill[data-fit="contain"] {
+  background-size: contain;
+  background-color: #05080c;
+}
+
+.som-content {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+}
+
+/* Header */
+.som-header {
+  position: absolute;
+  display: flex;
+  align-items: baseline;
+  gap: 28px;
+  z-index: 3;
+  white-space: nowrap;
+}
+
+.som-title {
+  color: #ffffff;
+  line-height: 0.88;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.85), 0 4px 24px rgba(0, 0, 0, 0.45);
+}
+
+.som-subtitle {
+  color: #00d4e8;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+/* Cards row — centered vertically (BGMI-style) */
+.som-cards-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: var(--cards-pad-x, 64px);
+  padding-right: var(--cards-pad-x, 64px);
+  padding-top: var(--header-reserve, 200px);
+  padding-bottom: var(--cards-offset-y, 48px);
+  box-sizing: border-box;
+  min-height: 0;
+}
+
+.som-cards {
+  display: flex;
+  gap: var(--cards-gap, 22px);
+  align-items: stretch;
+  justify-content: center;
+  flex-wrap: nowrap;
+  width: auto;
+  max-width: 100%;
+}
+
+/* Match card — official BGMI schedule (thin border, sharp corners, no heavy shadow) */
+.match-card {
+  flex: 0 0 var(--card-width, 248px);
+  width: var(--card-width, 248px);
+  max-width: var(--card-width, 248px);
+  display: flex;
+  flex-direction: column;
+  border-style: solid;
+  border-width: var(--card-border-w, 1px);
+  border-color: var(--card-border-c, rgba(12, 16, 22, 0.45));
+  background: var(--card-bg, #fff);
+  box-shadow: none;
+  border-radius: 0;
+  overflow: hidden;
+}
+
+.match-card__media {
+  position: relative;
+  flex: 0 0 auto;
+  height: var(--card-media-h, 336px);
+  min-height: var(--card-media-h, 336px);
+  overflow: hidden;
+  background: #0e1218;
+  margin: 5px 5px 0 5px;
+  outline: 1px solid rgba(255, 255, 255, 0.92);
+  outline-offset: -1px;
+  --map-tab-w: 40px;
+}
+
+/* Map art fills entire media area — white tab sits on top */
+.match-card__media img.map-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  display: block;
+}
+
+/* White tab top-left — official partial-height GFX */
+.match-card__map-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--map-tab-w);
+  height: 36%;
+  min-height: 78px;
+  max-height: 128px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  font-size: var(--map-label-font, 21px);
+  line-height: 1;
+  z-index: 3;
+  background: #ffffff;
+  box-shadow: 1px 0 0 rgba(0, 0, 0, 0.06);
+}
+
+.match-card__map-label[data-len="long"] {
+  --map-tab-w: 42px;
+  --map-label-font: 18px;
+}
+
+.match-card__map-label[data-len="medium"] {
+  --map-tab-w: 41px;
+  --map-label-font: 19px;
+}
+
+.match-card__rank-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 4px 10px;
+  background: var(--accent, #ff6600);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  z-index: 3;
+  border-radius: 2px;
+}
+
+.match-card__footer {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 14px 16px 14px;
+  background: var(--card-bg, #fff);
+  border-top: none;
+  min-height: 60px;
+  margin: 0 5px 5px;
+  box-sizing: border-box;
+}
+
+.match-card__match-no {
+  font-weight: 800;
+  font-size: 26px;
+  letter-spacing: 0.02em;
+  justify-self: start;
+  font-family: "Bebas Neue", "Teko", sans-serif;
+}
+
+.match-card__time {
+  font-weight: 800;
+  font-size: 26px;
+  letter-spacing: 0.04em;
+  justify-self: end;
+  font-family: "Bebas Neue", "Teko", sans-serif;
+}
+
+.match-card__logo-wrap {
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+}
+
+.match-card__logo {
+  max-height: 44px;
+  max-width: 72px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.2));
+}
+
+.match-card__initials {
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--accent, #ff6600);
+  justify-self: end;
+}
+
+.match-card__footer.has-logo {
+  grid-template-columns: 1fr auto 1fr;
+}
+
+.match-card__footer.has-logo .match-card__time {
+  display: none;
+}
+
+.match-card__footer.has-logo .match-card__initials {
+  display: block;
+}
+
+/* WWCD — replaces map image only; same card + footer */
+.match-card.is-winner .match-card__map-label {
+  display: none !important;
+}
+
+/* Count-based sizing */
+.som-cards[data-count="1"] {
+  --card-width: 380px;
+}
+.som-cards[data-count="2"] {
+  --card-width: 320px;
+}
+.som-cards[data-count="3"] {
+  --card-width: 280px;
+}
+.som-cards[data-count="7"],
+.som-cards[data-count="8"] {
+  --cards-gap: 14px;
+  --card-width: 210px;
+  --card-media-h: 300px;
+}
+.som-cards[data-count="7"] .match-card__media,
+.som-cards[data-count="8"] .match-card__media {
+  --map-tab-w: 36px;
+}
+
+.som-cards[data-count="7"] .match-card__footer,
+.som-cards[data-count="8"] .match-card__footer {
+  min-height: 54px;
+  padding: 12px 14px 12px;
+}
+
+.som-cards[data-count="7"] .match-card__match-no,
+.som-cards[data-count="7"] .match-card__time,
+.som-cards[data-count="8"] .match-card__match-no,
+.som-cards[data-count="8"] .match-card__time {
+  font-size: 22px;
+}
+
+.som-cards[data-count="8"] .match-card__map-label {
+  --map-label-font: 18px;
+}
+
+.som-hidden {
+  display: none !important;
+}

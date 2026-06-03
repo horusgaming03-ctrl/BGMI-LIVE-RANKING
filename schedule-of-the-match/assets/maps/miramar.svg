@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 520" role="img" aria-label="Miramar">
+  <defs>
+    <linearGradient id="mi-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e8c090"/>
+      <stop offset="55%" stop-color="#d4a070"/>
+      <stop offset="100%" stop-color="#b88858"/>
+    </linearGradient>
+    <linearGradient id="mi-mtn" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#a87848"/>
+      <stop offset="100%" stop-color="#7a5532"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="520" fill="url(#mi-sky)"/>
+  <path d="M0 300 L60 240 L130 270 L200 220 L280 260 L360 210 L400 250 L400 520 L0 520 Z" fill="url(#mi-mtn)"/>
+  <path d="M0 380 L100 340 L200 365 L300 330 L400 350 L400 520 L0 520 Z" fill="#9a7048" opacity="0.85"/>
+  <ellipse cx="200" cy="180" rx="140" ry="35" fill="#e0b888" opacity="0.4"/>
+</svg>

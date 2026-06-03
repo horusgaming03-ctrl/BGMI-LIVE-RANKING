@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SCHEDULE OF THE MATCH — Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Exo+2:wght@500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/admin.css" />
+  </head>
+  <body>
+    <div class="admin-shell">
+      <header class="admin-top">
+        <div>
+          <h1>SCHEDULE OF THE MATCH</h1>
+          <span class="tag">Admin · BGMI / PUBG style</span>
+          <p class="hint" style="margin-top: 10px">
+            Controls sync in real time to the overlay via localStorage. No changes to your main app required.
+          </p>
+        </div>
+        <div class="admin-actions">
+          <button type="button" class="btn btn-save-lg" id="btn-save-all">Save all settings</button>
+          <button type="button" class="btn" id="btn-export">Export JSON</button>
+          <button type="button" class="btn" id="btn-import">Import JSON</button>
+          <input type="file" id="import-file" accept="application/json" hidden />
+          <button type="button" class="btn" id="btn-replay">Replay animation</button>
+          <button type="button" class="btn btn-primary" id="btn-reset">Reset defaults</button>
+        </div>
+      </header>
+
+      <div class="save-bar">
+        <button type="button" class="btn btn-save-lg" id="btn-save-all-sticky">Save all settings</button>
+        <p class="status-dot" id="save-status">Ready — click Save after changes (syncs OBS + preview)</p>
+      </div>
+
+      <div class="admin-grid">
+        <section class="panel">
+          <h2>Header</h2>
+          <div class="field"><label>Title</label><input type="text" id="cfg-title" /></div>
+          <div class="field"><label>Subtitle</label><input type="text" id="cfg-subtitle" /></div>
+          <div class="field-row">
+            <div class="field"><label>Title font</label><select id="cfg-title-font"></select></div>
+            <div class="field"><label>Subtitle font</label><select id="cfg-subtitle-font"></select></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label>Title color</label><input type="color" id="cfg-title-color" /></div>
+            <div class="field"><label>Subtitle color</label><input type="color" id="cfg-subtitle-color" /></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label>Title size (px)</label><input type="number" id="cfg-title-size" min="40" max="220" /></div>
+            <div class="field"><label>Subtitle size (px)</label><input type="number" id="cfg-subtitle-size" min="16" max="80" /></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label>Position X</label><input type="number" id="cfg-pos-x" /></div>
+            <div class="field"><label>Position Y</label><input type="number" id="cfg-pos-y" /></div>
+          </div>
+        </section>
+
+
+        <section class="panel">
+          <h2>Background (behind cards)</h2>
+          <div class="field">
+            <label>Upload image or video (MP4 / WebM / MOV)</label>
+            <input type="file" id="cfg-bg-upload" accept="image/*,video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" />
+          </div>
+          <button type="button" class="btn" id="cfg-bg-clear">Clear background</button>
+          <div class="field" style="margin-top:12px">
+            <label>Background zoom <span id="cfg-bg-scale-val" class="hint">1.05×</span> — only if edges show gaps (keep low so footer stays visible)</label>
+            <input type="range" id="cfg-bg-scale" min="100" max="130" step="1" value="105" />
+          </div>
+          <div id="bg-preview" class="bg-preview"></div>
+          <p class="hint">Image or <strong>video 1–10 seconds</strong> (loops in OBS). Prefer <strong>1920×1080</strong>. Save all settings, then refresh the browser source.</p>
+        </section>
+
+        <section class="panel">
+          <h2>Card theme</h2>
+          <div class="field"><label>Card / footer color</label><input type="color" id="cfg-card-bg" /></div>
+          <div class="field"><label>Border color</label><input type="color" id="cfg-card-border" /></div>
+          <div class="field"><label>Border width (px)</label><input type="number" id="cfg-border-width" min="0" max="12" /></div>
+          <div class="field"><label>Accent color</label><input type="color" id="cfg-accent" /></div>
+          <div class="field"><label>Map label color</label><input type="color" id="cfg-map-label-color" /></div>
+          <div class="field"><label>Map label background</label><input type="color" id="cfg-map-label-bg" /></div>
+          <div class="field"><label>Map label font</label><select id="cfg-map-label-font"></select></div>
+          <div class="field-row">
+            <div class="field"><label>Footer match text</label><input type="color" id="cfg-footer-text" /></div>
+            <div class="field"><label>Footer time color</label><input type="color" id="cfg-footer-time" /></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Animation</h2>
+          <div class="field"><label>Type</label><select id="cfg-anim-type"></select></div>
+          <div class="field">
+            <label>Speed (0.25 – 3) — <span id="cfg-anim-speed-val">1</span></label>
+            <input type="range" id="cfg-anim-speed" min="0.25" max="3" step="0.05" value="1" />
+          </div>
+          <div class="checkbox-field">
+            <input type="checkbox" id="cfg-anim-enabled" checked />
+            <label>Animations enabled</label>
+          </div>
+        </section>
+
+        <section class="panel full-width">
+          <h2>Match cards</h2>
+          <p class="hint">Add <strong>Match 1</strong>, then <strong>Match 2</strong>, then <strong>Match 3</strong>… Click a tab to edit that match only. <strong>WWCD</strong> (chicken + #1 team logo) is automatic from the live tournament — match numbers should align with tournament match # (M1 = match 1).</p>
+          <div class="match-toolbar">
+            <div class="field" style="margin:0;min-width:140px">
+              <label>Matches on overlay</label>
+              <select id="cfg-match-count">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6" selected>6</option>
+                <option value="7">7</option>
+                <option value="8">8</option>
+              </select>
+            </div>
+            <button type="button" class="btn" id="btn-add-match">+ Add match</button>
+            <button type="button" class="btn" id="btn-remove-match">− Remove last</button>
+            <span class="hint" style="margin:0">Editing: <strong id="match-editing-label">Match 1</strong></span>
+          </div>
+          <div id="match-tabs" class="match-tabs" role="tablist"></div>
+          <div id="matches-container" class="match-editor-single"></div>
+        </section>
+
+        <section class="panel full-width">
+          <h2>OBS browser source</h2>
+          <p class="hint">Width <strong>1920</strong> · Height <strong>1080</strong> · Check <strong>Shutdown source when not visible</strong> optional.</p>
+          <div class="obs-url" id="obs-url"></div>
+          <iframe id="preview-frame" class="preview-frame" title="Overlay preview"></iframe>
+        </section>
+      </div>
+    </div>
+    <script type="module" src="js/admin.js"></script>
+  </body>
+</html>

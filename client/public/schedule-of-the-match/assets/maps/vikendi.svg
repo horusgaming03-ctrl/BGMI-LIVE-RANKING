@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 520" role="img" aria-label="Vikendi">
+  <rect width="400" height="520" fill="#b8d4e8"/>
+  <rect y="200" width="400" height="320" fill="#e8f0f8"/>
+  <path d="M0 250 L100 220 L200 260 L300 210 L400 240 L400 520 L0 520 Z" fill="#d0e4f0"/>
+  <ellipse cx="200" cy="380" rx="160" ry="80" fill="#a8c8dc"/>
+</svg>

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 520" role="img" aria-label="Rondo">
+  <defs>
+    <linearGradient id="ro-sky" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0%" stop-color="#1a2840"/>
+      <stop offset="50%" stop-color="#2a4068"/>
+      <stop offset="100%" stop-color="#152238"/>
+    </linearGradient>
+    <radialGradient id="ro-glow" cx="50%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#3a5890" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#1a2840" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="520" fill="url(#ro-sky)"/>
+  <rect width="400" height="520" fill="url(#ro-glow)"/>
+  <ellipse cx="200" cy="280" rx="150" ry="150" fill="#243a5c" opacity="0.75"/>
+  <ellipse cx="200" cy="300" rx="90" ry="90" fill="#1e3050"/>
+  <rect x="165" y="255" width="70" height="50" rx="4" fill="#4a6a9a" opacity="0.5"/>
+  <path d="M0 420 Q200 360 400 400 L400 520 L0 520 Z" fill="#121c30"/>
+</svg>

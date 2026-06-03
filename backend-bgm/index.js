@@ -24,8 +24,9 @@ const overallStandingsDir = path.join(uploadsDir, "overall-standings");
 const wwcdCharsDir = path.join(uploadsDir, "wwcd-chars");
 const obsSharedTripleDir = path.join(uploadsDir, "obs-shared-triple");
 const obsBgmiLayeredDir = path.join(uploadsDir, "obs-bgmi-layered");
+const scheduleOverlayDir = path.join(uploadsDir, "schedule-overlay");
 
-[uploadsDir, logosDir, screenshotsDir, tournamentDir, aliveIconsDir, overallStandingsDir, wwcdCharsDir, obsSharedTripleDir, obsBgmiLayeredDir].forEach((dir) => {
+[uploadsDir, logosDir, screenshotsDir, tournamentDir, aliveIconsDir, overallStandingsDir, wwcdCharsDir, obsSharedTripleDir, obsBgmiLayeredDir, scheduleOverlayDir].forEach((dir) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
@@ -1744,6 +1745,92 @@ app.post("/settings", (req, res) => {
     io.emit("tournamentLogoUpdated", { tournamentLogo: settings.tournamentLogo });
   }
   res.json(settings);
+});
+
+// ── Schedule of the match overlay (OBS) ──
+
+const scheduleOverlayConfigFile = path.join(ROOT, "data", "schedule-overlay-config.json");
+
+const SCHEDULE_BG_IMAGE_EXT = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"];
+const SCHEDULE_BG_VIDEO_EXT = [".mp4", ".webm", ".mov", ".m4v", ".ogg"];
+
+const scheduleBgUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, scheduleOverlayDir),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname || "") || ".jpg";
+      const low = ext.toLowerCase();
+      const isVid =
+        (typeof file.mimetype === "string" && file.mimetype.startsWith("video/")) ||
+        SCHEDULE_BG_VIDEO_EXT.includes(low);
+      const safe = isVid
+        ? SCHEDULE_BG_VIDEO_EXT.includes(low)
+          ? low
+          : ".mp4"
+        : SCHEDULE_BG_IMAGE_EXT.includes(low)
+          ? low
+          : ".jpg";
+      cb(null, `schedule-bg-${Date.now()}${safe}`);
+    },
+  }),
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const mime = file.mimetype || "";
+    const ext = path.extname(file.originalname || "").toLowerCase();
+    const ok =
+      mime.startsWith("image/") ||
+      mime.startsWith("video/") ||
+      SCHEDULE_BG_IMAGE_EXT.includes(ext) ||
+      SCHEDULE_BG_VIDEO_EXT.includes(ext);
+    cb(null, ok);
+  },
+});
+
+function loadScheduleOverlayConfig() {
+  try {
+    if (!fs.existsSync(scheduleOverlayConfigFile)) return null;
+    const raw = JSON.parse(fs.readFileSync(scheduleOverlayConfigFile, "utf8"));
+    return raw && typeof raw === "object" ? raw : null;
+  } catch (e) {
+    console.warn("schedule-overlay-config:", e.message);
+    return null;
+  }
+}
+
+function persistScheduleOverlayConfig(config) {
+  const dataDir = path.dirname(scheduleOverlayConfigFile);
+  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(scheduleOverlayConfigFile, JSON.stringify(config, null, 2), "utf8");
+}
+
+app.get("/schedule-of-the-match/config", (_req, res) => {
+  const cfg = loadScheduleOverlayConfig();
+  res.json(cfg || { ok: false, empty: true });
+});
+
+app.post("/schedule-of-the-match/config", (req, res) => {
+  const body = req.body;
+  if (!body || typeof body !== "object") {
+    return res.status(400).json({ message: "JSON config body required" });
+  }
+  persistScheduleOverlayConfig(body);
+  io.emit("scheduleOverlayUpdated", body);
+  res.json({ ok: true, savedAt: Date.now() });
+});
+
+app.post("/schedule-of-the-match/upload-background", (req, res) => {
+  scheduleBgUpload.single("background")(req, res, (err) => {
+    if (err) {
+      console.error("schedule-bg:", err.message);
+      return res.status(400).json({ message: err.message || "Upload failed" });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file — field name must be "background".' });
+    }
+    const url = `/uploads/schedule-overlay/${req.file.filename}`;
+    const isVideo = (req.file.mimetype || "").startsWith("video/");
+    res.json({ url, ok: true, mediaType: isVideo ? "video" : "image" });
+  });
 });
 
 // ── Logo Upload ──
