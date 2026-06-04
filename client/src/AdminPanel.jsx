@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useState, useRef, useCallback } from "react";
-import { connectSocket, getApiBase, getOverlayPageOrigin } from "./apiOrigin";
+import { connectSocket, getApiBase, getOverlayPageOrigin, apiUrl } from "./apiOrigin";
 import { wwcdPercentMapFromTeams } from "./wwcdModel";
 import { normalizeMatchMeta } from "./normalizeMatchMeta";
 import RondoKnockMatrix from "./rondo/RondoKnockMatrix";
@@ -7,6 +7,10 @@ import { getRondoRecallChargesRemaining } from "./rondo/recallCharges.js";
 import { buildLiveRankingOrder } from "./teamDisplayOrder";
 import { SIDE_OVERLAY_DEFAULT_PREFS, mergeSideOverlayPrefs, clampHexColor, stableCanonSidePrefs } from "./sideOverlayPrefs";
 import ScheduleMatchSection from "./schedule-match/ScheduleMatchSection";
+import {
+  useLiveRankingThemePalette,
+  announcementAdminPreviewStyles,
+} from "./overlays/hooks/useLiveRankingThemePalette";
 const API = getApiBase();
 const socket = connectSocket();
 const defaultForm = { team: "", status: "alive", finishes: 0, points: 0, displayOrder: 0 };
@@ -81,6 +85,8 @@ export default function AdminPanel() {
   const [zoneCueHeadline, setZoneCueHeadline] = useState("");
   const [zoneCueSubtitle, setZoneCueSubtitle] = useState("");
   const [announcementDraft, setAnnouncementDraft] = useState("");
+  const [announcementImageUrl, setAnnouncementImageUrl] = useState(null);
+  const [announcementImageUploading, setAnnouncementImageUploading] = useState(false);
   const [googleIntegration, setGoogleIntegration] = useState({
     enabled: false,
     driveFolderId: "",
@@ -649,8 +655,80 @@ export default function AdminPanel() {
     [autoCalculate]
   );
 
+  const applyTeamsFromServer = useCallback((list) => {
+    if (Array.isArray(list) && list.length) setTeams(list);
+  }, []);
+
+  const knockRowAliveCount = useCallback((team) => {
+    const st = String(team?.status || "").toLowerCase();
+    if (st === "eliminated" || st === "rondo_benched") {
+      return Math.max(0, Math.min(4, Number(team.alivePlayers) || 0));
+    }
+    const n = Number(team.alivePlayers);
+    if (st === "alive") return Math.max(1, Math.min(4, Number.isFinite(n) ? n : 4));
+    return Math.max(0, Math.min(4, Number.isFinite(n) ? n : 4));
+  }, []);
+
+  const restoreEliminatedTeam = useCallback(async (team) => {
+    if (
+      !window.confirm(
+        `${team.team}: restore from OUT?\n\nReturns squad to 4/4 alive and fixes placement ranks for this match.`,
+      )
+    ) {
+      return;
+    }
+    const res = await fetch(`${API}/teams/${team.id}/restore-elimination`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    let payload = null;
+    try {
+      payload = await res.json();
+    } catch {
+      payload = null;
+    }
+    if (!res.ok) {
+      let msg = "Could not restore team.";
+      if (payload?.message) msg = String(payload.message);
+      setMessage(msg);
+      socket.emit("requestTeams");
+      return;
+    }
+    if (Array.isArray(payload?.teams)) {
+      applyTeamsFromServer(payload.teams);
+    } else if (payload?.team) {
+      const revived = payload.team;
+      setTeams((prev) =>
+        prev.map((t) =>
+          Number(t.id) === Number(revived.id)
+            ? {
+                ...t,
+                ...revived,
+                status: "alive",
+                alivePlayers: 4,
+                eliminationRank: null,
+                positionPoints: revived.positionPoints ?? 0,
+              }
+            : t,
+        ),
+      );
+    }
+    setMessage(`${team.team} restored — 4/4 alive (1K / 2K / 3K / OUT active again).`);
+    socket.emit("requestTeams");
+    socket.emit("requestMatch");
+  }, [API, applyTeamsFromServer]);
+
+  const matchScoresEditable =
+    currentMatch?.status === "live" || currentMatch?.status === "ended";
+
   const startNewMatch = async () => {
-    if (!window.confirm("Start a new match? Current match data will be saved to history.")) return;
+    if (
+      !window.confirm(
+        "Start the next match?\n\n• Current match is saved to history first\n• Use Restore on Knockout if someone was OUT by mistake — or tap Cancel to stay on this match",
+      )
+    ) {
+      return;
+    }
     const res = await fetch(`${API}/match/new`, { method: "POST" });
     if (res.ok) {
       setMessage("New match started — Match # increased for the next round.");
@@ -939,11 +1017,23 @@ export default function AdminPanel() {
   };
 
   const sendOverlayCommand = async (command) => {
-    await fetch(`${API}/overlay/command`, {
+    const res = await fetch(`${API}/overlay/command`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(command),
     });
+    if (!res.ok) {
+      let msg = "Overlay command failed — is the API running on port 3001?";
+      try {
+        const j = await res.json();
+        if (j?.message) msg = String(j.message);
+      } catch {
+        /* ignore */
+      }
+      setMessage(msg);
+      return false;
+    }
+    return true;
   };
 
   const broadcastZoneCueToOverlay = useCallback(async () => {
@@ -960,15 +1050,53 @@ export default function AdminPanel() {
     setMessage("Zone cue cleared (/overlay/zone-prediction).");
   }, []);
 
+  const uploadAnnouncementImage = useCallback(async (file) => {
+    if (!file) return;
+    setAnnouncementImageUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`${API}/upload/announcement-image`, { method: "POST", body: fd });
+      let payload = null;
+      try {
+        payload = await res.json();
+      } catch {
+        payload = null;
+      }
+      if (!res.ok) {
+        setMessage(payload?.message || "Announcement image upload failed.");
+        return;
+      }
+      const path = payload?.path || payload?.imageUrl;
+      if (path) {
+        setAnnouncementImageUrl(String(path));
+        setMessage("Announcement image ready — broadcast when ready.");
+      }
+    } finally {
+      setAnnouncementImageUploading(false);
+    }
+  }, []);
+
   const broadcastAnnouncementToOverlay = useCallback(async () => {
     const text = announcementDraft.trim();
-    if (!text) {
-      setMessage("Type announcement text first.");
+    const imageUrl = announcementImageUrl ? String(announcementImageUrl).trim() : "";
+    if (!text && !imageUrl) {
+      setMessage("Add announcement text and/or an image first.");
       return;
     }
-    await sendOverlayCommand({ type: "adminAnnouncement", message: text, durationMs: 9000 });
-    setMessage("Announcement sent — use OBS source: /overlay/announcements");
-  }, [announcementDraft]);
+    const durationMs = imageUrl ? 12000 : 9000;
+    const ok = await sendOverlayCommand({
+      type: "adminAnnouncement",
+      message: text,
+      imageUrl: imageUrl || undefined,
+      durationMs,
+    });
+    if (ok) {
+      setMessage(
+        "Announcement sent — refresh /overlay/announcements if open, or watch the gold banner appear (~12s).",
+      );
+    }
+  }, [announcementDraft, announcementImageUrl]);
 
   useEffect(() => {
     fetchHistory();
@@ -1009,10 +1137,27 @@ export default function AdminPanel() {
 
   /** Team Knock Control (standard map only): display numbers in row order — local UI state, never sent to the server. */
   const [knockTeamRowNumbers, setKnockTeamRowNumbers] = useState({});
-  const getKnockControlDisplayNumber = useCallback((teamId, idx) => {
-    const v = knockTeamRowNumbers[teamId];
-    return typeof v === "number" && Number.isFinite(v) ? v : idx + 1;
-  }, [knockTeamRowNumbers]);
+  /** Slot # is per team id — unchanged when a squad moves to the Eliminated section. */
+  const getKnockControlDisplayNumber = useCallback(
+    (teamId, legacyIdx) => {
+      const v = knockTeamRowNumbers[teamId];
+      if (typeof v === "number" && Number.isFinite(v)) return v;
+      const idx = knockStableOrderTeams.findIndex((t) => t.id === teamId);
+      if (idx >= 0) return idx + 1;
+      return typeof legacyIdx === "number" && Number.isFinite(legacyIdx) ? legacyIdx + 1 : 1;
+    },
+    [knockTeamRowNumbers, knockStableOrderTeams],
+  );
+
+  const knockAliveTeams = useMemo(
+    () => knockStableOrderTeams.filter((t) => String(t.status || "").toLowerCase() !== "eliminated"),
+    [knockStableOrderTeams],
+  );
+
+  const knockEliminatedTeams = useMemo(
+    () => knockStableOrderTeams.filter((t) => String(t.status || "").toLowerCase() === "eliminated"),
+    [knockStableOrderTeams],
+  );
 
   const commitKnockRowNumberFromIndex = useCallback(
     (idx, raw) => {
@@ -1043,10 +1188,144 @@ export default function AdminPanel() {
     [knockStableOrderTeams],
   );
 
+  const renderKnockControlRow = useCallback(
+    (team) => {
+      const statusLc = String(team.status || "").toLowerCase();
+      const alive = knockRowAliveCount(team);
+      const isOut = statusLc === "eliminated";
+      const canRestoreOut = matchScoresEditable && isOut;
+      const globalIdx = knockStableOrderTeams.findIndex((t) => t.id === team.id);
+      const rowNumVal = getKnockControlDisplayNumber(team.id);
+      const minSelectable =
+        globalIdx > 0 ? getKnockControlDisplayNumber(knockStableOrderTeams[globalIdx - 1].id) + 1 : 1;
+      return (
+        <div key={team.id} style={ns.knockRow}>
+          <div style={ns.knockTeamNum}>
+            <span style={ns.knockTeamNumLabel}>Team #</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              aria-label={`Team number for ${team.team}`}
+              title="Slot number stays the same in Alive and Eliminated · rows below auto-adjust in full roster order"
+              min={minSelectable}
+              max={99999}
+              value={rowNumVal}
+              onChange={(e) => commitKnockRowNumberFromIndex(globalIdx, e.target.value)}
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: "4px 4px",
+                fontSize: 13,
+                fontWeight: 900,
+                textAlign: "center",
+                borderRadius: 8,
+                border: "1px solid rgba(255,255,255,.14)",
+                background: "rgba(0,0,0,.32)",
+                color: "#e8eef5",
+              }}
+            />
+          </div>
+          <div style={ns.knockTeam}>
+            <div
+              style={{
+                ...styles.teamLogo,
+                width: 32,
+                height: 32,
+                fontSize: 11,
+                borderRadius: 8,
+                ...(team.logo ? { backgroundImage: `url(${API}${team.logo})`, backgroundSize: "cover", color: "transparent" } : {}),
+              }}
+            >
+              {team.logo ? "" : team.team.slice(0, 2)}
+            </div>
+            <span style={{ fontWeight: 800, fontSize: 15 }}>{team.team}</span>
+          </div>
+          <div style={ns.aliveBars}>
+            {[0, 1, 2, 3].map((i) => (
+              <span
+                key={i}
+                style={{
+                  ...ns.aliveBar,
+                  background: i < alive ? "#5CFF72" : statusLc === "knocked" ? "#FF6B45" : "#3a3f48",
+                }}
+              />
+            ))}
+            <span style={{ color: "#8CB7BE", fontSize: 12, marginLeft: 6 }}>{alive}/4</span>
+          </div>
+          <div style={ns.knockFinishPts} aria-label="Finish points (kills)">
+            <span style={ns.knockFinishPtsLabel}>Finishes</span>
+            <div style={ns.knockFinishPtsCtl}>
+              <button
+                type="button"
+                style={ns.knockFinishArrowBtn}
+                title="Raise finish points"
+                aria-label="Increase finishes"
+                onClick={() => void adjustTeamFinishes(team, 1)}
+              >
+                ▲
+              </button>
+              <span style={ns.knockFinishPtsValue}>{Number(team.finishes) || 0}</span>
+              <button
+                type="button"
+                style={ns.knockFinishArrowBtn}
+                title="Lower finish points"
+                aria-label="Decrease finishes"
+                onClick={() => void adjustTeamFinishes(team, -1)}
+              >
+                ▼
+              </button>
+            </div>
+          </div>
+          <div style={ns.knockBtns}>
+            <button style={ns.knockBtn} disabled={isOut} onClick={() => setAlive(team.id, 3)} title="1 Knocked">
+              1K
+            </button>
+            <button style={ns.knockBtn} disabled={isOut} onClick={() => setAlive(team.id, 2)} title="2 Knocked">
+              2K
+            </button>
+            <button style={ns.knockBtn} disabled={isOut} onClick={() => setAlive(team.id, 1)} title="3 Knocked">
+              3K
+            </button>
+            <button style={{ ...ns.knockBtn, ...ns.knockBtnDanger }} disabled={isOut} onClick={() => knockTeam(team.id, 4, true)} title="Full Eliminated">
+              OUT
+            </button>
+            {canRestoreOut ? (
+              <button
+                type="button"
+                style={{ ...ns.knockBtn, ...ns.knockBtnRestore }}
+                title="Undo mistaken OUT — squad returns 4/4 alive"
+                onClick={() => void restoreEliminatedTeam(team)}
+              >
+                Restore
+              </button>
+            ) : null}
+            {isOut && team.eliminationRank ? <span style={ns.rankBadge}>#{team.eliminationRank}</span> : null}
+          </div>
+        </div>
+      );
+    },
+    [
+      API,
+      adjustTeamFinishes,
+      commitKnockRowNumberFromIndex,
+      getKnockControlDisplayNumber,
+      knockRowAliveCount,
+      knockStableOrderTeams,
+      knockTeam,
+      matchScoresEditable,
+      restoreEliminatedTeam,
+      setAlive,
+      styles.teamLogo,
+    ],
+  );
+
   const matchBoardMeta = useMemo(() => normalizeMatchMeta(currentMatch), [currentMatch]);
   const rondoKnockMode = matchBoardMeta?.map === "rondo";
 
   const wwcdPercentById = useMemo(() => wwcdPercentMapFromTeams(teams), [teams]);
+
+  const { palette: annThemePalette, themeName: annSyncedTheme } = useLiveRankingThemePalette();
+  const annSx = useMemo(() => announcementAdminPreviewStyles(annThemePalette), [annThemePalette]);
 
   const aliveNonEliminatedCount = useMemo(() => teams.filter((t) => ["alive", "knocked"].includes(String(t.status || "").toLowerCase())).length, [teams]);
   const topRankedTeam = sortedTeams[0] || null;
@@ -2209,9 +2488,11 @@ export default function AdminPanel() {
               <div>
                 <p style={styles.cardLabel}>BROADCAST TICKER</p>
                 <h2 style={{ ...styles.cardTitle, marginBottom: 8 }}>Live announcements</h2>
-                <p style={{ margin: 0, fontSize: 13, color: "#8891a1", fontWeight: 600, maxWidth: 640, lineHeight: 1.5 }}>
-                  Separate OBS source: <code style={{ color: "#F1CF69", fontSize: 12 }}>/overlay/announcements</code> — banner only, ~9s dismiss. Independent of{" "}
-                  <code style={{ color: "#8891a1", fontSize: 11 }}>/overlay/themed</code>.
+                <p style={{ margin: 0, fontSize: 13, color: "#8891a1", fontWeight: 600, maxWidth: 680, lineHeight: 1.5 }}>
+                  Colors follow your <strong style={{ color: annThemePalette.gold }}>Live ranking</strong> theme (
+                  <code style={{ color: "#F1CF69", fontSize: 12 }}>{annSyncedTheme}</code>) — change palette in{" "}
+                  <strong style={{ color: "#cbd5df" }}>Theme preview</strong> or pick another active theme below Live rankings. OBS:{" "}
+                  <code style={{ color: "#F1CF69", fontSize: 12 }}>/overlay/announcements</code>.
                 </p>
                 <button
                   type="button"
@@ -2222,27 +2503,80 @@ export default function AdminPanel() {
                 </button>
               </div>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 560 }}>
-              <textarea
-                value={announcementDraft}
-                onChange={(e) => setAnnouncementDraft(e.target.value)}
-                placeholder="e.g. Technical pause — standby"
-                rows={4}
-                style={{
-                  ...styles.matchBannerInput,
-                  width: "100%",
-                  maxWidth: "100%",
-                  boxSizing: "border-box",
-                  resize: "vertical",
-                  minHeight: 100,
-                  textTransform: "none",
-                  fontWeight: 700,
-                  lineHeight: 1.45,
-                }}
-              />
-              <button type="button" style={ns.matchBtnPrimary} onClick={() => void broadcastAnnouncementToOverlay()}>
-                Broadcast to overlay
-              </button>
+            <div style={ns.annComposer}>
+              <div style={ns.annComposerMain}>
+                <label style={{ ...ns.annFieldLabel, ...annSx.label }}>Announcement text</label>
+                <textarea
+                  value={announcementDraft}
+                  onChange={(e) => setAnnouncementDraft(e.target.value)}
+                  placeholder="e.g. TECHNICAL PAUSE — STANDBY"
+                  rows={4}
+                  style={{ ...ns.annTextarea, ...annSx.textarea }}
+                />
+                <label style={{ ...ns.annFieldLabel, ...annSx.label, marginTop: 16 }}>Image (optional)</label>
+                <p style={{ ...ns.annFieldHint, ...annSx.hint }}>PNG / JPG / WebP — sponsor, map, or alert graphic beside the text.</p>
+                <div style={ns.annImageRow}>
+                  <label style={{ ...ns.annUploadBtn, ...annSx.uploadBtn }}>
+                    {announcementImageUploading ? "Uploading…" : "Choose image"}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+                      style={{ display: "none" }}
+                      disabled={announcementImageUploading}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        e.target.value = "";
+                        if (f) void uploadAnnouncementImage(f);
+                      }}
+                    />
+                  </label>
+                  {announcementImageUrl ? (
+                    <button
+                      type="button"
+                      style={ns.annClearImgBtn}
+                      onClick={() => {
+                        setAnnouncementImageUrl(null);
+                        setMessage("Announcement image removed.");
+                      }}
+                    >
+                      Remove image
+                    </button>
+                  ) : null}
+                </div>
+                {announcementImageUrl ? (
+                  <div style={ns.annImgPreviewWrap}>
+                    <img src={apiUrl(announcementImageUrl)} alt="" style={ns.annImgPreview} />
+                  </div>
+                ) : null}
+                <button type="button" style={{ ...ns.annBroadcastBtn, ...annSx.broadcastBtn }} onClick={() => void broadcastAnnouncementToOverlay()}>
+                  Broadcast to overlay
+                </button>
+              </div>
+              <div style={{ ...ns.annPreviewCard, ...annSx.card }} aria-hidden>
+                <div style={{ ...ns.annPreviewHead, ...annSx.head }}>
+                  <span style={{ ...ns.annPreviewTag, ...annSx.tag }}>Announcement</span>
+                  <span style={{ ...ns.annPreviewLive, ...annSx.live }}>Live</span>
+                </div>
+                <div style={ns.annPreviewBody}>
+                  {announcementImageUrl ? (
+                    <div
+                      style={{
+                        ...ns.annPreviewThumb,
+                        ...annSx.thumb,
+                        backgroundImage: `url(${apiUrl(announcementImageUrl)})`,
+                      }}
+                    />
+                  ) : (
+                    <div style={{ ...ns.annPreviewThumb, ...annSx.thumb, background: "rgba(255,255,255,.04)" }} />
+                  )}
+                  <p style={{ ...ns.annPreviewText, ...annSx.msg }}>
+                    {announcementDraft.trim() || "YOUR MESSAGE APPEARS HERE"}
+                  </p>
+                </div>
+                <p style={{ ...ns.annPreviewCaption, ...annSx.caption }}>
+                  Preview — synced with Live ranking theme ({annSyncedTheme})
+                </p>
+              </div>
             </div>
           </section>
         )}
@@ -2273,9 +2607,8 @@ export default function AdminPanel() {
                   ) : (
                     <>
                       OBS finish strips (red pill + skull, live from socket):{" "}
-                      <code style={{ color: "#F1CF69", fontSize: 11 }}>/overlay/finish-badges</code>. Add{" "}
-                      <code style={{ color: "#8891a1", fontSize: 11 }}>?interactive=1</code> to bump finishes from the browser.{" "}
-                      <code style={{ color: "#8891a1", fontSize: 11 }}>?stable=1</code> matches fixed row order (no resort).
+                      <code style={{ color: "#F1CF69", fontSize: 11 }}>/overlay/finish-badges</code>. Before{" "}
+                      <strong style={{ color: "#cbd5df" }}>New Match</strong>: use <strong style={{ color: "#5CFF72" }}>Restore</strong> if a squad was marked OUT by mistake.
                     </>
                   )}
                 </p>
@@ -2287,102 +2620,29 @@ export default function AdminPanel() {
               </div>
             </div>
             {!rondoKnockMode ? (
-              <div style={ns.knockGrid}>
-                {knockStableOrderTeams.map((team, idx) => {
-                  const alive = team.alivePlayers ?? 4;
-                  const isOut = team.status === "eliminated";
-                  const rowNumVal = getKnockControlDisplayNumber(team.id, idx);
-                  const minSelectable = idx > 0 ? getKnockControlDisplayNumber(knockStableOrderTeams[idx - 1].id, idx - 1) + 1 : 1;
-                  return (
-                    <div key={team.id} style={{ ...ns.knockRow, opacity: isOut ? 0.4 : 1 }}>
-                      <div style={ns.knockTeamNum}>
-                        <span style={ns.knockTeamNumLabel}>Team #</span>
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          aria-label={`Team number for ${team.team}`}
-                          title="Teams below adjust automatically · must stay above row above · no duplicates"
-                          min={minSelectable}
-                          max={99999}
-                          value={rowNumVal}
-                          onChange={(e) => commitKnockRowNumberFromIndex(idx, e.target.value)}
-                          style={{
-                            width: "100%",
-                            boxSizing: "border-box",
-                            padding: "4px 4px",
-                            fontSize: 13,
-                            fontWeight: 900,
-                            textAlign: "center",
-                            borderRadius: 8,
-                            border: "1px solid rgba(255,255,255,.14)",
-                            background: "rgba(0,0,0,.32)",
-                            color: "#e8eef5",
-                          }}
-                        />
-                      </div>
-                      <div style={ns.knockTeam}>
-                        <div
-                          style={{
-                            ...styles.teamLogo,
-                            width: 32,
-                            height: 32,
-                            fontSize: 11,
-                            borderRadius: 8,
-                            ...(team.logo ? { backgroundImage: `url(${API}${team.logo})`, backgroundSize: "cover", color: "transparent" } : {}),
-                          }}
-                        >
-                          {team.logo ? "" : team.team.slice(0, 2)}
-                        </div>
-                        <span style={{ fontWeight: 800, fontSize: 15 }}>{team.team}</span>
-                      </div>
-                      <div style={ns.aliveBars}>
-                        {[0, 1, 2, 3].map((i) => (
-                          <span key={i} style={{ ...ns.aliveBar, background: i < alive ? "#5CFF72" : team.status === "knocked" ? "#FF6B45" : "#3a3f48" }} />
-                        ))}
-                        <span style={{ color: "#8CB7BE", fontSize: 12, marginLeft: 6 }}>{alive}/4</span>
-                      </div>
-                      <div style={ns.knockFinishPts} aria-label="Finish points (kills)">
-                        <span style={ns.knockFinishPtsLabel}>Finishes</span>
-                        <div style={ns.knockFinishPtsCtl}>
-                          <button
-                            type="button"
-                            style={ns.knockFinishArrowBtn}
-                            title="Raise finish points"
-                            aria-label="Increase finishes"
-                            onClick={() => void adjustTeamFinishes(team, 1)}
-                          >
-                            ▲
-                          </button>
-                          <span style={ns.knockFinishPtsValue}>{Number(team.finishes) || 0}</span>
-                          <button
-                            type="button"
-                            style={ns.knockFinishArrowBtn}
-                            title="Lower finish points"
-                            aria-label="Decrease finishes"
-                            onClick={() => void adjustTeamFinishes(team, -1)}
-                          >
-                            ▼
-                          </button>
-                        </div>
-                      </div>
-                      <div style={ns.knockBtns}>
-                        <button style={ns.knockBtn} disabled={isOut} onClick={() => setAlive(team.id, 3)} title="1 Knocked">
-                          1K
-                        </button>
-                        <button style={ns.knockBtn} disabled={isOut} onClick={() => setAlive(team.id, 2)} title="2 Knocked">
-                          2K
-                        </button>
-                        <button style={ns.knockBtn} disabled={isOut} onClick={() => setAlive(team.id, 1)} title="3 Knocked">
-                          3K
-                        </button>
-                        <button style={{ ...ns.knockBtn, ...ns.knockBtnDanger }} disabled={isOut} onClick={() => knockTeam(team.id, 4, true)} title="Full Eliminated">
-                          OUT
-                        </button>
-                        {isOut && team.eliminationRank ? <span style={ns.rankBadge}>#{team.eliminationRank}</span> : null}
-                      </div>
-                    </div>
-                  );
-                })}
+              <div style={ns.knockSections}>
+                <div style={ns.knockSectionBlock}>
+                  <div style={ns.knockSectionHeadAlive}>
+                    <span>Alive</span>
+                    <span style={ns.knockSectionCount}>{knockAliveTeams.length}</span>
+                  </div>
+                  <div style={ns.knockGrid}>
+                    {knockAliveTeams.length ? knockAliveTeams.map((team) => renderKnockControlRow(team)) : (
+                      <p style={ns.knockSectionEmpty}>No squads still in the match.</p>
+                    )}
+                  </div>
+                </div>
+                <div style={ns.knockSectionBlock}>
+                  <div style={ns.knockSectionHeadElim}>
+                    <span>Eliminated</span>
+                    <span style={ns.knockSectionCount}>{knockEliminatedTeams.length}</span>
+                  </div>
+                  <div style={{ ...ns.knockGrid, ...ns.knockGridElim }}>
+                    {knockEliminatedTeams.length ? knockEliminatedTeams.map((team) => renderKnockControlRow(team)) : (
+                      <p style={ns.knockSectionEmpty}>No eliminated squads yet — OUT moves a team here (slot # unchanged).</p>
+                    )}
+                  </div>
+                </div>
               </div>
             ) : (
               <RondoKnockMatrix
@@ -5046,7 +5306,54 @@ const ns = {
     flexWrap: "wrap",
     gap: 12,
   },
+  knockSections: { display: "flex", flexDirection: "column", gap: 22 },
+  knockSectionBlock: { display: "flex", flexDirection: "column", gap: 8 },
+  knockSectionHeadAlive: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: 2,
+    textTransform: "uppercase",
+    color: "#5CFF72",
+    padding: "0 4px",
+  },
+  knockSectionHeadElim: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    fontSize: 11,
+    fontWeight: 900,
+    letterSpacing: 2,
+    textTransform: "uppercase",
+    color: "#9aa3b0",
+    padding: "0 4px",
+  },
+  knockSectionCount: {
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: 0,
+    textTransform: "none",
+    color: "#6b8490",
+    padding: "2px 8px",
+    borderRadius: 999,
+    background: "rgba(255,255,255,.05)",
+    border: "1px solid rgba(255,255,255,.08)",
+  },
+  knockSectionEmpty: {
+    margin: 0,
+    padding: "14px 12px",
+    fontSize: 12,
+    fontWeight: 600,
+    color: "#6b8490",
+    fontStyle: "italic",
+  },
   knockGrid: { display: "grid", gap: 6 },
+  knockGridElim: {
+    padding: "8px 0 0",
+    borderTop: "1px solid rgba(255,255,255,.06)",
+  },
   knockRow: {
     display: "grid",
     gridTemplateColumns: "52px minmax(140px, 200px) 150px minmax(120px, 150px) 1fr",
@@ -5142,6 +5449,11 @@ const ns = {
     color: "#FF6B6B",
     borderColor: "#6B2B3B",
   },
+  knockBtnRestore: {
+    background: "#12382e",
+    color: "#5CFF72",
+    borderColor: "#2d6b4a",
+  },
   rankBadge: {
     background: "rgba(241,207,105,.15)",
     color: "#F1CF69",
@@ -5149,6 +5461,143 @@ const ns = {
     borderRadius: 999,
     fontSize: 12,
     fontWeight: 800,
+  },
+  annComposer: {
+    display: "grid",
+    gridTemplateColumns: "minmax(280px, 1fr) minmax(260px, 340px)",
+    gap: 24,
+    alignItems: "start",
+  },
+  annComposerMain: { display: "flex", flexDirection: "column", gap: 8, maxWidth: 560 },
+  annFieldLabel: {
+    fontSize: 10,
+    fontWeight: 900,
+    letterSpacing: 1.4,
+    textTransform: "uppercase",
+    color: "#f1c04e",
+    marginTop: 4,
+  },
+  annFieldHint: { margin: 0, fontSize: 12, color: "#6b8490", fontWeight: 600, lineHeight: 1.4 },
+  annTextarea: {
+    width: "100%",
+    boxSizing: "border-box",
+    resize: "vertical",
+    minHeight: 100,
+    padding: "14px 16px",
+    borderRadius: 10,
+    border: "1px solid rgba(241,192,78,.35)",
+    background: "rgba(8,12,18,.85)",
+    color: "#f4f6f8",
+    fontSize: 15,
+    fontWeight: 700,
+    lineHeight: 1.45,
+    textTransform: "none",
+    fontFamily: "'Rajdhani', system-ui, sans-serif",
+  },
+  annImageRow: { display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginTop: 4 },
+  annUploadBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "10px 18px",
+    borderRadius: 10,
+    border: "1px solid rgba(241,192,78,.45)",
+    background: "linear-gradient(180deg, rgba(241,192,78,.18), rgba(255,140,42,.08))",
+    color: "#f1c04e",
+    fontSize: 13,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  annClearImgBtn: {
+    padding: "10px 14px",
+    borderRadius: 10,
+    border: "1px solid rgba(255,255,255,.12)",
+    background: "rgba(255,255,255,.04)",
+    color: "#9aa3b0",
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+  annImgPreviewWrap: {
+    marginTop: 8,
+    padding: 8,
+    borderRadius: 10,
+    border: "1px solid rgba(241,192,78,.25)",
+    background: "rgba(0,0,0,.25)",
+    maxWidth: 220,
+  },
+  annImgPreview: { display: "block", width: "100%", maxHeight: 120, objectFit: "contain", borderRadius: 6 },
+  annBroadcastBtn: {
+    marginTop: 18,
+    padding: "14px 22px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,140,42,.55)",
+    background: "linear-gradient(180deg, #f1c04e, #c9921a)",
+    color: "#1a1208",
+    fontSize: 15,
+    fontWeight: 900,
+    letterSpacing: "0.06em",
+    textTransform: "uppercase",
+    cursor: "pointer",
+    boxShadow: "0 8px 28px rgba(241,192,78,.25)",
+  },
+  annPreviewCard: {
+    padding: 0,
+    borderRadius: 4,
+    overflow: "hidden",
+    border: "1px solid rgba(241,192,78,.45)",
+    background: "linear-gradient(180deg, rgba(18,22,32,.98), rgba(6,10,16,.98))",
+    boxShadow: "0 16px 40px rgba(0,0,0,.5), 0 0 32px rgba(255,140,42,.08)",
+    clipPath:
+      "polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px)",
+  },
+  annPreviewHead: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "8px 14px",
+    background: "linear-gradient(90deg, rgba(241,192,78,.2), transparent)",
+    borderBottom: "1px solid rgba(241,192,78,.3)",
+  },
+  annPreviewTag: {
+    fontFamily: "'Bebas Neue', Impact, sans-serif",
+    fontSize: 18,
+    letterSpacing: 0.12,
+    color: "#f1c04e",
+  },
+  annPreviewLive: {
+    fontFamily: "'Bebas Neue', Impact, sans-serif",
+    fontSize: 14,
+    letterSpacing: 0.16,
+    color: "#ff8c2a",
+    border: "1px solid rgba(255,140,42,.5)",
+    padding: "2px 8px",
+  },
+  annPreviewBody: { display: "flex", gap: 12, padding: "12px 14px 14px", alignItems: "center" },
+  annPreviewThumb: {
+    width: 72,
+    height: 48,
+    flexShrink: 0,
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    border: "1px solid rgba(241,192,78,.4)",
+  },
+  annPreviewText: {
+    margin: 0,
+    flex: 1,
+    fontSize: 13,
+    fontWeight: 800,
+    color: "#f4f6f8",
+    textTransform: "uppercase",
+    lineHeight: 1.3,
+    letterSpacing: "0.03em",
+  },
+  annPreviewCaption: {
+    margin: 0,
+    padding: "6px 14px 10px",
+    fontSize: 10,
+    fontWeight: 700,
+    color: "#6b8490",
+    textAlign: "center",
   },
   rondoKnockGrid: { display: "grid", gap: 10 },
   rondoKnockRow: {

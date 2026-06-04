@@ -5,11 +5,12 @@
     "title": "SCHEDULE",
     "subtitle": "SURVIVAL - DAY 1",
     "titleFont": "Bebas Neue",
-    "subtitleFont": "Teko",
+    "subtitleFont": "Bebas Neue",
+    "cardsBannerSize": 108,
     "titleColor": "#ffffff",
     "subtitleColor": "#00d4e8",
     "titleSize": 148,
-    "subtitleSize": 42,
+    "subtitleSize": 108,
     "position": { "x": 72, "y": 48 }
   },
   "background": {

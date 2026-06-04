@@ -249,7 +249,7 @@ export default function ThemePreview() {
             setThemeColorOverridesServer(data.themeColorOverrides);
           }
           colorAutoLastSigRef.current = sig;
-          setColorSaveMsg("Synced — live overlay & elimination banner updated.");
+          setColorSaveMsg("Synced — live ranking, elimination & announcements updated.");
           setTimeout(() => setColorSaveMsg(""), 2200);
         }
       } catch (e) {
@@ -376,7 +376,7 @@ export default function ThemePreview() {
           setThemeColorOverridesServer(data.themeColorOverrides);
         }
         colorAutoLastSigRef.current = `${selected}|${JSON.stringify(cleaned)}`;
-        setColorSaveMsg("Colors saved — live overlay & elimination update via socket.");
+        setColorSaveMsg("Colors saved — live ranking, elimination & announcements update via socket.");
         setTimeout(() => setColorSaveMsg(""), 4000);
       } else setColorSaveMsg("Save failed.");
     } catch (err) {

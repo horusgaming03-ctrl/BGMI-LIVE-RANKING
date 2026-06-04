@@ -123,10 +123,40 @@ body {
   font-weight: 600;
 }
 
+.som-header .som-subtitle {
+  display: none;
+}
+
+.som-cards-eyebrow {
+  display: block;
+  width: 100%;
+  margin: 0 0 3cm;
+  padding: 0;
+  text-align: center;
+  font-family: "Bebas Neue", "Anton", "Teko", sans-serif;
+  font-size: var(--cards-eyebrow-size, 108px) !important;
+  font-weight: 700;
+  line-height: 0.92;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  transform: none;
+  scale: none;
+  color: var(--cards-eyebrow-color, #ffffff);
+  text-transform: uppercase;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.85), 0 4px 20px rgba(0, 0, 0, 0.35);
+  flex-shrink: 0;
+}
+
+.som-cards-eyebrow:empty {
+  display: none;
+  margin: 0;
+}
+
 /* Cards row — centered vertically (BGMI-style) */
 .som-cards-wrap {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding-left: var(--cards-pad-x, 64px);

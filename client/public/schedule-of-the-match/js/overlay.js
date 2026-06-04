@@ -2,6 +2,7 @@ import { getConfig, subscribeConfig, getScheduleApiBase } from "./config-store.j
 import { mountScheduleBackgroundIfChanged } from "./schedule-bg-render.js";
 import { MAP_CATALOG, resolveMapImage, mapDisplayName } from "./map-catalog.js";
 import { applyAnimationClasses, showCardsInstant, cardIntroTotalMs } from "./animations.js";
+import { resolveCardsBannerFontPx, CARDS_BANNER_FONT } from "./schedule-header.js";
 import { createWwcdMapImage } from "./wwcd-panel.js";
 import {
   fetchLiveTournamentState,
@@ -20,6 +21,7 @@ const bgLayer = document.getElementById("som-bg");
 const headerEl = document.getElementById("som-header");
 const titleEl = document.getElementById("som-title");
 const subtitleEl = document.getElementById("som-subtitle");
+const cardsEyebrowEl = document.getElementById("som-cards-eyebrow");
 const cardsEl = document.getElementById("som-cards");
 
 const FONT_LINKS = {
@@ -76,13 +78,22 @@ function applyHeader(config) {
   ensureFont(h.titleFont);
   ensureFont(h.subtitleFont);
   titleEl.textContent = h.title || "SCHEDULE";
-  subtitleEl.textContent = h.subtitle || "";
+  const banner = (h.subtitle || "").trim();
+  if (subtitleEl) subtitleEl.textContent = banner;
+  if (cardsEyebrowEl) {
+    const bannerPx = resolveCardsBannerFontPx(h);
+    cardsEyebrowEl.textContent = banner;
+    ensureFont(CARDS_BANNER_FONT);
+    cardsEyebrowEl.style.fontFamily = `"${CARDS_BANNER_FONT}", sans-serif`;
+    cardsEyebrowEl.style.color = h.subtitleColor || "#ffffff";
+    cardsEyebrowEl.style.fontSize = `${bannerPx}px`;
+    cardsEyebrowEl.style.letterSpacing = "0.06em";
+    stage.style.setProperty("--cards-eyebrow-size", `${bannerPx}px`);
+    stage.style.setProperty("--cards-eyebrow-color", h.subtitleColor || "#ffffff");
+  }
   titleEl.style.fontFamily = `"${h.titleFont || "Bebas Neue"}", sans-serif`;
-  subtitleEl.style.fontFamily = `"${h.subtitleFont || "Teko"}", sans-serif`;
   titleEl.style.color = h.titleColor || "#ffffff";
-  subtitleEl.style.color = h.subtitleColor || "#00d4e8";
   titleEl.style.fontSize = `${h.titleSize || 148}px`;
-  subtitleEl.style.fontSize = `${h.subtitleSize || 42}px`;
   const pos = h.position || { x: 72, y: 48 };
   headerEl.style.left = `${pos.x}px`;
   headerEl.style.top = `${pos.y}px`;

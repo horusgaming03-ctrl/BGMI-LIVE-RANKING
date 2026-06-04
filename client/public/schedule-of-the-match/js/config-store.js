@@ -1,4 +1,5 @@
 import { normalizeMatchMaps } from "./map-catalog.js";
+import { normalizeHeaderBanner } from "./schedule-header.js";
 
 const STORAGE_KEY = "schedule-of-the-match-config";
 const CHANNEL_NAME = "schedule-of-the-match-sync";
@@ -216,6 +217,7 @@ function mergeWithDefaults(saved, defaults) {
   deepMerge(out, saved);
   ensureMatchSlots(out);
   normalizeMatchMaps(out);
+  normalizeHeaderBanner(out);
   normalizeWwcdFlags(out);
   if (!out.background) {
     out.background = { imageUrl: "", mediaType: "image", opacity: 1, fit: "cover", position: "center center", scale: 1.05 };

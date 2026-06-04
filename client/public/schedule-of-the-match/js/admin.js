@@ -20,6 +20,13 @@ import {
 } from "./schedule-live.js";
 import { wireLoopingVideo } from "./schedule-bg-render.js";
 import { MAP_CATALOG, MAP_KEYS, normalizeMatchMaps, normalizeMapKey } from "./map-catalog.js";
+import {
+  normalizeHeaderBanner,
+  resolveCardsBannerFontPx,
+  syncCardsBannerSize,
+  CARDS_BANNER_MIN_PX,
+  CARDS_BANNER_DEFAULT_PX,
+} from "./schedule-header.js";
 import { ANIMATION_TYPES } from "./animations.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -131,7 +138,12 @@ function readForm() {
   state.header.titleColor = els.titleColor.value;
   state.header.subtitleColor = els.subtitleColor.value;
   state.header.titleSize = Number(els.titleSize.value);
-  state.header.subtitleSize = Number(els.subtitleSize.value);
+  const bannerPx = Math.max(
+    CARDS_BANNER_MIN_PX,
+    Number(els.subtitleSize.value) || CARDS_BANNER_DEFAULT_PX,
+  );
+  state.header.cardsBannerSize = bannerPx;
+  state.header.subtitleSize = bannerPx;
   state.header.position.x = Number(els.posX.value);
   state.header.position.y = Number(els.posY.value);
 
@@ -208,6 +220,7 @@ function updateBgPreview(url, mediaType) {
 
 async function persist() {
   readForm();
+  normalizeHeaderBanner(state);
   try {
     const result = await saveConfig(state);
     if (result?.localOnly) {
@@ -406,7 +419,8 @@ function populateForm() {
   els.titleColor.value = h.titleColor;
   els.subtitleColor.value = h.subtitleColor;
   els.titleSize.value = h.titleSize;
-  els.subtitleSize.value = h.subtitleSize;
+  syncCardsBannerSize(h);
+  els.subtitleSize.value = String(resolveCardsBannerFontPx(h));
   els.posX.value = h.position?.x ?? 72;
   els.posY.value = h.position?.y ?? 48;
 
@@ -626,6 +640,7 @@ async function init() {
   }
   ensureMatchSlots(state);
   normalizeMatchMaps(state);
+  normalizeHeaderBanner(state);
   if (!state.background) state.background = { imageUrl: "", opacity: 1, fit: "cover" };
   selectedMatchIndex = 0;
   populateForm();

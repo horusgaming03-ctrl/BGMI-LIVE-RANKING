@@ -25,8 +25,9 @@ const wwcdCharsDir = path.join(uploadsDir, "wwcd-chars");
 const obsSharedTripleDir = path.join(uploadsDir, "obs-shared-triple");
 const obsBgmiLayeredDir = path.join(uploadsDir, "obs-bgmi-layered");
 const scheduleOverlayDir = path.join(uploadsDir, "schedule-overlay");
+const announcementsDir = path.join(uploadsDir, "announcements");
 
-[uploadsDir, logosDir, screenshotsDir, tournamentDir, aliveIconsDir, overallStandingsDir, wwcdCharsDir, obsSharedTripleDir, obsBgmiLayeredDir, scheduleOverlayDir].forEach((dir) => {
+[uploadsDir, logosDir, screenshotsDir, tournamentDir, aliveIconsDir, overallStandingsDir, wwcdCharsDir, obsSharedTripleDir, obsBgmiLayeredDir, scheduleOverlayDir, announcementsDir].forEach((dir) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
@@ -115,6 +116,24 @@ const screenshotUpload = multer({
       cb(null, `ss-${Date.now()}${path.extname(file.originalname)}`);
     },
   }),
+});
+
+const announcementImageUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, announcementsDir),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname || "") || ".png";
+      cb(null, `ann-${Date.now()}${ext}`);
+    },
+  }),
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || "").toLowerCase();
+    const allowed = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".avif"];
+    const mimeOk = typeof file.mimetype === "string" && file.mimetype.startsWith("image/");
+    if (allowed.includes(ext) || mimeOk) return cb(null, true);
+    cb(new Error("Announcement image must be PNG, JPG, WebP, or GIF."));
+  },
 });
 
 const wwcdCharUpload = multer({
@@ -1327,6 +1346,8 @@ app.post("/teams/:id", (req, res) => {
     }
   }
 
+  const manualPosPts = req.body.positionPoints !== undefined;
+
   teams[idx] = {
     ...cur,
     team: String(req.body.team || cur.team).toUpperCase(),
@@ -1334,13 +1355,16 @@ app.post("/teams/:id", (req, res) => {
     finishes: Number(req.body.finishes ?? cur.finishes),
     points: Number(req.body.points ?? cur.points),
     displayOrder: nextDisplayOrder,
+    ...(manualPosPts ? { positionPoints: Math.max(0, Number(req.body.positionPoints) || 0) } : {}),
   };
 
   if (!wasEliminated && wantsEliminated) {
     if (prevStatus === "rondo_benched") eliminateTeam(teams[idx]);
     else tryCommitFullElimination(teams[idx]);
-  } else if (settings.autoCalculate) {
+  } else if (settings.autoCalculate && !manualPosPts) {
     recalculatePoints(teams[idx]);
+  } else if (manualPosPts) {
+    teams[idx].points = (Number(teams[idx].finishes) || 0) + teams[idx].positionPoints;
   }
 
   broadcast();
@@ -1401,6 +1425,16 @@ app.post("/teams/:id/alive", (req, res) => {
   if (teams[idx].status === "rondo_benched") {
     return res.status(400).json({ message: "Cannot set alive count while benched — trigger Rondo recall first" });
   }
+
+  const wasEliminated = String(teams[idx].status || "").toLowerCase() === "eliminated";
+  if (count > 0 && wasEliminated) {
+    restoreEliminatedTeam(teams[idx]);
+    teams[idx].alivePlayers = count;
+    teams[idx].status = count < 4 ? "knocked" : "alive";
+    broadcast();
+    return res.json(teams[idx]);
+  }
+
   teams[idx].alivePlayers = count;
 
   if (count === 0) {
@@ -1533,6 +1567,68 @@ app.post("/teams/:id/rondo-undo-out", (req, res) => {
   res.json(team);
 });
 
+/** Mistaken OUT (standard maps) — restore squad to 4/4 alive and fix placement ranks. */
+function restoreEliminatedTeam(team) {
+  if (String(team.status || "").toLowerCase() !== "eliminated") return false;
+
+  const oldRank = team.eliminationRank != null ? Math.trunc(Number(team.eliminationRank)) : null;
+
+  team.status = "alive";
+  team.alivePlayers = 4;
+  team.eliminationRank = null;
+  team.positionPoints = 0;
+  team.rondoAwaitingRecall = false;
+
+  if (oldRank != null && Number.isFinite(oldRank)) {
+    teams.forEach((t) => {
+      if (t.id === team.id) return;
+      if (String(t.status || "").toLowerCase() !== "eliminated") return;
+      const r = t.eliminationRank != null ? Math.trunc(Number(t.eliminationRank)) : null;
+      if (r != null && r > oldRank) {
+        t.eliminationRank = r - 1;
+        recalculatePoints(t);
+      }
+    });
+  }
+
+  teams.forEach((t) => {
+    if (t.id === team.id) return;
+    const s = String(t.status || "").toLowerCase();
+    if (s === "alive" || s === "knocked") {
+      if (t.eliminationRank === 1) {
+        t.eliminationRank = null;
+        recalculatePoints(t);
+      }
+    }
+  });
+
+  recalculatePoints(team);
+  checkForWinner();
+  return true;
+}
+
+app.post("/teams/:id/restore-elimination", (req, res) => {
+  const matchSt = String(currentMatch.status || "live").toLowerCase();
+  if (matchSt !== "live" && matchSt !== "ended") {
+    return res.status(400).json({ message: "Restore only before the next match starts (match is live or ended)." });
+  }
+
+  const id = Number(req.params.id);
+  const idx = teams.findIndex((t) => t.id === id);
+  if (idx === -1) return res.status(404).json({ message: "not found" });
+
+  const team = teams[idx];
+  if (String(team.status || "").toLowerCase() === "rondo_benched") {
+    return res.status(400).json({ message: "Squad is on Rondo recall bench — use Undo mistaken OUT on that row." });
+  }
+  if (!restoreEliminatedTeam(team)) {
+    return res.status(400).json({ message: "Team is not eliminated — nothing to restore." });
+  }
+
+  broadcast();
+  res.json({ ok: true, team, teams: sortTeams() });
+});
+
 // ── Match Management ──
 
 app.get("/match/current", (_req, res) => {
@@ -1540,7 +1636,8 @@ app.get("/match/current", (_req, res) => {
 });
 
 app.post("/match/new", (_req, res) => {
-  if (teams.length > 0 && String(currentMatch.status || "live").toLowerCase() === "live") {
+  const matchSt = String(currentMatch.status || "live").toLowerCase();
+  if (teams.length > 0 && (matchSt === "live" || matchSt === "ended")) {
     archiveCurrentMatchSnapshot();
   }
 
@@ -1834,6 +1931,26 @@ app.post("/schedule-of-the-match/upload-background", (req, res) => {
 });
 
 // ── Logo Upload ──
+
+app.post("/upload/announcement-image", (req, res) => {
+  announcementImageUpload.single("file")(req, res, (err) => {
+    if (err) {
+      console.error("announcement-image:", err.message);
+      if (err instanceof multer.MulterError) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+          return res.status(400).json({ message: "Image too large (max 15 MB)." });
+        }
+        return res.status(400).json({ message: err.message || "Upload failed" });
+      }
+      return res.status(400).json({ message: err.message || "Upload failed" });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file — form field name must be "file".' });
+    }
+    const rel = `/uploads/announcements/${req.file.filename}`;
+    res.json({ path: rel, imageUrl: rel, ok: true });
+  });
+});
 
 app.post("/upload/tournament-logo", (req, res) => {
   tournamentLogoUpload.single("logo")(req, res, (err) => {
@@ -2219,9 +2336,44 @@ app.post("/integrations/google/sync", async (_req, res) => {
 
 // ── Overlay Commands ──
 
+/** Latest admin announcement — overlays can GET if they miss the socket event (OBS refresh / LAN). */
+let lastLiveAnnouncement = null;
+
+function normalizeLiveAnnouncement(body) {
+  if (!body || typeof body !== "object" || body.type !== "adminAnnouncement") return null;
+  const msg = String(body.message ?? body.text ?? "").trim();
+  const imageUrl = String(body.imageUrl ?? body.image ?? "").trim();
+  if (!msg && !imageUrl) return null;
+  const rawMs = Number(body.durationMs);
+  const durationMs =
+    Number.isFinite(rawMs) && rawMs >= 2000 ? Math.min(60000, rawMs) : imageUrl ? 12000 : 9000;
+  return {
+    type: "adminAnnouncement",
+    message: msg,
+    imageUrl: imageUrl || null,
+    durationMs,
+    sentAt: Date.now(),
+  };
+}
+
+app.get("/overlay/announcement-state", (_req, res) => {
+  if (!lastLiveAnnouncement) return res.json({ announcement: null, remainingMs: 0 });
+  const sentAt = Number(lastLiveAnnouncement.sentAt) || 0;
+  const durationMs = Number(lastLiveAnnouncement.durationMs) || 9000;
+  const remainingMs = Math.max(0, durationMs - (Date.now() - sentAt));
+  if (remainingMs < 400) {
+    lastLiveAnnouncement = null;
+    return res.json({ announcement: null, remainingMs: 0 });
+  }
+  res.json({ announcement: lastLiveAnnouncement, remainingMs });
+});
+
 app.post("/overlay/command", (req, res) => {
-  io.emit("overlayCommand", req.body);
-  res.json({ ok: true });
+  const ann = normalizeLiveAnnouncement(req.body);
+  if (ann) lastLiveAnnouncement = ann;
+  const payload = ann || req.body;
+  io.emit("overlayCommand", payload);
+  res.json({ ok: true, announcement: ann || undefined });
 });
 
 // ── React SPA (production): API + UI on one port after `npm run build` ──

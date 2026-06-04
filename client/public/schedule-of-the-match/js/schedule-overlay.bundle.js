@@ -48,7 +48,7 @@
       titleColor: "#ffffff",
       subtitleColor: "#00d4e8",
       titleSize: 148,
-      subtitleSize: 42,
+      subtitleSize: 108,
       position: { x: 72, y: 48 },
     },
     background: { imageUrl: "", mediaType: "image", opacity: 1, fit: "cover", position: "center center", scale: 1.05 },
@@ -103,6 +103,7 @@
   const headerEl = document.getElementById("som-header");
   const titleEl = document.getElementById("som-title");
   const subtitleEl = document.getElementById("som-subtitle");
+  const cardsEyebrowEl = document.getElementById("som-cards-eyebrow");
   const cardsEl = document.getElementById("som-cards");
 
   if (!stage || !cardsEl || !titleEl) {
@@ -244,6 +245,7 @@
     }
     ensureMatchSlots(out);
     normalizeMatchMaps(out);
+    normalizeHeaderBanner(out);
     normalizeWwcdFlags(out);
     if (out.background && !out.background.mediaType) {
       out.background.mediaType = isVideoBackground(out.background) ? "video" : "image";
@@ -382,6 +384,34 @@
     const s = Number(speed);
     if (!Number.isFinite(s) || s <= 0) return 1;
     return Math.max(0.25, Math.min(3, s));
+  }
+
+  var CARDS_BANNER_MIN_PX = 108;
+  var CARDS_BANNER_DEFAULT_PX = 108;
+  var CARDS_BANNER_FONT = "Bebas Neue";
+
+  function cardsBannerFontPx(header) {
+    var h = header || {};
+    var dedicated = Number(h.cardsBannerSize);
+    if (isFinite(dedicated) && dedicated >= CARDS_BANNER_MIN_PX) return Math.round(dedicated);
+    var legacy = Number(h.subtitleSize);
+    if (isFinite(legacy) && legacy >= CARDS_BANNER_MIN_PX) return Math.round(legacy);
+    if (isFinite(legacy) && legacy > 0) return CARDS_BANNER_MIN_PX;
+    return CARDS_BANNER_DEFAULT_PX;
+  }
+
+  function syncCardsBannerSize(header) {
+    if (!header) return header;
+    var px = cardsBannerFontPx(header);
+    header.cardsBannerSize = px;
+    header.subtitleSize = px;
+    return header;
+  }
+
+  function normalizeHeaderBanner(config) {
+    if (!config || !config.header) return config;
+    syncCardsBannerSize(config.header);
+    return config;
   }
 
   var cardsIntroComplete = false;
@@ -695,13 +725,21 @@
 
     const h = config.header || {};
     titleEl.textContent = h.title || "SCHEDULE";
-    subtitleEl.textContent = h.subtitle || "";
+    var banner = String(h.subtitle || "").trim();
+    if (subtitleEl) subtitleEl.textContent = banner;
+    if (cardsEyebrowEl) {
+      var bannerPx = cardsBannerFontPx(h);
+      cardsEyebrowEl.textContent = banner;
+      cardsEyebrowEl.style.fontFamily = '"' + CARDS_BANNER_FONT + '", sans-serif';
+      cardsEyebrowEl.style.color = h.subtitleColor || "#ffffff";
+      cardsEyebrowEl.style.fontSize = bannerPx + "px";
+      cardsEyebrowEl.style.letterSpacing = "0.06em";
+      stage.style.setProperty("--cards-eyebrow-size", bannerPx + "px");
+      stage.style.setProperty("--cards-eyebrow-color", h.subtitleColor || "#ffffff");
+    }
     titleEl.style.fontFamily = '"' + (h.titleFont || "Bebas Neue") + '", sans-serif';
-    subtitleEl.style.fontFamily = '"' + (h.subtitleFont || "Teko") + '", sans-serif';
     titleEl.style.color = h.titleColor || "#ffffff";
-    subtitleEl.style.color = h.subtitleColor || "#00d4e8";
     titleEl.style.fontSize = (h.titleSize || 148) + "px";
-    subtitleEl.style.fontSize = (h.subtitleSize || 42) + "px";
     headerEl.style.left = (h.position && h.position.x != null ? h.position.x : 72) + "px";
     headerEl.style.top = (h.position && h.position.y != null ? h.position.y : 48) + "px";
 
