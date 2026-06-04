@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<!--
+  BGMI-style esports slot HUD — OBS Browser Source
+  
+  OBS setup:
+    - URL: file path or http://YOUR_HOST/examples/bgmi-esports-slot-hud.html
+    - Width/height: ~1920×220 (or crop to bar). Custom CSS transparency if needed.
+    - Logos: place PNGs relative to this file OR set window.TEAM_LOGO_BASE = "http://127.0.0.1:3001/uploads/..."
+  
+  Dev console: updateTeam(3) | updateTeam(3, { finishes: { rank: '#1', value: '12' }, ... })
+  Optional WS: ws://HOST:WS_PORT — messages JSON { "action": "updateTeam", "slot": 3 } or full stats
+  
+  Logo paths below are examples — change TEAM_DB + TEAM_LOGO_BASE to match your folders.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BGMI slot HUD</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --bg-bar: rgba(8, 10, 14, 0.82);
+        --pink: #e91e63;
+        --text: #f4f7fb;
+        --muted: #9aa5b8;
+        --hp-fill: linear-gradient(90deg, #f59e0b, #fcd34d);
+        --divider: rgba(255, 255, 255, 0.08);
+        --accent-armor: #fbbf24;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: transparent;
+        font-family: "Rajdhani", system-ui, sans-serif;
+      }
+
+      /* OBS: full canvas transparent; HUD sits bottom */
+      .hud-shell {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        justify-content: center;
+        padding: 12px 18px 16px;
+        pointer-events: none;
+      }
+
+      .hud-bar {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        width: min(1180px, 96vw);
+        min-height: 118px;
+        background: var(--bg-bar);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 4px;
+        overflow: hidden;
+        box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.45);
+      }
+
+      .hud-left {
+        display: grid;
+        grid-template-columns: 72px minmax(0, 220px) 1fr;
+        gap: 10px;
+        padding: 10px 12px;
+        align-items: stretch;
+      }
+
+      .logo-wrap {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 2px;
+        overflow: hidden;
+      }
+
+      .logo-wrap img {
+        width: 100%;
+        height: 100%;
+        max-height: 88px;
+        object-fit: contain;
+        padding: 4px;
+      }
+
+      .team-col {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+      }
+
+      .team-banner {
+        background: var(--pink);
+        color: #fff;
+        font-weight: 700;
+        font-size: 14px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 6px 10px;
+        line-height: 1.15;
+      }
+
+      .player-line {
+        color: var(--text);
+        font-weight: 700;
+        font-size: 15px;
+        padding: 0 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .hp-track {
+        height: 10px;
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 2px;
+        overflow: hidden;
+        margin-top: 2px;
+      }
+
+      .hp-fill {
+        height: 100%;
+        width: 72%;
+        background: var(--hp-fill);
+        border-radius: 2px;
+        transition: width 0.35s ease;
+      }
+
+      /* Simplified loadout strip (matches broadcast density) */
+      .loadout {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 6px;
+        padding: 2px 0;
+        border-left: 1px solid var(--divider);
+        padding-left: 10px;
+        margin-left: 4px;
+      }
+
+      .loadout-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px 12px;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--text);
+      }
+
+      .muted-num {
+        color: var(--muted);
+        font-weight: 700;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 6px;
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .icon-dots::before {
+        content: "";
+        width: 16px;
+        height: 10px;
+        display: inline-block;
+        margin-right: 4px;
+        background: repeating-linear-gradient(90deg, #fff 0 3px, transparent 3px 5px);
+        opacity: 0.85;
+      }
+
+      .weapons {
+        display: flex;
+        gap: 8px;
+        align-items: flex-end;
+      }
+
+      .weapon-silhouette {
+        width: 64px;
+        height: 22px;
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 2px;
+        position: relative;
+      }
+
+      .weapon-silhouette::after {
+        content: "";
+        position: absolute;
+        inset: 4px 8px;
+        background: rgba(255, 255, 255, 0.35);
+        clip-path: polygon(0 40%, 15% 40%, 30% 0, 85% 0, 100% 35%, 100% 60%, 35% 60%, 20% 100%, 0 100%);
+        opacity: 0.65;
+      }
+
+      .weapon-silhouette.two::after {
+        clip-path: polygon(5% 30%, 25% 30%, 40% 0, 92% 0, 98% 25%, 70% 25%, 60% 100%, 0 100%);
+      }
+
+      /* Right stats column */
+      .hud-stats {
+        border-left: 1px solid var(--divider);
+        min-width: 220px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .stat-row {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        align-items: center;
+        gap: 10px;
+        padding: 0 14px;
+        font-weight: 700;
+        font-size: 13px;
+        color: var(--text);
+      }
+
+      .stat-row:not(:last-child) {
+        border-bottom: 1px solid var(--divider);
+      }
+
+      .stat-label {
+        letter-spacing: 0.03em;
+        text-transform: capitalize;
+      }
+
+      .stat-rank {
+        min-width: 36px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .stat-value {
+        min-width: 56px;
+        text-align: right;
+        font-size: 15px;
+      }
+
+      .ws-strip {
+        position: fixed;
+        top: 6px;
+        left: 8px;
+        font-size: 10px;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.35);
+        pointer-events: none;
+      }
+
+      .ws-strip[data-on="live"] {
+        color: rgba(74, 222, 128, 0.8);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="ws-strip" id="wsStatus" aria-hidden="true"></div>
+
+    <div class="hud-shell">
+      <div class="hud-bar" id="hudBar">
+        <div class="hud-left">
+          <div class="logo-wrap">
+            <img id="teamLogo" src="" alt="" />
+          </div>
+          <div class="team-col">
+            <div class="team-banner" id="teamName">—</div>
+            <div class="player-line" id="playerNick">OBS · slot HUD</div>
+            <div class="hp-track" aria-hidden="true"><div class="hp-fill" id="hpFill" style="width: 72%"></div></div>
+          </div>
+          <div class="loadout">
+            <div class="loadout-row">
+              <span class="pill icon-dots" id="ammoText">Ammo <span class="muted-num">— / —</span></span>
+              <span class="pill">Scope <span class="muted-num" id="scopeText">3X</span></span>
+              <span class="pill">HEL <span class="muted-num" id="helText">—</span></span>
+              <span class="pill">VEST <span class="muted-num" id="vestText">—</span></span>
+            </div>
+            <div class="loadout-row">
+              <span>FRAG <strong id="fragN">—</strong></span>
+              <span>SMOKE <strong id="smokeN">—</strong></span>
+              <span>MOLY <strong id="molyN">—</strong></span>
+              <span class="muted-num">|</span>
+              <span>MED <strong id="medN">—</strong></span>
+              <span>FAK <strong id="fakN">—</strong></span>
+              <span>BND <strong id="bndN">—</strong></span>
+            </div>
+            <div class="loadout-row weapons">
+              <div class="weapon-silhouette" title="Primary"></div>
+              <div class="weapon-silhouette two" title="Secondary"></div>
+            </div>
+          </div>
+        </div>
+        <div class="hud-stats">
+          <div class="stat-row">
+            <span class="stat-label">Finishes</span>
+            <span class="stat-rank" id="statFinRank">#—</span>
+            <span class="stat-value" id="statFinVal">—</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Damage</span>
+            <span class="stat-rank" id="statDmgRank">#—</span>
+            <span class="stat-value" id="statDmgVal">—</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Assists</span>
+            <span class="stat-rank" id="statAstRank">#—</span>
+            <span class="stat-value" id="statAstVal">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      /**
+       * Prefix for logo URLs. Change for your HTTP server / OBS base path.
+       * Example OBS (same folder as HTML): ''
+       * Example Node static: 'http://127.0.0.1:3001/'
+       */
+      window.TEAM_LOGO_BASE = window.TEAM_LOGO_BASE ?? "";
+
+      /** Slot → team. Keys as strings so URL ?slot= works consistently. */
+      const TEAM_DB = {
+        "1": { name: "SOUL", logo: "logos/soul.png", bannerColor: "#e91e63" },
+        "2": { name: "GODLIKE", logo: "logos/godlike.png", bannerColor: "#e91e63" },
+        "3": { name: "ORANGUTAN", logo: "logos/orangutan.png", bannerColor: "#e91e63" },
+        "4": { name: "EMZ ESPORTS", logo: "logos/emz.png", bannerColor: "#e91e63" },
+      };
+
+      const DEFAULT_STATS = {
+        finishes: { rank: "#1", value: "5" },
+        damage: { rank: "#2", value: "701.10" },
+        assists: { rank: "#5", value: "1" },
+      };
+
+      const DEFAULT_LOADOUT = {
+        playerNick: "RFNxRaidenN",
+        hpPct: 72,
+        ammo: [22, 241],
+        scope: "3X",
+        armor: [88, 72],
+        throwables: { frag: 3, smoke: 0, moly: 1 },
+        heal: { med: 0, fak: 3, bnd: 10, pain: 3, drink: 4 },
+      };
+
+      const $ = (id) => document.getElementById(id);
+
+      function logoUrl(path) {
+        if (!path) return "";
+        const p = String(path).trim();
+        if (/^https?:\/\//i.test(p)) return p;
+        const base = String(window.TEAM_LOGO_BASE || "").replace(/\/$/, "");
+        const rel = p.replace(/^\//, "");
+        return base ? `${base}/${rel}` : rel;
+      }
+
+      /** Apply partial stats/loadout overlays */
+      function applyStats(stats) {
+        const s = { ...DEFAULT_STATS, ...stats };
+        if (s.finishes) {
+          if (s.finishes.rank != null) $("statFinRank").textContent = s.finishes.rank;
+          if (s.finishes.value != null) $("statFinVal").textContent = s.finishes.value;
+        }
+        if (s.damage) {
+          if (s.damage.rank != null) $("statDmgRank").textContent = s.damage.rank;
+          if (s.damage.value != null) $("statDmgVal").textContent = s.damage.value;
+        }
+        if (s.assists) {
+          if (s.assists.rank != null) $("statAstRank").textContent = s.assists.rank;
+          if (s.assists.value != null) $("statAstVal").textContent = s.assists.value;
+        }
+      }
+
+      function applyLoadout(L) {
+        const m = { ...DEFAULT_LOADOUT, ...L };
+        $("playerNick").textContent = m.playerNick ?? "Player";
+        const pct = Math.max(0, Math.min(100, Number(m.hpPct) || 0));
+        $("hpFill").style.width = pct + "%";
+        $("ammoText").innerHTML =
+          'Ammo <span class="muted-num">' + escapeHtml(String(m.ammo?.[0] ?? "—")) + " / " + escapeHtml(String(m.ammo?.[1] ?? "—")) + "</span>";
+        $("scopeText").textContent = m.scope ?? "—";
+        $("helText").textContent = m.armor?.[0] != null ? m.armor[0] + "%" : "—";
+        $("vestText").textContent = m.armor?.[1] != null ? m.armor[1] + "%" : "—";
+        $("fragN").textContent = m.throwables?.frag ?? "—";
+        $("smokeN").textContent = m.throwables?.smoke ?? "—";
+        $("molyN").textContent = m.throwables?.moly ?? "—";
+        $("medN").textContent = m.heal?.med ?? "—";
+        $("fakN").textContent = m.heal?.fak ?? "—";
+        $("bndN").textContent = m.heal?.bnd ?? "—";
+      }
+
+      function escapeHtml(t) {
+        return String(t)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      /** Last resolved slot for WebSocket payloads without slot repetition */
+      let currentSlotKey = "";
+
+      /**
+       * updateTeam(slotNumber, options?)
+       * @param {number|string} slotNumber — 1, 2, 3...
+       * @param {object} [options] — { stats?, loadout?, teamOverride? partial merge into DB entry }
+       */
+      function updateTeam(slotNumber, options) {
+        const key = String(slotNumber ?? "").trim();
+        currentSlotKey = key;
+        let entry = TEAM_DB[key];
+        const opt = options && typeof options === "object" ? options : {};
+
+        if (opt.teamOverride && typeof opt.teamOverride === "object") {
+          entry = { ...(entry || {}), ...opt.teamOverride };
+        }
+
+        const nameEl = $("teamName");
+        const logoEl = $("teamLogo");
+
+        if (!entry) {
+          nameEl.textContent = "UNKNOWN SLOT";
+          logoEl.removeAttribute("src");
+          logoEl.alt = "";
+          nameEl.style.background = "#374151";
+          return;
+        }
+
+        nameEl.textContent = entry.name;
+        nameEl.style.background = entry.bannerColor || "var(--pink)";
+        const src = logoUrl(entry.logo);
+        if (src) {
+          logoEl.src = src;
+          logoEl.alt = entry.name;
+        } else {
+          logoEl.removeAttribute("src");
+          logoEl.alt = "";
+        }
+
+        if (opt.stats) applyStats(opt.stats);
+        else applyStats(DEFAULT_STATS);
+
+        if (opt.loadout) applyLoadout(opt.loadout);
+        else applyLoadout(DEFAULT_LOADOUT);
+      }
+
+      /** Optional: attach external JSON blob at runtime */
+      function setTeamDatabase(obj) {
+        if (!obj || typeof obj !== "object") return;
+        Object.assign(TEAM_DB, obj);
+      }
+
+      /** URL: ?slot=3 */
+      function readQuerySlot() {
+        try {
+          const q = new URLSearchParams(window.location.search).get("slot");
+          return q != null && q !== "" ? q : null;
+        } catch {
+          return null;
+        }
+      }
+
+      /** Optional WebSocket — set window.HUD_WS_URL = "ws://127.0.0.1:5050" before load, or see connectHudWebSocket() */
+      function connectHudWebSocket(url) {
+        const u = url || window.HUD_WS_URL;
+        const strip = $("wsStatus");
+        if (!u || typeof WebSocket === "undefined") {
+          strip.textContent = "";
+          return;
+        }
+        let ws;
+        function go() {
+          ws = new WebSocket(u);
+          ws.onopen = () => {
+            strip.textContent = "WS live";
+            strip.setAttribute("data-on", "live");
+          };
+          ws.onclose = () => {
+            strip.textContent = "WS reconnecting…";
+            strip.removeAttribute("data-on");
+            setTimeout(go, 2000);
+          };
+          ws.onerror = () => {
+            strip.textContent = "WS error";
+            strip.removeAttribute("data-on");
+          };
+          ws.onmessage = (ev) => {
+            try {
+              const msg = JSON.parse(ev.data);
+              if (msg.action === "updateTeam" && msg.slot != null) {
+                updateTeam(msg.slot, { stats: msg.stats, loadout: msg.loadout, teamOverride: msg.team });
+                return;
+              }
+              if (msg.action === "setTeamDatabase" && msg.database) setTeamDatabase(msg.database);
+              if (typeof msg.slot !== "undefined" && msg.slot !== null) updateTeam(msg.slot, msg);
+            } catch {
+              /* raw text ignored */
+            }
+          };
+        }
+        go();
+      }
+
+      /** Global for OBS/custom browser JS */
+      window.updateTeam = updateTeam;
+      window.setTeamDatabase = setTeamDatabase;
+      window.connectHudWebSocket = connectHudWebSocket;
+
+      /** Boot */
+      (function init() {
+        const qs = readQuerySlot();
+        if (qs != null) updateTeam(qs);
+        else updateTeam("1"); /* demo default slot 1 */
+        const autoWs = typeof window.HUD_WS_URL === "string" && window.HUD_WS_URL.startsWith("ws");
+        if (autoWs) connectHudWebSocket(window.HUD_WS_URL);
+      })();
+    </script>
+  </body>
+</html>
