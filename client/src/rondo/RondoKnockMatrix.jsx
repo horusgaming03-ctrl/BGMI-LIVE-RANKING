@@ -1,5 +1,12 @@
-import { Fragment } from "react";
+import { Fragment, useCallback, useMemo, useState } from "react";
 import { getRondoRecallChargesRemaining, RONDO_RECALL_CHARGE_CAP } from "./recallCharges.js";
+import RondoPlayerChoiceModal from "./RondoPlayerChoiceModal.jsx";
+import AliveIndicator from "../overlay-engine/alive-styles/AliveIndicator.jsx";
+
+/** Admin recall bolts — white on dark row (faded slots when used). */
+const RKM_RECALL_THEME = {
+  alive: { size: 8, color: "#f8fafc", deadColor: "#64748b", gap: 2 },
+};
 
 /**
  * BGMI-grade Rondo-only knock + recall desk (admin).
@@ -10,26 +17,12 @@ const RONDO_CYAN = "#22d3ee";
 const RONDO_VIOLET = "#c084fc";
 const EDGE = "rgba(34,211,238,.38)";
 
-function RecallGlyph({ animated, uid }) {
-  const gid = `rkmRg_${uid}`;
+function RkmRecallBolts({ credits, compact = false }) {
+  const c = Math.max(0, Math.min(RONDO_RECALL_CHARGE_CAP, Number(credits) || 0));
   return (
-    <svg width="42" height="42" viewBox="0 0 48 48" aria-hidden className={animated ? "rkm-recall-spin" : ""}>
-      <defs>
-        <linearGradient id={gid} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor={RONDO_CYAN} />
-          <stop offset="100%" stopColor={RONDO_VIOLET} />
-        </linearGradient>
-      </defs>
-      <circle cx="24" cy="24" r="20" fill="rgba(8,20,36,.95)" stroke={`url(#${gid})`} strokeWidth="1.5" />
-      <path
-        fill="none"
-        stroke={`url(#${gid})`}
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        d="M15 28a9 9 0 0 0 14.2 2.1M33 20a9 9 0 0 0-14.2-2.1"
-      />
-      <path fill={`url(#${gid})`} d="M31 18h6v-6M17 30h-6v6" />
-    </svg>
+    <div className={`rkm-recall-bolts${compact ? " rkm-recall-bolts--compact" : ""}`} aria-label={`${c} of ${RONDO_RECALL_CHARGE_CAP} recalls left`}>
+      <AliveIndicator count={c} theme={RKM_RECALL_THEME} styleId="bolt" layout="line" tightCluster />
+    </div>
   );
 }
 
@@ -130,7 +123,8 @@ function PhaseRail({ phase }) {
  *   styles: { teamLogo: object },
  *   ns: Record<string, object>,
  *   knockTeam: (id: number, knockCount: number, full?: boolean) => void,
- *   setAlive: (id: number, n: number) => void,
+ *   setAlive: (id: number, n: number) => void | Promise<void>,
+ *   spendRondoRecall: (id: number, count?: number) => void | Promise<unknown>,
  *   adjustTeamFinishes: (team: Team, d: number) => void,
  *   triggerRondoRecall: (id: number, addAliveSlots?: number) => void,
  *   undoRondoMistakenBench: (id: number) => void,
@@ -138,6 +132,8 @@ function PhaseRail({ phase }) {
  *   finishBadgesObsUrl: string,
  *   getKnockControlDisplayNumber?: (teamId: number, idx: number) => number,
  *   commitKnockRowNumberFromIndex?: (idx: number, raw: unknown) => void,
+ *   restoreEliminatedTeam?: (team: Team) => void | Promise<void>,
+ *   matchScoresEditable?: boolean,
  * }} props
  */
 export default function RondoKnockMatrix({
@@ -148,6 +144,7 @@ export default function RondoKnockMatrix({
   ns,
   knockTeam,
   setAlive,
+  spendRondoRecall,
   adjustTeamFinishes,
   triggerRondoRecall,
   undoRondoMistakenBench,
@@ -155,40 +152,276 @@ export default function RondoKnockMatrix({
   finishBadgesObsUrl,
   getKnockControlDisplayNumber,
   commitKnockRowNumberFromIndex,
+  restoreEliminatedTeam,
+  matchScoresEditable = true,
 }) {
   const sorted = teams;
   const showTeamNumbers =
     typeof getKnockControlDisplayNumber === "function" && typeof commitKnockRowNumberFromIndex === "function";
 
-  return (
-    <div className="rkm-root">
-      <div className="rkm-hero">
-        <div className="rkm-hero__glow" />
-        <div className="rkm-hero__row">
-          <div className="rkm-hero__live">● PRODUCTION</div>
-          <div className="rkm-hero__map">MAP LOCK · RONDO</div>
-          <div className="rkm-hero__chip">RECALL RULESET</div>
-        </div>
-        <p className="rkm-hero__rule">
-          On Rondo each squad has <strong>{RONDO_RECALL_CHARGE_CAP} redeploy credits</strong> (one per seated player).{" "}
-          <strong>Recall +N</strong> mid-fight or from bench spends <strong>N credits</strong> for <strong>N</strong> knocked seats. Credits you never use on one player{" "}
-          stay for the squad. At <strong>0 credits</strong>, the next bench or full wipe is <strong>final elimination</strong> with placement on broadcast. If <strong>OUT</strong> was a
-          mistake and the squad only went to <strong>recall bench</strong>, use <strong>Undo mistaken OUT</strong> on that row (restores 4/4).
-        </p>
-        <div className="rkm-hero__obs">
-          <span className="rkm-hero__obsLabel">OBS strip</span>
-          <code className="rkm-hero__code">/overlay/rondo/finish-badges</code>
-          <button type="button" className="rkm-hero__open" onClick={() => window.open(finishBadgesObsUrl, "_blank", "width=540,height=980")}>
-            Launch overlay
-          </button>
-        </div>
-      </div>
+  const aliveTeams = useMemo(
+    () => sorted.filter((t) => String(t.status || "").toLowerCase() !== "eliminated"),
+    [sorted],
+  );
+  const eliminatedTeams = useMemo(
+    () => sorted.filter((t) => String(t.status || "").toLowerCase() === "eliminated"),
+    [sorted],
+  );
 
-      <div className="rkm-grid">
-        {sorted.map((team, idx) => {
+  const rowAliveCount = useCallback((team) => {
+    const st = String(team?.status || "").toLowerCase();
+    if (st === "eliminated" || st === "rondo_benched") {
+      return Math.max(0, Math.min(4, Number(team.alivePlayers) || 0));
+    }
+    const n = Number(team.alivePlayers);
+    if (st === "alive") return Math.max(1, Math.min(4, Number.isFinite(n) ? n : 4));
+    return Math.max(0, Math.min(4, Number.isFinite(n) ? n : 4));
+  }, []);
+
+  const [choiceModal, setChoiceModal] = useState(null);
+
+  const requestAliveChange = useCallback(
+    (team, targetAlive) => {
+      const current = Math.max(0, Math.min(4, Number(team.alivePlayers ?? 4)));
+      const target = Math.max(0, Math.min(4, Number(targetAlive)));
+      const down = current - target;
+      if (down <= 0) {
+        void setAlive(team.id, target);
+        return;
+      }
+      const credits = getRondoRecallChargesRemaining(team);
+      if (credits <= 0) {
+        void setAlive(team.id, target);
+        return;
+      }
+      setChoiceModal({
+        team,
+        currentAlive: current,
+        targetAlive: target,
+        playersDown: down,
+        credits,
+      });
+    },
+    [setAlive],
+  );
+
+  const closeChoiceModal = useCallback(() => setChoiceModal(null), []);
+
+  const handleModalEliminate = useCallback(() => {
+    if (!choiceModal) return;
+    const { team, targetAlive } = choiceModal;
+    closeChoiceModal();
+    void setAlive(team.id, targetAlive);
+  }, [choiceModal, closeChoiceModal, setAlive]);
+
+  const handleModalRecall = useCallback(
+    (count) => {
+      if (!choiceModal) return;
+      const { team } = choiceModal;
+      closeChoiceModal();
+      void spendRondoRecall(team.id, count);
+    },
+    [choiceModal, closeChoiceModal, spendRondoRecall],
+  );
+
+  const renderTeamNumberCell = useCallback(
+    (team, globalIdx, minSelectable, rowNumVal) =>
+      showTeamNumbers ? (
+        <div className="rkm-row__teamnum" style={ns.knockTeamNum}>
+          <span style={ns.knockTeamNumLabel}>Team #</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            aria-label={`Team number for ${team.team}`}
+            title="Teams below adjust automatically · must stay above row above · no duplicates"
+            min={minSelectable}
+            max={99999}
+            value={rowNumVal}
+            onChange={(e) => commitKnockRowNumberFromIndex(globalIdx, e.target.value)}
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              padding: "4px 4px",
+              fontSize: 13,
+              fontWeight: 900,
+              textAlign: "center",
+              borderRadius: 8,
+              border: "1px solid rgba(255,255,255,.14)",
+              background: "rgba(0,0,0,.32)",
+              color: "#e8eef5",
+            }}
+          />
+        </div>
+      ) : null,
+    [showTeamNumbers, ns.knockTeamNum, ns.knockTeamNumLabel, commitKnockRowNumberFromIndex],
+  );
+
+  const renderEliminatedRow = useCallback(
+    (team) => {
+      const globalIdx = sorted.findIndex((t) => t.id === team.id);
+      const alive = rowAliveCount(team);
+      const rowNumVal = showTeamNumbers ? getKnockControlDisplayNumber(team.id, globalIdx) : 0;
+      const minSelectable =
+        showTeamNumbers && globalIdx > 0 ? getKnockControlDisplayNumber(sorted[globalIdx - 1].id) + 1 : 1;
+      const canRestore = matchScoresEditable && typeof restoreEliminatedTeam === "function";
+
+      return (
+        <div key={team.id} style={{ ...ns.knockRow, ...ns.knockGridElim }}>
+          {renderTeamNumberCell(team, globalIdx, minSelectable, rowNumVal)}
+          <div style={ns.knockTeam}>
+            <div
+              style={{
+                ...styles.teamLogo,
+                width: 32,
+                height: 32,
+                fontSize: 11,
+                borderRadius: 8,
+                ...(team.logo ? { backgroundImage: `url(${apiBase}${team.logo})`, backgroundSize: "cover", color: "transparent" } : {}),
+              }}
+            >
+              {team.logo ? "" : String(team.team || "").slice(0, 2)}
+            </div>
+            <span style={{ fontWeight: 800, fontSize: 15 }}>{team.team}</span>
+          </div>
+          <div style={ns.aliveBars}>
+            {[0, 1, 2, 3].map((i) => (
+              <span key={i} style={{ ...ns.aliveBar, background: i < alive ? "#5CFF72" : "#3a3f48", opacity: 0.55 }} />
+            ))}
+            <span style={{ color: "#8CB7BE", fontSize: 12, marginLeft: 6 }}>{alive}/4</span>
+          </div>
+          <div style={ns.knockFinishPts} aria-label="Finishes">
+            <span style={ns.knockFinishPtsLabel}>Finishes</span>
+            <div style={ns.knockFinishPtsCtl}>
+              <button type="button" style={ns.knockFinishArrowBtn} onClick={() => void adjustTeamFinishes(team, 1)} aria-label="Increase finishes">
+                ▲
+              </button>
+              <span style={ns.knockFinishPtsValue}>{Number(team.finishes) || 0}</span>
+              <button type="button" style={ns.knockFinishArrowBtn} onClick={() => void adjustTeamFinishes(team, -1)} aria-label="Decrease finishes">
+                ▼
+              </button>
+            </div>
+          </div>
+          <div style={ns.knockBtns}>
+            {canRestore ? (
+              <button
+                type="button"
+                style={{ ...ns.knockBtn, ...ns.knockBtnRestore }}
+                title="Restore — 4/4 alive, alive bars only (no recall strip)"
+                onClick={() => void restoreEliminatedTeam(team)}
+              >
+                Restore
+              </button>
+            ) : null}
+            {team.eliminationRank != null ? <span style={ns.rankBadge}>#{team.eliminationRank}</span> : null}
+          </div>
+        </div>
+      );
+    },
+    [
+      sorted,
+      rowAliveCount,
+      showTeamNumbers,
+      getKnockControlDisplayNumber,
+      matchScoresEditable,
+      restoreEliminatedTeam,
+      renderTeamNumberCell,
+      ns,
+      styles.teamLogo,
+      apiBase,
+      adjustTeamFinishes,
+    ],
+  );
+
+  const renderSimpleAliveRow = useCallback(
+    (team, idx) => {
+      const globalIdx = sorted.findIndex((t) => t.id === team.id);
+      const alive = rowAliveCount(team);
+      const statusLc = String(team.status || "").toLowerCase();
+      const rowNumVal = showTeamNumbers ? getKnockControlDisplayNumber(team.id, globalIdx) : 0;
+      const minSelectable =
+        showTeamNumbers && globalIdx > 0 ? getKnockControlDisplayNumber(sorted[globalIdx - 1].id) + 1 : 1;
+
+      return (
+        <div key={team.id} style={{ ...ns.knockRow, opacity: 0.98 }}>
+          {renderTeamNumberCell(team, globalIdx, minSelectable, rowNumVal)}
+          <div style={ns.knockTeam}>
+            <div
+              style={{
+                ...styles.teamLogo,
+                width: 32,
+                height: 32,
+                fontSize: 11,
+                borderRadius: 8,
+                ...(team.logo ? { backgroundImage: `url(${apiBase}${team.logo})`, backgroundSize: "cover", color: "transparent" } : {}),
+              }}
+            >
+              {team.logo ? "" : String(team.team || "").slice(0, 2)}
+            </div>
+            <span style={{ fontWeight: 800, fontSize: 15 }}>{team.team}</span>
+            <span className="rkm-pill rkm-pill--muted" style={{ marginLeft: 8 }}>
+              RESTORED · ALIVE ONLY
+            </span>
+          </div>
+          <div style={ns.aliveBars}>
+            {[0, 1, 2, 3].map((i) => (
+              <span
+                key={i}
+                style={{
+                  ...ns.aliveBar,
+                  background: i < alive ? "#5CFF72" : statusLc === "knocked" ? "#FF6B45" : "#3a3f48",
+                }}
+              />
+            ))}
+            <span style={{ color: "#8CB7BE", fontSize: 12, marginLeft: 6 }}>{alive}/4</span>
+          </div>
+          <div style={ns.knockFinishPts} aria-label="Finishes">
+            <span style={ns.knockFinishPtsLabel}>Finishes</span>
+            <div style={ns.knockFinishPtsCtl}>
+              <button type="button" style={ns.knockFinishArrowBtn} onClick={() => void adjustTeamFinishes(team, 1)} aria-label="Increase finishes">
+                ▲
+              </button>
+              <span style={ns.knockFinishPtsValue}>{Number(team.finishes) || 0}</span>
+              <button type="button" style={ns.knockFinishArrowBtn} onClick={() => void adjustTeamFinishes(team, -1)} aria-label="Decrease finishes">
+                ▼
+              </button>
+            </div>
+          </div>
+          <div style={ns.knockBtns}>
+            <button type="button" style={ns.knockBtn} onClick={() => void setAlive(team.id, 3)} title="1 Knocked">
+              1K
+            </button>
+            <button type="button" style={ns.knockBtn} onClick={() => void setAlive(team.id, 2)} title="2 Knocked">
+              2K
+            </button>
+            <button type="button" style={ns.knockBtn} onClick={() => void setAlive(team.id, 1)} title="3 Knocked">
+              3K
+            </button>
+            <button type="button" style={{ ...ns.knockBtn, ...ns.knockBtnDanger }} onClick={() => void knockTeam(team.id, 4, true)} title="Full Eliminated">
+              OUT
+            </button>
+          </div>
+        </div>
+      );
+    },
+    [
+      sorted,
+      rowAliveCount,
+      showTeamNumbers,
+      getKnockControlDisplayNumber,
+      renderTeamNumberCell,
+      ns,
+      styles.teamLogo,
+      apiBase,
+      adjustTeamFinishes,
+      setAlive,
+      knockTeam,
+    ],
+  );
+
+  const renderFullRondoRow = useCallback(
+    (team) => {
           const alive = team.alivePlayers ?? 4;
           const st = String(team.status || "").toLowerCase();
-          const isElim = st === "eliminated";
           const isBenched = st === "rondo_benched";
           const credits = getRondoRecallChargesRemaining(team);
           const consumed = credits <= 0;
@@ -202,8 +435,6 @@ export default function RondoKnockMatrix({
           if (phase === "recall_exhausted") rowClass.push("rkm-row--recalled");
 
           const partialRecallEligible = phase === "partial_recall_available";
-          const knockedSlots = partialRecallEligible ? Math.max(0, 4 - Math.max(0, Math.min(4, alive))) : 0;
-          const recallAddChoices = partialRecallEligible ? Math.min(knockedSlots, credits) : 0;
 
           const headColor =
             phase === "recall_available" || phase === "partial_recall_available"
@@ -218,45 +449,17 @@ export default function RondoKnockMatrix({
                       ? "#94a3b8"
                       : "#5cff72";
 
-          const rowNumVal = showTeamNumbers ? getKnockControlDisplayNumber(team.id, idx) : 0;
+          const globalIdx = sorted.findIndex((t) => t.id === team.id);
+          const rowNumVal = showTeamNumbers ? getKnockControlDisplayNumber(team.id, globalIdx) : 0;
           const minSelectable =
-            showTeamNumbers && idx > 0 ? getKnockControlDisplayNumber(sorted[idx - 1].id, idx - 1) + 1 : 1;
+            showTeamNumbers && globalIdx > 0 ? getKnockControlDisplayNumber(sorted[globalIdx - 1].id) + 1 : 1;
 
           return (
             <div key={team.id} className={`${rowClass.join(" ")}${showTeamNumbers ? " rkm-row--numbers" : ""}`} data-phase={phase}>
-              {showTeamNumbers ? (
-                <div className="rkm-row__teamnum" style={ns.knockTeamNum}>
-                  <span style={ns.knockTeamNumLabel}>Team #</span>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    aria-label={`Team number for ${team.team}`}
-                    title="Teams below adjust automatically · must stay above row above · no duplicates"
-                    min={minSelectable}
-                    max={99999}
-                    value={rowNumVal}
-                    onChange={(e) => commitKnockRowNumberFromIndex(idx, e.target.value)}
-                    style={{
-                      width: "100%",
-                      boxSizing: "border-box",
-                      padding: "4px 4px",
-                      fontSize: 13,
-                      fontWeight: 900,
-                      textAlign: "center",
-                      borderRadius: 8,
-                      border: "1px solid rgba(255,255,255,.14)",
-                      background: "rgba(0,0,0,.32)",
-                      color: "#e8eef5",
-                    }}
-                  />
-                </div>
-              ) : null}
+              {renderTeamNumberCell(team, globalIdx, minSelectable, rowNumVal)}
               <div className="rkm-row__recall">
-                {(isBenched && credits > 0) || partialRecallEligible ? (
-                  <RecallGlyph animated uid={String(team.id)} />
-                ) : (
-                  <div className="rkm-row__recall-placeholder" />
-                )}
+                <span className="rkm-recall-side__label">RECALL</span>
+                <RkmRecallBolts credits={credits} compact />
               </div>
 
               <div className="rkm-row__identity">
@@ -265,11 +468,9 @@ export default function RondoKnockMatrix({
                 </div>
                 <div className="rkm-row__idtext">
                   <span className="rkm-row__name">{team.team}</span>
-                  {!isElim ? (
-                    <span className={`rkm-pill ${consumed ? "rkm-pill--used" : credits < RONDO_RECALL_CHARGE_CAP ? "rkm-pill--hot" : "rkm-pill--muted"}`}>
-                      {consumed ? "NO CREDITS" : `${credits}/${RONDO_RECALL_CHARGE_CAP} CREDITS`}
-                    </span>
-                  ) : null}
+                  <span className={`rkm-pill ${consumed ? "rkm-pill--used" : credits < RONDO_RECALL_CHARGE_CAP ? "rkm-pill--hot" : "rkm-pill--muted"}`}>
+                    {consumed ? "NO CREDITS" : `${credits}/${RONDO_RECALL_CHARGE_CAP} CREDITS`}
+                  </span>
                   {phase === "recall_available" ? <span className="rkm-pill rkm-pill--hot">BENCH · RECALL GATE</span> : null}
                   {partialRecallEligible ? <span className="rkm-pill rkm-pill--hot">{`${4 - alive} DOWN · SQUAD RECALL`}</span> : null}
                   {phase === "final" ? <span className="rkm-pill rkm-pill--final">NO SECOND RECALL</span> : null}
@@ -285,21 +486,30 @@ export default function RondoKnockMatrix({
               </div>
 
               <div className="rkm-row__meters">
-                <div className="rkm-bars" aria-label="Players up">
-                  {[0, 1, 2, 3].map((i) => (
-                    <span
-                      key={i}
-                      className="rkm-bar"
-                      data-hot={i < alive ? "1" : "0"}
-                      style={{
-                        background: i < alive ? "#5CFF72" : isBenched ? "#2d3540" : st === "knocked" ? "#FF6B45" : "#252a32",
-                        opacity: isElim ? 0.45 : isBenched ? 0.65 : 1,
-                      }}
-                    />
-                  ))}
-                  <span className="rkm-bars__label">
-                    {isBenched ? "0" : alive}/4
-                  </span>
+                <div className="rkm-overlay-meters" aria-label="Recall and alive — same as OBS overlay">
+                  <div className="rkm-overlay-meter">
+                    <span className="rkm-overlay-meter__label">RECALL</span>
+                    <RkmRecallBolts credits={credits} />
+                  </div>
+                  <div className="rkm-overlay-meter">
+                    <span className="rkm-overlay-meter__label">ALIVE</span>
+                    <div className="rkm-bars" aria-label="Players up">
+                      {[0, 1, 2, 3].map((i) => (
+                        <span
+                          key={i}
+                          className="rkm-bar"
+                          data-hot={i < alive ? "1" : "0"}
+                          style={{
+                            background: i < alive ? "#5CFF72" : isBenched ? "#2d3540" : st === "knocked" ? "#FF6B45" : "#252a32",
+                            opacity: isBenched ? 0.65 : 1,
+                          }}
+                        />
+                      ))}
+                      <span className="rkm-bars__label">
+                        {isBenched ? "0" : alive}/4
+                      </span>
+                    </div>
+                  </div>
                 </div>
                 <div style={ns.knockFinishPts} aria-label="Finishes">
                   <span style={ns.knockFinishPtsLabel}>Finishes</span>
@@ -316,13 +526,7 @@ export default function RondoKnockMatrix({
               </div>
 
               <div className="rkm-row__actions">
-                {isElim ? (
-                  team.eliminationRank != null ? (
-                    <span style={{ ...ns.rankBadge, fontSize: 14, padding: "8px 14px" }}>#{team.eliminationRank}</span>
-                  ) : (
-                    <span className="rkm-pill rkm-pill--muted">OUT</span>
-                  )
-                ) : isBenched ? (
+                {isBenched ? (
                   <div className="rkm-actions-stack">
                     <button type="button" className="rkm-btn-recall" onClick={() => void triggerRondoRecall(team.id)}>
                       ⚡ Bench redeploy · up to {Math.min(4, credits)}/4 ({Math.min(4, credits)} credit{Math.min(4, credits) === 1 ? "" : "s"})
@@ -356,36 +560,25 @@ export default function RondoKnockMatrix({
                   </div>
                 ) : (
                   <div className="rkm-combat-actions">
-                    {partialRecallEligible && recallAddChoices > 0 ? (
-                      <div className="rkm-recall-increment" role="group" aria-label="Redeploy knocked players">
-                        {Array.from({ length: recallAddChoices }, (_, i) => {
-                          const add = i + 1;
-                          const nextAlive = alive + add;
-                          return (
-                            <button
-                              key={add}
-                              type="button"
-                              className="rkm-btn-recall rkm-btn-recall--step"
-                              onClick={() => void triggerRondoRecall(team.id, add)}
-                              title={`Redeploy ${add} knocked seat(s) — consumes the one-time recall`}
-                            >
-                              ⚡ Recall +{add} → {nextAlive}/4
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ) : null}
                     <div style={{ ...ns.knockBtns, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                      <button type="button" style={ns.knockBtn} onClick={() => setAlive(team.id, 3)}>
+                      <button type="button" style={ns.knockBtn} onClick={() => requestAliveChange(team, 3)} title="1 player down — recall popup if credits remain">
                         1K
                       </button>
-                      <button type="button" style={ns.knockBtn} onClick={() => setAlive(team.id, 2)}>
+                      <button type="button" style={ns.knockBtn} onClick={() => requestAliveChange(team, 2)} title="2 players down — recall popup if credits remain">
                         2K
                       </button>
-                      <button type="button" style={ns.knockBtn} onClick={() => setAlive(team.id, 1)}>
+                      <button type="button" style={ns.knockBtn} onClick={() => requestAliveChange(team, 1)} title="3 players down — recall popup if credits remain">
                         3K
                       </button>
-                      <button type="button" style={{ ...ns.knockBtn, ...ns.knockBtnDanger }} onClick={() => knockTeam(team.id, 4, true)} title="Full wipe — benches first unless recall token already used">
+                      <button
+                        type="button"
+                        style={{ ...ns.knockBtn, ...ns.knockBtnDanger }}
+                        onClick={() => {
+                          if (credits > 0 && alive > 0) requestAliveChange(team, 0);
+                          else void knockTeam(team.id, 4, true);
+                        }}
+                        title="Full squad down — recall popup if credits remain"
+                      >
                         OUT
                       </button>
                     </div>
@@ -394,8 +587,90 @@ export default function RondoKnockMatrix({
               </div>
             </div>
           );
-        })}
+    },
+    [
+      sorted,
+      knockTeam,
+      adjustTeamFinishes,
+      triggerRondoRecall,
+      undoRondoMistakenBench,
+      finalizeBenchedElimination,
+      showTeamNumbers,
+      getKnockControlDisplayNumber,
+      renderTeamNumberCell,
+      requestAliveChange,
+      ns,
+      styles,
+      apiBase,
+      teamLogoStyle,
+    ],
+  );
+
+  return (
+    <div className="rkm-root">
+      <div className="rkm-hero">
+        <div className="rkm-hero__glow" />
+        <div className="rkm-hero__row">
+          <div className="rkm-hero__live">● PRODUCTION</div>
+          <div className="rkm-hero__map">MAP LOCK · RONDO</div>
+          <div className="rkm-hero__chip">RECALL RULESET</div>
+        </div>
+        <p className="rkm-hero__rule">
+          Same <strong>Alive</strong> / <strong>Eliminated</strong> layout as Erangel &amp; Miramar. Recall rules apply in <strong>Alive</strong> only.{" "}
+          <strong>Restore</strong> on eliminated squads returns 4/4 with <strong>alive bars only</strong> (no recall strip). Bench squads use recall redeploy below.
+        </p>
+        <div className="rkm-hero__obs">
+          <span className="rkm-hero__obsLabel">OBS strip</span>
+          <code className="rkm-hero__code">/overlay/rondo/finish-badges</code>
+          <button type="button" className="rkm-hero__open" onClick={() => window.open(finishBadgesObsUrl, "_blank", "width=540,height=980")}>
+            Launch overlay
+          </button>
+        </div>
       </div>
+
+      <div style={ns.knockSections}>
+        <div style={ns.knockSectionBlock}>
+          <div style={ns.knockSectionHeadAlive}>
+            <span>Alive</span>
+            <span style={ns.knockSectionCount}>{aliveTeams.length}</span>
+          </div>
+          <div style={ns.knockGrid}>
+            {aliveTeams.length ? (
+              aliveTeams.map((team, idx) =>
+                team.rondoKnockAliveOnly === true ? renderSimpleAliveRow(team, idx) : renderFullRondoRow(team),
+              )
+            ) : (
+              <p style={ns.knockSectionEmpty}>No squads still in the match.</p>
+            )}
+          </div>
+        </div>
+        <div style={ns.knockSectionBlock}>
+          <div style={ns.knockSectionHeadElim}>
+            <span>Eliminated</span>
+            <span style={ns.knockSectionCount}>{eliminatedTeams.length}</span>
+          </div>
+          <div style={{ ...ns.knockGrid, ...ns.knockGridElim }}>
+            {eliminatedTeams.length ? (
+              eliminatedTeams.map((team) => renderEliminatedRow(team))
+            ) : (
+              <p style={ns.knockSectionEmpty}>No eliminated squads yet — final OUT moves a team here (slot # unchanged).</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {choiceModal ? (
+        <RondoPlayerChoiceModal
+          team={choiceModal.team}
+          currentAlive={choiceModal.currentAlive}
+          targetAlive={choiceModal.targetAlive}
+          playersDown={choiceModal.playersDown}
+          credits={choiceModal.credits}
+          onEliminate={handleModalEliminate}
+          onRecall={handleModalRecall}
+          onClose={closeChoiceModal}
+        />
+      ) : null}
 
       <style>{`
         .rkm-root {
@@ -509,7 +784,7 @@ export default function RondoKnockMatrix({
         }
         .rkm-row {
           display: grid;
-          grid-template-columns: 56px minmax(160px, 1.1fr) minmax(200px, 1.4fr) 180px minmax(200px, 1.2fr);
+          grid-template-columns: 72px minmax(160px, 1.1fr) minmax(200px, 1.4fr) 248px minmax(200px, 1.2fr);
           align-items: center;
           gap: 14px;
           padding: 16px 18px;
@@ -520,7 +795,7 @@ export default function RondoKnockMatrix({
           transition: border-color 0.35s ease, box-shadow 0.35s ease, transform 0.25s ease;
         }
         .rkm-row--numbers {
-          grid-template-columns: 52px 56px minmax(160px, 1.1fr) minmax(200px, 1.4fr) 180px minmax(200px, 1.2fr);
+          grid-template-columns: 52px 72px minmax(160px, 1.1fr) minmax(200px, 1.4fr) 248px minmax(200px, 1.2fr);
         }
         .rkm-row:hover {
           border-color: rgba(34, 211, 238, 0.18);
@@ -543,15 +818,57 @@ export default function RondoKnockMatrix({
         }
 
         .rkm-row__recall {
-          display: grid;
-          place-items: center;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
         }
-        .rkm-row__recall-placeholder {
-          width: 42px;
-          height: 42px;
-          border-radius: 50%;
-          border: 1px dashed rgba(100, 120, 140, 0.35);
-          opacity: 0.5;
+        .rkm-recall-side__label {
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: 0.14em;
+          color: #64748b;
+        }
+        .rkm-recall-bolts {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 56px;
+          padding: 2px 0;
+        }
+        .rkm-recall-bolts--compact {
+          min-width: 48px;
+        }
+        .rkm-recall-bolts > div {
+          margin-left: 0 !important;
+          margin-right: 0 !important;
+          justify-self: center;
+        }
+        .rkm-overlay-meters {
+          display: flex;
+          flex-direction: row;
+          align-items: flex-start;
+          gap: 14px;
+          width: 100%;
+        }
+        .rkm-overlay-meter {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 6px;
+          flex: 1;
+          min-width: 0;
+        }
+        .rkm-overlay-meter__label {
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: 0.16em;
+          color: #94a3b8;
+        }
+        .rkm-overlay-meter .rkm-recall-bolts {
+          width: 100%;
+          min-height: 28px;
         }
 
         .rkm-row__identity {
@@ -784,9 +1101,6 @@ export default function RondoKnockMatrix({
           border: 1px solid rgba(248, 113, 113, 0.4);
         }
 
-        .rkm-recall-spin {
-          animation: rkmRecallSpin 4.5s linear infinite;
-        }
         @keyframes rkmBenchPulse {
           0%,
           100% {
@@ -814,15 +1128,6 @@ export default function RondoKnockMatrix({
             filter: brightness(1.12);
           }
         }
-        @keyframes rkmRecallSpin {
-          from {
-            transform: rotate(0deg);
-          }
-          to {
-            transform: rotate(360deg);
-          }
-        }
-
         @media (max-width: 1180px) {
           .rkm-row:not(.rkm-row--numbers) {
             grid-template-columns: 48px 1fr;
@@ -895,9 +1200,6 @@ export default function RondoKnockMatrix({
           .rkm-row--bench,
           .rkm-row--partial,
           .rkm-pill--hot,
-          .rkm-recall-spin {
-            animation: none !important;
-          }
         }
       `}</style>
     </div>

@@ -1,15 +1,6 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
-import { getTheme, getThemeNames } from "./overlays/themes";
-import overlayConfig from "./overlays/overlayConfig";
+import { useEffect, useState, useCallback } from "react";
 import socket, { API } from "./overlays/socket";
-import { mergeThemeOverride } from "./overlays/utils/mergeThemeOverride";
-
-function defaultElimTheme() {
-  const names = getThemeNames();
-  const t = overlayConfig?.activeTheme;
-  if (typeof t === "string" && names.includes(t)) return t;
-  return names[0] || "esports";
-}
+import { useGfxOverlayColors } from "./overlays/hooks/useGfxOverlayColors";
 
 function hexToRgba(hex, alpha) {
   const h = hex.replace("#", "");
@@ -29,50 +20,7 @@ function darken(hex, amount) {
 }
 
 export default function EliminationOverlay() {
-  const params = new URLSearchParams(window.location.search);
-  const raw = params.get("theme");
-  /** Use `?theme=live`, `?theme=auto`, or omit `theme` so colors follow Admin active theme via socket. Pinned `?theme=neon` stays on that id. */
-  const urlTheme = raw && raw !== "live" && raw !== "auto" ? raw : null;
-  const [liveTheme, setLiveTheme] = useState(() => urlTheme || defaultElimTheme());
-  const [themeColorOverrides, setThemeColorOverrides] = useState({});
-
-  useEffect(() => {
-    const onSettings = (s) => {
-      if (!s || typeof s !== "object") return;
-      setThemeColorOverrides(s?.themeColorOverrides && typeof s.themeColorOverrides === "object" ? s.themeColorOverrides : {});
-    };
-    socket.on("settingsUpdated", onSettings);
-    socket.emit("requestSettings");
-    fetch(`${API}/settings`)
-      .then((r) => r.json())
-      .then(onSettings)
-      .catch(() => {});
-    return () => socket.off("settingsUpdated", onSettings);
-  }, []);
-
-  useEffect(() => {
-    if (urlTheme) return;
-    fetch(`${API}/overlay/active-theme`)
-      .then((r) => r.json())
-      .then((d) => {
-        const t = d?.theme;
-        if (typeof t === "string" && getThemeNames().includes(t)) setLiveTheme(t);
-      })
-      .catch(() => {});
-    const onActiveTheme = (name) => {
-      if (getThemeNames().includes(name)) setLiveTheme(name);
-    };
-    socket.on("activeThemeChanged", onActiveTheme);
-    socket.emit("requestActiveTheme");
-    return () => socket.off("activeThemeChanged", onActiveTheme);
-  }, [urlTheme]);
-
-  const themeName = urlTheme || liveTheme;
-
-  const theme = useMemo(
-    () => mergeThemeOverride(getTheme(themeName), themeColorOverrides[themeName] || {}),
-    [themeName, themeColorOverrides],
-  );
+  const { eliminationBannerColors: effectiveBannerColors } = useGfxOverlayColors();
 
   const [queue, setQueue] = useState([]);
   const [banner, setBanner] = useState(null);
@@ -127,11 +75,11 @@ export default function EliminationOverlay() {
     };
   }, [showBanner]);
 
-  const c = theme.colors;
+  const c = effectiveBannerColors;
   const primary = c.primary;
-  const accent = c.accent || c.primary;
-  const gold = c.gold || "#f0c040";
-  const secondary = c.secondary || "#0f1923";
+  const accent = c.accent;
+  const gold = c.gold;
+  const secondary = c.secondary;
 
   const elimGrad = `linear-gradient(90deg, ${darken(accent, 40)} 0%, ${accent} 40%, ${primary} 70%, ${darken(accent, 40)} 100%)`;
   const rankBg = `linear-gradient(135deg, ${darken(secondary, 10)} 0%, ${secondary} 100%)`;
@@ -163,7 +111,7 @@ export default function EliminationOverlay() {
         {/* Left — Rank + Logo */}
         <div style={s.leftBlock}>
           <div style={{ ...s.rankSection, background: rankBg }}>
-            <span style={{ ...s.rankHash, color: c.textMuted }}>#</span>
+            <span style={{ ...s.rankHash, color: effectiveBannerColors.textMuted }}>#</span>
             <span style={s.rankNum}>{banner.rank ?? "?"}</span>
           </div>
           <div style={{ ...s.logoSection, background: logoBg, borderTop: `2px solid ${gold}` }}>

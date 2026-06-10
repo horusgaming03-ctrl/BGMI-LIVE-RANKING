@@ -18,6 +18,7 @@ import ObsSharedTripleSlotOverlay from "./overlays/ObsSharedTripleSlotOverlay";
 import ObsBgmiLayeredRankingOverlay from "./overlays/ObsBgmiLayeredRankingOverlay";
 import SideBannerOverlay from "./overlays/SideBannerOverlay";
 import RondoRecallPopupOverlay from "./overlays/RondoRecallPopupOverlay";
+import GfxColorsPreviewOverlay from "./overlays/GfxColorsPreviewOverlay";
 
 export default function App() {
   return (
@@ -33,6 +34,7 @@ export default function App() {
       <Route path="/overlay/themed/overall" element={<ThemedOverlayOverall />} />
       <Route path="/overlay/themes" element={<ThemePreview />} />
       <Route path="/overlay/elimination" element={<EliminationOverlay />} />
+      <Route path="/overlay/gfx-preview" element={<GfxColorsPreviewOverlay />} />
       <Route path="/overlay/wwcd" element={<WWCDOverlay />} />
       {/* Final-squad WWCD strip only (transparent OBS source). Aliases share the same overlay. */}
       <Route path="/overlay/wwcd-only" element={<WwcFourAliveStripOverlay />} />

@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { getApiBase } from "../../apiOrigin";
 import AliveIndicator from "../../overlay-engine/alive-styles/AliveIndicator";
+import { getRondoRecallChargesRemaining } from "../../rondo/recallCharges";
 
 const API = getApiBase();
 
@@ -11,6 +12,7 @@ function ThemedRow({
   anim,
   columns,
   finishPointsRankingOnly = false,
+  rondoRecallColumn = false,
   aliveStyle = "rounded",
   aliveLayout = "grid",
   aliveCustomAlive = null,
@@ -21,6 +23,7 @@ function ThemedRow({
   const r = theme.row;
   const status = String(team.status || "alive").toLowerCase();
   const alive = team.alivePlayers ?? (status === "alive" ? 4 : 0);
+  const recallCharges = getRondoRecallChargesRemaining(team);
 
   return (
     <div
@@ -118,10 +121,25 @@ function ThemedRow({
         </div>
       )}
 
+      {rondoRecallColumn ? (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "center",
+            width: "100%",
+            minWidth: 52,
+            overflow: "visible",
+          }}
+        >
+          <AliveIndicator count={recallCharges} theme={theme} styleId="bolt" layout="line" tightCluster />
+        </div>
+      ) : null}
+
       <div
         style={{
           display: "flex",
-          justifyContent: "center",
+          justifyContent: aliveStyle === "bar" ? "flex-end" : "center",
           alignItems: "center",
           width: "100%",
           minWidth: 52,

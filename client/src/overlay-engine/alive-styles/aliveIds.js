@@ -13,6 +13,7 @@ export const LEGACY_ALIVE_STYLE_IDS = [
   "dots",
   "flame",
   "battery",
+  "bar",
   "badge",
   "crown",
   "helmet",

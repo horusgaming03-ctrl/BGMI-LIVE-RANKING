@@ -160,14 +160,22 @@ export default function RondoRecallPopupOverlay() {
           cur.ap > prev.ap &&
           cur.charges < prev.charges;
 
-        if (!benchRecall && !partialRecall) continue;
+        const recallOnlySpend =
+          cur.charges < prev.charges &&
+          cur.ap === prev.ap &&
+          cur.st !== "eliminated" &&
+          (cur.st === "alive" || cur.st === "knocked" || cur.st === "rondo_benched");
 
-        const headline = qsOverrides.headline || "Teammate Recalled";
+        if (!benchRecall && !partialRecall && !recallOnlySpend) continue;
+
+        const headline = qsOverrides.headline || (recallOnlySpend ? "Recall Used" : "Teammate Recalled");
         const sub =
           qsOverrides.sub ||
           (benchRecall
             ? `${cur.team} · redeployed from recall`
-            : `${cur.team} · player recalled (+${cur.ap - prev.ap})`);
+            : recallOnlySpend
+              ? `${cur.team} · ${cur.charges} recall chance${cur.charges === 1 ? "" : "s"} left`
+              : `${cur.team} · player recalled (+${cur.ap - prev.ap})`);
 
         if (soundOn) playOptionalChime();
 

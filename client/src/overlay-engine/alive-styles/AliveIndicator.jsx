@@ -21,6 +21,22 @@ function AliveHeartGlyph({ fill, muted, size }) {
   );
 }
 
+/** Vector lightning bolt — uses theme alive / dead colors (customizable in Theme preview). */
+function AliveBoltGlyph({ fill, muted, size, mutedOpacity = 0.28 }) {
+  const s = Math.max(12, Math.round(size));
+  return (
+    <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: "block", opacity: muted ? mutedOpacity : 1 }} aria-hidden="true">
+      <path
+        fill={fill}
+        d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"
+        stroke="rgba(0,0,0,.22)"
+        strokeWidth={0.35}
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /** Vector sun — consistent in OBS unlike emoji glyphs. */
 function AliveSunGlyph({ fill, muted, size }) {
   const s = Math.max(12, Math.round(size) + 6);
@@ -145,7 +161,16 @@ function AliveCustomPngIndicator({ count: c, size, gap, layout, alivePath, deadP
   );
 }
 
-function AliveIndicator({ count, theme, styleId = "square", layout = "grid", customAlivePath = null, customDeadPath = null }) {
+function AliveIndicator({
+  count,
+  theme,
+  styleId = "square",
+  layout = "grid",
+  customAlivePath = null,
+  customDeadPath = null,
+  /** Tight horizontal cluster (Rondo RECALL column). */
+  tightCluster = false,
+}) {
   const c = Math.max(0, Math.min(4, Math.round(Number(count) || 0)));
   const a = theme.alive || {};
   const size = Math.max(4, a.size || 8);
@@ -431,6 +456,43 @@ function AliveIndicator({ count, theme, styleId = "square", layout = "grid", cus
     );
   }
 
+  /** Four tall vertical bars in one row — flat rects with slight corners (not full pills). */
+  if (styleId === "bar") {
+    const barW = Math.max(7, Math.round(size));
+    const barH = Math.max(Math.round(barW * 3.5), Math.round(size * 3.25));
+    const barGap = Math.max(4, Math.round(barW * 0.75));
+    const barRadius = Math.max(2, Math.round(barW * 0.22));
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          gap: barGap,
+          justifySelf: "end",
+          alignItems: "center",
+          marginLeft: "auto",
+          marginRight: Math.max(3, Math.round(barW * 0.35)),
+        }}
+      >
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            key={i}
+            style={{
+              width: barW,
+              height: barH,
+              borderRadius: barRadius,
+              background: i < c ? color : deadColor,
+              opacity: i < c ? 1 : 0.55,
+              boxShadow: "none",
+              transition: "background 0.28s ease, opacity 0.28s ease",
+              flexShrink: 0,
+            }}
+          />
+        ))}
+      </div>
+    );
+  }
+
   if (styleId === "health_strip") {
     return (
       <div style={{ width: size * 4.5, height: size * 0.55, background: deadColor, borderRadius: 99, overflow: "hidden", justifySelf: "center" }}>
@@ -495,13 +557,39 @@ function AliveIndicator({ count, theme, styleId = "square", layout = "grid", cus
   }
 
   if (styleId === "bolt") {
+    const boltSz = tightCluster
+      ? Math.max(14, Math.round(size * 1.25 + 8))
+      : Math.max(18, Math.round(size * 1.85 + 10));
+    const boltTuck = tightCluster
+      ? -Math.max(8, Math.round(boltSz * 0.42))
+      : -Math.max(2, Math.round(boltSz * 0.12));
+    const usedFade = tightCluster ? 0.22 : 0.28;
+    const usedFill = tightCluster ? deadColor : deadColor;
     return (
-      <div style={{ ...wrap, fontSize: size + 4, lineHeight: 1, color }}>
-        {[0, 1, 2, 3].map((i) => (
-          <span key={i} style={{ opacity: i < c ? 1 : 0.2, textAlign: "center" }}>
-            ⚡
-          </span>
-        ))}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          gap: 0,
+          justifySelf: "center",
+          alignItems: "center",
+          marginLeft: tightCluster ? "auto" : Math.max(6, Math.round(boltSz * 0.24)),
+          marginRight: tightCluster ? Math.max(4, Math.round(boltSz * 0.18)) : 0,
+        }}
+      >
+        {[0, 1, 2, 3].map((i) => {
+          const available = i < c;
+          return (
+            <span key={i} style={{ display: "inline-flex", marginLeft: i > 0 ? boltTuck : 0 }}>
+              <AliveBoltGlyph
+                fill={available ? color : usedFill}
+                muted={!available}
+                mutedOpacity={available ? 1 : usedFade}
+                size={boltSz}
+              />
+            </span>
+          );
+        })}
       </div>
     );
   }

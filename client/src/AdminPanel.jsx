@@ -6,6 +6,21 @@ import RondoKnockMatrix from "./rondo/RondoKnockMatrix";
 import { getRondoRecallChargesRemaining } from "./rondo/recallCharges.js";
 import { buildLiveRankingOrder } from "./teamDisplayOrder";
 import { SIDE_OVERLAY_DEFAULT_PREFS, mergeSideOverlayPrefs, clampHexColor, stableCanonSidePrefs } from "./sideOverlayPrefs";
+import {
+  GFX_COLOR_MODE_THEME,
+  GFX_COLOR_MODE_CUSTOM,
+  WWCD_STRIP_DEFAULT_COLORS,
+  ELIMINATION_BANNER_DEFAULT_COLORS,
+  mergeWwcdStripColors,
+  mergeEliminationBannerColors,
+  normalizeGfxColorMode,
+  inferWwcdStripColorMode,
+  inferEliminationBannerColorMode,
+  wwcdStripColorsFromTheme,
+  eliminationBannerColorsFromTheme,
+  settingsIncludeGfxColors,
+} from "./overlayGfxColors";
+import OverlayGfxAdminPreview, { publishGfxPreviewDraft } from "./overlays/OverlayGfxAdminPreview";
 import ScheduleMatchSection from "./schedule-match/ScheduleMatchSection";
 import {
   useLiveRankingThemePalette,
@@ -55,6 +70,21 @@ export default function AdminPanel() {
   const [processingScreenshot, setProcessingScreenshot] = useState(false);
   const [chickenDinnerTeam, setChickenDinnerTeam] = useState(null);
   const [wwcdColors, setWwcdColors] = useState({ primary: "", gold: "", accent: "", bg: "" });
+  const [wwcdStripMode, setWwcdStripMode] = useState(GFX_COLOR_MODE_THEME);
+  const [wwcdStripDraft, setWwcdStripDraft] = useState(() => mergeWwcdStripColors({}));
+  const [elimBannerMode, setElimBannerMode] = useState(GFX_COLOR_MODE_THEME);
+  const [elimBannerDraft, setElimBannerDraft] = useState(() => mergeEliminationBannerColors({}));
+  const [gfxColorsApiReady, setGfxColorsApiReady] = useState(true);
+  const { palette: annThemePalette, mergedTheme: gfxMergedTheme, themeName: gfxThemeName } = useLiveRankingThemePalette();
+
+  useEffect(() => {
+    publishGfxPreviewDraft({
+      wwcdStripColorMode: wwcdStripMode,
+      wwcdStripColors: wwcdStripDraft,
+      eliminationBannerColorMode: elimBannerMode,
+      eliminationBannerColors: elimBannerDraft,
+    });
+  }, [wwcdStripMode, wwcdStripDraft, elimBannerMode, elimBannerDraft]);
   const [wwcdCharacterArts, setWwcdCharacterArts] = useState([null, null, null, null]);
   const [wwcdSlotSelected, setWwcdSlotSelected] = useState(0);
   const [wwcdUrlDraft, setWwcdUrlDraft] = useState("");
@@ -66,6 +96,9 @@ export default function AdminPanel() {
   const sidePrefsHydratedRef = useRef(false);
   const sideLastCanonRef = useRef("");
   const sideAutosaveTimerRef = useRef(null);
+  /** Prevent settingsUpdated from overwriting in-progress WWCD / elimination color picks */
+  const wwcdStripDirtyRef = useRef(false);
+  const elimBannerDirtyRef = useRef(false);
 
   const [screenshotPreviews, setScreenshotPreviews] = useState([]);
   const screenshotInputRef = useRef(null);
@@ -166,6 +199,19 @@ export default function AdminPanel() {
       }
       if (data?.googleIntegration && typeof data.googleIntegration === "object") {
         setGoogleIntegration((prev) => ({ ...prev, ...data.googleIntegration }));
+      }
+      setGfxColorsApiReady(settingsIncludeGfxColors(data));
+      if (!wwcdStripDirtyRef.current) {
+        setWwcdStripMode(inferWwcdStripColorMode(data?.wwcdStripColorMode, data?.wwcdStripColors));
+      }
+      if (data?.wwcdStripColors != null && typeof data.wwcdStripColors === "object" && !wwcdStripDirtyRef.current) {
+        setWwcdStripDraft(mergeWwcdStripColors(data.wwcdStripColors));
+      }
+      if (!elimBannerDirtyRef.current) {
+        setElimBannerMode(inferEliminationBannerColorMode(data?.eliminationBannerColorMode, data?.eliminationBannerColors));
+      }
+      if (data?.eliminationBannerColors != null && typeof data.eliminationBannerColors === "object" && !elimBannerDirtyRef.current) {
+        setElimBannerDraft(mergeEliminationBannerColors(data.eliminationBannerColors));
       }
     };
     const onChicken = (data) => {
@@ -460,8 +506,6 @@ export default function AdminPanel() {
       }
     }
 
-    const rosterTeam = teams.find((t) => t.id === teamId);
-
     const res = await fetch(`${API}/teams/${teamId}/alive`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -479,31 +523,50 @@ export default function AdminPanel() {
       return;
     }
 
-    try {
-      const updated = await res.json();
-      if (
-        zeroWipe &&
-        mapSlug === "rondo" &&
-        rosterTeam &&
-        getRondoRecallChargesRemaining(rosterTeam) > 0 &&
-        !["rondo_benched", "eliminated"].includes(String(rosterTeam.status || "").toLowerCase())
-      ) {
-        const nextSt = String(updated?.status || "").toLowerCase();
-        if (nextSt !== "rondo_benched") {
-          setMessage(`Rondo mismatch: setting 0-alive should bench; API="${updated?.status}".`);
-          socket.emit("requestTeams");
-          socket.emit("requestMatch");
-          return;
-        }
-        setMessage("Rondo recall bench — squad benched.");
-        return;
-      }
-    } catch {
-      /* ignore */
-    }
-
     setMessage("Alive count updated.");
   }, [API, teams, currentMatch]);
+
+  const spendRondoRecall = useCallback(
+    async (teamId, count = 1) => {
+      const res = await fetch(`${API}/teams/${teamId}/recall-player`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ count: Math.trunc(count) }),
+      });
+      if (!res.ok) {
+        let msg = "Recall failed.";
+        try {
+          const j = await res.json();
+          if (j?.message) msg = String(j.message);
+        } catch {
+          /* ignore */
+        }
+        if (res.status === 404) {
+          msg = "Recall API missing — restart backend (npm run start:backend) then retry.";
+        }
+        setMessage(msg);
+        socket.emit("requestTeams");
+        return null;
+      }
+      try {
+        const t = await res.json();
+        const rem = getRondoRecallChargesRemaining(t);
+        setMessage(
+          rem > 0
+            ? `Recall used — ${rem} chance${rem === 1 ? "" : "s"} left. Alive unchanged.`
+            : "All recalls used — only eliminations affect alive now.",
+        );
+        socket.emit("requestTeams");
+        socket.emit("requestMatch");
+        return t;
+      } catch {
+        setMessage("Recall used — alive unchanged.");
+        socket.emit("requestTeams");
+        return null;
+      }
+    },
+    [API],
+  );
 
   const triggerRondoRecall = useCallback(
     async (teamId, addAliveSlots) => {
@@ -708,15 +771,20 @@ export default function AdminPanel() {
                 alivePlayers: 4,
                 eliminationRank: null,
                 positionPoints: revived.positionPoints ?? 0,
+                rondoKnockAliveOnly: normalizeMatchMeta(currentMatch)?.map === "rondo" ? true : revived.rondoKnockAliveOnly,
               }
             : t,
         ),
       );
     }
-    setMessage(`${team.team} restored — 4/4 alive (1K / 2K / 3K / OUT active again).`);
+    setMessage(
+      normalizeMatchMeta(currentMatch)?.map === "rondo"
+        ? `${team.team} restored — 4/4 alive (alive bars only, no recall strip).`
+        : `${team.team} restored — 4/4 alive (1K / 2K / 3K / OUT active again).`,
+    );
     socket.emit("requestTeams");
     socket.emit("requestMatch");
-  }, [API, applyTeamsFromServer]);
+  }, [API, applyTeamsFromServer, currentMatch]);
 
   const matchScoresEditable =
     currentMatch?.status === "live" || currentMatch?.status === "ended";
@@ -1324,7 +1392,6 @@ export default function AdminPanel() {
 
   const wwcdPercentById = useMemo(() => wwcdPercentMapFromTeams(teams), [teams]);
 
-  const { palette: annThemePalette, themeName: annSyncedTheme } = useLiveRankingThemePalette();
   const annSx = useMemo(() => announcementAdminPreviewStyles(annThemePalette), [annThemePalette]);
 
   const aliveNonEliminatedCount = useMemo(() => teams.filter((t) => ["alive", "knocked"].includes(String(t.status || "").toLowerCase())).length, [teams]);
@@ -2490,7 +2557,7 @@ export default function AdminPanel() {
                 <h2 style={{ ...styles.cardTitle, marginBottom: 8 }}>Live announcements</h2>
                 <p style={{ margin: 0, fontSize: 13, color: "#8891a1", fontWeight: 600, maxWidth: 680, lineHeight: 1.5 }}>
                   Colors follow your <strong style={{ color: annThemePalette.gold }}>Live ranking</strong> theme (
-                  <code style={{ color: "#F1CF69", fontSize: 12 }}>{annSyncedTheme}</code>) — change palette in{" "}
+                  <code style={{ color: "#F1CF69", fontSize: 12 }}>{gfxThemeName}</code>) — change palette in{" "}
                   <strong style={{ color: "#cbd5df" }}>Theme preview</strong> or pick another active theme below Live rankings. OBS:{" "}
                   <code style={{ color: "#F1CF69", fontSize: 12 }}>/overlay/announcements</code>.
                 </p>
@@ -2574,7 +2641,7 @@ export default function AdminPanel() {
                   </p>
                 </div>
                 <p style={{ ...ns.annPreviewCaption, ...annSx.caption }}>
-                  Preview — synced with Live ranking theme ({annSyncedTheme})
+                  Preview — synced with Live ranking theme ({gfxThemeName})
                 </p>
               </div>
             </div>
@@ -2653,6 +2720,7 @@ export default function AdminPanel() {
                 ns={ns}
                 knockTeam={knockTeam}
                 setAlive={setAlive}
+                spendRondoRecall={spendRondoRecall}
                 adjustTeamFinishes={adjustTeamFinishes}
                 triggerRondoRecall={triggerRondoRecall}
                 undoRondoMistakenBench={undoRondoMistakenBench}
@@ -2660,6 +2728,8 @@ export default function AdminPanel() {
                 finishBadgesObsUrl={finishBadgesObsUrl}
                 getKnockControlDisplayNumber={getKnockControlDisplayNumber}
                 commitKnockRowNumberFromIndex={commitKnockRowNumberFromIndex}
+                restoreEliminatedTeam={restoreEliminatedTeam}
+                matchScoresEditable={matchScoresEditable}
               />
             )}
           </section>
@@ -2916,13 +2986,7 @@ export default function AdminPanel() {
               </div>
               <div
                 style={ns.overlayCard}
-                onClick={() =>
-                  window.open(
-                    `/overlay/wwcd-only?position=bottom&theme=${encodeURIComponent(activeOverlayTheme)}`,
-                    "_blank",
-                    "width=1920,height=1080",
-                  )
-                }
+                onClick={() => window.open("/overlay/wwcd-only?position=bottom", "_blank", "width=1920,height=1080")}
               >
                 <div style={{ fontSize: 36, marginBottom: 8 }}>📉</div>
                 <div style={{ fontWeight: 800, fontSize: 16 }}>WWCD 4-squad strip</div>
@@ -2968,6 +3032,392 @@ export default function AdminPanel() {
                 <div style={{ fontWeight: 800, fontSize: 16 }}>Schedule of the match</div>
                 <div style={{ color: "#8CB7BE", fontSize: 12, marginTop: 4 }}>
                   BGMI-style match schedule · OBS <code style={{ color: "#F1CF69", fontSize: 11 }}>/schedule-of-the-match/overlay.html</code>
+                </div>
+              </div>
+            </div>
+
+            {/* WWCD 4-squad strip + Elimination banner — theme default + optional custom */}
+            <div style={{ marginTop: 14, padding: "16px 18px", background: "rgba(56,189,248,.06)", borderRadius: 14, border: "1px solid rgba(34,211,238,.22)" }}>
+              <div style={{ fontWeight: 800, fontSize: 14, color: "#67E8F9", marginBottom: 8, letterSpacing: 0.5 }}>
+                WWCD strip &amp; Elimination banner
+              </div>
+              <p style={{ margin: "0 0 12px", color: "#8CB7BE", fontSize: 12, lineHeight: 1.55, maxWidth: 920 }}>
+                <strong style={{ color: "#C8E8E4" }}>Default:</strong> both overlays follow your active Live ranking theme (
+                <code style={{ color: "#F1CF69", fontSize: 11 }}>{gfxThemeName}</code>). Switch to <strong style={{ color: "#C8E8E4" }}>Customize</strong> to pick your own colors for{" "}
+                <code style={{ color: "#F1CF69", fontSize: 11 }}>/overlay/wwcd-only</code> and <code style={{ color: "#F1CF69", fontSize: 11 }}>/overlay/elimination</code>.
+              </p>
+              {!gfxColorsApiReady ? (
+                <p style={{ margin: "0 0 12px", padding: "10px 12px", borderRadius: 8, background: "rgba(251,191,36,.12)", border: "1px solid rgba(251,191,36,.35)", color: "#fcd34d", fontSize: 12, fontWeight: 700, maxWidth: 920 }}>
+                  Backend needs a restart for Apply to stick — run <code style={{ color: "#fff" }}>npm run start:backend</code> from the project folder, then hard-refresh admin and click Apply again.
+                </p>
+              ) : null}
+
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+                <button
+                  type="button"
+                  onClick={() => window.open("/overlay/gfx-preview", "_blank", "width=1280,height=720")}
+                  style={{
+                    padding: "8px 16px",
+                    background: "rgba(255,255,255,.08)",
+                    color: "#e2e8f0",
+                    border: "1px solid rgba(255,255,255,.16)",
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                  }}
+                >
+                  Open preview window
+                </button>
+                <span style={{ fontSize: 11, color: "#64748b", alignSelf: "center" }}>
+                  Larger view · stays in sync while you edit colors here
+                </span>
+              </div>
+
+              <OverlayGfxAdminPreview
+                wwcdStripMode={wwcdStripMode}
+                wwcdStripDraft={wwcdStripDraft}
+                elimBannerMode={elimBannerMode}
+                elimBannerDraft={elimBannerDraft}
+                teams={teams}
+                matchMap={matchBoardMeta?.map}
+              />
+
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ fontWeight: 800, fontSize: 12, color: "#A5F3FC", marginBottom: 10 }}>WWCD 4-squad strip · /overlay/wwcd-only</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setWwcdStripMode(GFX_COLOR_MODE_THEME);
+                      wwcdStripDirtyRef.current = false;
+                      const res = await fetch(`${API}/settings`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ wwcdStripColorMode: GFX_COLOR_MODE_THEME }),
+                      });
+                      publishGfxPreviewDraft({
+                        wwcdStripColorMode: GFX_COLOR_MODE_THEME,
+                        wwcdStripColors: wwcdStripDraft,
+                        eliminationBannerColorMode: elimBannerMode,
+                        eliminationBannerColors: elimBannerDraft,
+                      });
+                      setMessage(res.ok ? `WWCD strip uses live theme (${gfxThemeName}).` : "Failed to set WWCD theme default.");
+                    }}
+                    style={{
+                      padding: "7px 14px",
+                      background: wwcdStripMode === GFX_COLOR_MODE_THEME ? "rgba(34,211,238,.2)" : "rgba(255,255,255,.05)",
+                      color: wwcdStripMode === GFX_COLOR_MODE_THEME ? "#67e8f9" : "#94a3b8",
+                      border: wwcdStripMode === GFX_COLOR_MODE_THEME ? "1px solid rgba(34,211,238,.45)" : "1px solid rgba(255,255,255,.1)",
+                      borderRadius: 8,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Theme default
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const seeded = wwcdStripColorsFromTheme(gfxMergedTheme);
+                      setWwcdStripMode(GFX_COLOR_MODE_CUSTOM);
+                      wwcdStripDirtyRef.current = true;
+                      setWwcdStripDraft(seeded);
+                      publishGfxPreviewDraft({
+                        wwcdStripColorMode: GFX_COLOR_MODE_CUSTOM,
+                        wwcdStripColors: seeded,
+                        eliminationBannerColorMode: elimBannerMode,
+                        eliminationBannerColors: elimBannerDraft,
+                      });
+                      setMessage("WWCD strip — customize mode. Pick colors below, then Apply.");
+                    }}
+                    style={{
+                      padding: "7px 14px",
+                      background: wwcdStripMode === GFX_COLOR_MODE_CUSTOM ? "rgba(34,211,238,.2)" : "rgba(255,255,255,.05)",
+                      color: wwcdStripMode === GFX_COLOR_MODE_CUSTOM ? "#67e8f9" : "#94a3b8",
+                      border: wwcdStripMode === GFX_COLOR_MODE_CUSTOM ? "1px solid rgba(34,211,238,.45)" : "1px solid rgba(255,255,255,.1)",
+                      borderRadius: 8,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Customize
+                  </button>
+                </div>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12, opacity: wwcdStripMode === GFX_COLOR_MODE_CUSTOM ? 1 : 0.45, pointerEvents: wwcdStripMode === GFX_COLOR_MODE_CUSTOM ? "auto" : "none" }}>
+                  {[
+                    { key: "footerBg", label: "WWCD bar" },
+                    { key: "footerText", label: "WWCD text" },
+                    { key: "barFilled", label: "Alive bar" },
+                    { key: "barDead", label: "Dead bar" },
+                    { key: "barsBg", label: "Bars bg" },
+                    { key: "logoBoxBg", label: "Logo pane" },
+                    { key: "initialsColor", label: "Initials" },
+                  ].map(({ key, label }) => (
+                    <label key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                      <input
+                        type="color"
+                        value={clampHexColor(wwcdStripDraft[key], WWCD_STRIP_DEFAULT_COLORS[key])}
+                        onChange={(e) => {
+                          wwcdStripDirtyRef.current = true;
+                          if (wwcdStripMode !== GFX_COLOR_MODE_CUSTOM) setWwcdStripMode(GFX_COLOR_MODE_CUSTOM);
+                          setWwcdStripDraft((d) => ({
+                            ...d,
+                            [key]: clampHexColor(e.target.value, WWCD_STRIP_DEFAULT_COLORS[key]),
+                          }));
+                        }}
+                        style={{ width: 42, height: 32, border: "none", borderRadius: 8, cursor: "pointer", background: "transparent" }}
+                      />
+                      <span style={{ fontSize: 9, color: "#7a8799", fontWeight: 700 }}>{label}</span>
+                    </label>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (wwcdStripMode !== GFX_COLOR_MODE_CUSTOM) {
+                        setMessage("WWCD strip is on theme default — click Customize to save your own colors.");
+                        return;
+                      }
+                      const merged = mergeWwcdStripColors(wwcdStripDraft);
+                      try {
+                        const res = await fetch(`${API}/settings`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            wwcdStripColorMode: GFX_COLOR_MODE_CUSTOM,
+                            wwcdStripColors: merged,
+                          }),
+                        });
+                        const saved = res.ok ? await res.json().catch(() => null) : null;
+                        if (!res.ok || !settingsIncludeGfxColors(saved)) {
+                          setGfxColorsApiReady(false);
+                          publishGfxPreviewDraft({
+                            wwcdStripColorMode: GFX_COLOR_MODE_CUSTOM,
+                            wwcdStripColors: merged,
+                            eliminationBannerColorMode: elimBannerMode,
+                            eliminationBannerColors: elimBannerDraft,
+                          });
+                          setMessage(
+                            res.ok
+                              ? "API missing WWCD color support — run npm run start:backend, then Apply again."
+                              : "Failed to save WWCD strip colors — is the API running on port 3001?",
+                          );
+                          return;
+                        }
+                        setGfxColorsApiReady(true);
+                        wwcdStripDirtyRef.current = false;
+                        const savedMode = inferWwcdStripColorMode(saved.wwcdStripColorMode, saved.wwcdStripColors);
+                        setWwcdStripMode(savedMode);
+                        setWwcdStripDraft(mergeWwcdStripColors(saved.wwcdStripColors));
+                        publishGfxPreviewDraft({
+                          wwcdStripColorMode: GFX_COLOR_MODE_CUSTOM,
+                          wwcdStripColors: saved.wwcdStripColors,
+                          eliminationBannerColorMode: elimBannerMode,
+                          eliminationBannerColors: elimBannerDraft,
+                        });
+                        setMessage(
+                          saved.wwcdStripColorMode == null
+                            ? "WWCD custom colors saved — overlay updated. Restart backend (npm run start:backend) so mode persists after refresh."
+                            : "WWCD strip custom colors saved — overlay updated.",
+                        );
+                      } catch {
+                        publishGfxPreviewDraft({
+                          wwcdStripColorMode: GFX_COLOR_MODE_CUSTOM,
+                          wwcdStripColors: merged,
+                          eliminationBannerColorMode: elimBannerMode,
+                          eliminationBannerColors: elimBannerDraft,
+                        });
+                        setMessage("Could not reach API — preview updated only. Start backend: npm run start:backend");
+                      }
+                    }}
+                    style={{ padding: "8px 16px", background: "linear-gradient(90deg, #22d3ee, #0ea5e9)", color: "#042f2e", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: "pointer" }}
+                  >
+                    Apply strip colors
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setWwcdStripMode(GFX_COLOR_MODE_THEME);
+                      wwcdStripDirtyRef.current = false;
+                      const res = await fetch(`${API}/settings`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ wwcdStripColorMode: GFX_COLOR_MODE_THEME }),
+                      });
+                      if (res.ok) {
+                        publishGfxPreviewDraft({
+                          wwcdStripColorMode: GFX_COLOR_MODE_THEME,
+                          wwcdStripColors: wwcdStripDraft,
+                          eliminationBannerColorMode: elimBannerMode,
+                          eliminationBannerColors: elimBannerDraft,
+                        });
+                        setMessage(`WWCD strip reset — follows live theme (${gfxThemeName}).`);
+                      } else {
+                        setMessage("Failed to reset WWCD strip.");
+                      }
+                    }}
+                    style={{ padding: "8px 16px", background: "rgba(255,255,255,.06)", color: "#8CB7BE", border: "1px solid rgba(255,255,255,.1)", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                  >
+                    Reset strip defaults
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 12, color: "#FCA5A5", marginBottom: 10 }}>Elimination banner · /overlay/elimination</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setElimBannerMode(GFX_COLOR_MODE_THEME);
+                      elimBannerDirtyRef.current = false;
+                      const res = await fetch(`${API}/settings`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ eliminationBannerColorMode: GFX_COLOR_MODE_THEME }),
+                      });
+                      publishGfxPreviewDraft({
+                        wwcdStripColorMode: wwcdStripMode,
+                        wwcdStripColors: wwcdStripDraft,
+                        eliminationBannerColorMode: GFX_COLOR_MODE_THEME,
+                        eliminationBannerColors: elimBannerDraft,
+                      });
+                      setMessage(res.ok ? `Elimination banner uses live theme (${gfxThemeName}).` : "Failed to set elimination theme default.");
+                    }}
+                    style={{
+                      padding: "7px 14px",
+                      background: elimBannerMode === GFX_COLOR_MODE_THEME ? "rgba(248,113,113,.18)" : "rgba(255,255,255,.05)",
+                      color: elimBannerMode === GFX_COLOR_MODE_THEME ? "#fca5a5" : "#94a3b8",
+                      border: elimBannerMode === GFX_COLOR_MODE_THEME ? "1px solid rgba(248,113,113,.4)" : "1px solid rgba(255,255,255,.1)",
+                      borderRadius: 8,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Theme default
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const seeded = eliminationBannerColorsFromTheme(gfxMergedTheme);
+                      setElimBannerMode(GFX_COLOR_MODE_CUSTOM);
+                      elimBannerDirtyRef.current = true;
+                      setElimBannerDraft(seeded);
+                      publishGfxPreviewDraft({
+                        wwcdStripColorMode: wwcdStripMode,
+                        wwcdStripColors: wwcdStripDraft,
+                        eliminationBannerColorMode: GFX_COLOR_MODE_CUSTOM,
+                        eliminationBannerColors: seeded,
+                      });
+                      setMessage("Elimination banner — customize mode. Pick colors below, then Apply.");
+                    }}
+                    style={{
+                      padding: "7px 14px",
+                      background: elimBannerMode === GFX_COLOR_MODE_CUSTOM ? "rgba(248,113,113,.18)" : "rgba(255,255,255,.05)",
+                      color: elimBannerMode === GFX_COLOR_MODE_CUSTOM ? "#fca5a5" : "#94a3b8",
+                      border: elimBannerMode === GFX_COLOR_MODE_CUSTOM ? "1px solid rgba(248,113,113,.4)" : "1px solid rgba(255,255,255,.1)",
+                      borderRadius: 8,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Customize
+                  </button>
+                </div>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12, opacity: elimBannerMode === GFX_COLOR_MODE_CUSTOM ? 1 : 0.45, pointerEvents: elimBannerMode === GFX_COLOR_MODE_CUSTOM ? "auto" : "none" }}>
+                  {[
+                    { key: "primary", label: "Primary" },
+                    { key: "accent", label: "Accent" },
+                    { key: "gold", label: "Gold / name" },
+                    { key: "secondary", label: "Panels" },
+                    { key: "textMuted", label: "Muted text" },
+                  ].map(({ key, label }) => (
+                    <label key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                      <input
+                        type="color"
+                        value={clampHexColor(elimBannerDraft[key], ELIMINATION_BANNER_DEFAULT_COLORS[key])}
+                        onChange={(e) => {
+                          elimBannerDirtyRef.current = true;
+                          if (elimBannerMode !== GFX_COLOR_MODE_CUSTOM) setElimBannerMode(GFX_COLOR_MODE_CUSTOM);
+                          setElimBannerDraft((d) => ({
+                            ...d,
+                            [key]: clampHexColor(e.target.value, ELIMINATION_BANNER_DEFAULT_COLORS[key]),
+                          }));
+                        }}
+                        style={{ width: 42, height: 32, border: "none", borderRadius: 8, cursor: "pointer", background: "transparent" }}
+                      />
+                      <span style={{ fontSize: 9, color: "#7a8799", fontWeight: 700 }}>{label}</span>
+                    </label>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (elimBannerMode !== GFX_COLOR_MODE_CUSTOM) {
+                        setMessage("Elimination banner is on theme default — click Customize to save your own colors.");
+                        return;
+                      }
+                      const merged = mergeEliminationBannerColors(elimBannerDraft);
+                      const res = await fetch(`${API}/settings`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          eliminationBannerColorMode: GFX_COLOR_MODE_CUSTOM,
+                          eliminationBannerColors: merged,
+                        }),
+                      });
+                      if (res.ok) {
+                        elimBannerDirtyRef.current = false;
+                        setElimBannerMode(GFX_COLOR_MODE_CUSTOM);
+                        setElimBannerDraft(merged);
+                        publishGfxPreviewDraft({
+                          wwcdStripColorMode: wwcdStripMode,
+                          wwcdStripColors: wwcdStripDraft,
+                          eliminationBannerColorMode: GFX_COLOR_MODE_CUSTOM,
+                          eliminationBannerColors: merged,
+                        });
+                        setMessage("Elimination banner custom colors saved — overlay updated.");
+                      } else {
+                        setMessage("Failed to save elimination colors.");
+                      }
+                    }}
+                    style={{ padding: "8px 16px", background: "linear-gradient(90deg, #f87171, #dc2626)", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: "pointer" }}
+                  >
+                    Apply elimination colors
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setElimBannerMode(GFX_COLOR_MODE_THEME);
+                      elimBannerDirtyRef.current = false;
+                      const res = await fetch(`${API}/settings`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ eliminationBannerColorMode: GFX_COLOR_MODE_THEME }),
+                      });
+                      if (res.ok) {
+                        publishGfxPreviewDraft({
+                          wwcdStripColorMode: wwcdStripMode,
+                          wwcdStripColors: wwcdStripDraft,
+                          eliminationBannerColorMode: GFX_COLOR_MODE_THEME,
+                          eliminationBannerColors: elimBannerDraft,
+                        });
+                        setMessage(`Elimination banner reset — follows live theme (${gfxThemeName}).`);
+                      } else {
+                        setMessage("Failed to reset elimination banner.");
+                      }
+                    }}
+                    style={{ padding: "8px 16px", background: "rgba(255,255,255,.06)", color: "#8CB7BE", border: "1px solid rgba(255,255,255,.1)", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                  >
+                    Reset elimination defaults
+                  </button>
                 </div>
               </div>
             </div>

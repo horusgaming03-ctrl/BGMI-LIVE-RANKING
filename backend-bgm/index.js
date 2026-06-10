@@ -313,6 +313,7 @@ function normalizeTeamRondoFields(team) {
   team.rondoRecallChargesRemaining = coerceRecallChargesFromTeam(team);
   team.rondoRecallConsumed = team.rondoRecallChargesRemaining <= 0;
   team.rondoAwaitingRecall = coerceJsonBool(team.rondoAwaitingRecall, false);
+  team.rondoKnockAliveOnly = coerceJsonBool(team.rondoKnockAliveOnly, false);
   return team;
 }
 
@@ -334,6 +335,58 @@ const SIDE_OVERLAY_DEFAULT_PREFS_BACKEND = {
   showSparkle: true,
   bannerScale: 1,
 };
+
+/** Mirror client/src/overlayGfxColors.js — WWCD 4-squad strip */
+const WWCD_STRIP_DEFAULT_COLORS_BACKEND = {
+  footerBg: "#00c2c9",
+  footerText: "#ffffff",
+  barFilled: "#5cff72",
+  barDead: "#4a4f54",
+  barsBg: "#161616",
+  logoBoxBg: "#0a3d45",
+  initialsColor: "#ffffff",
+};
+
+/** Mirror client/src/overlayGfxColors.js — elimination banner */
+const ELIMINATION_BANNER_DEFAULT_COLORS_BACKEND = {
+  primary: "#ff4655",
+  accent: "#00c2c9",
+  gold: "#f0c040",
+  secondary: "#0f1923",
+  textMuted: "#8b9bb4",
+};
+
+function sanitizeWwcdStripColors(raw) {
+  const d = WWCD_STRIP_DEFAULT_COLORS_BACKEND;
+  const hc = (v, fb) => normalizeSideOverlayHex(v, fb);
+  if (!raw || typeof raw !== "object") return { ...d };
+  return {
+    footerBg: hc(raw.footerBg, d.footerBg),
+    footerText: hc(raw.footerText, d.footerText),
+    barFilled: hc(raw.barFilled, d.barFilled),
+    barDead: hc(raw.barDead, d.barDead),
+    barsBg: hc(raw.barsBg, d.barsBg),
+    logoBoxBg: hc(raw.logoBoxBg, d.logoBoxBg),
+    initialsColor: hc(raw.initialsColor, d.initialsColor),
+  };
+}
+
+function sanitizeEliminationBannerColors(raw) {
+  const d = ELIMINATION_BANNER_DEFAULT_COLORS_BACKEND;
+  const hc = (v, fb) => normalizeSideOverlayHex(v, fb);
+  if (!raw || typeof raw !== "object") return { ...d };
+  return {
+    primary: hc(raw.primary, d.primary),
+    accent: hc(raw.accent, d.accent),
+    gold: hc(raw.gold, d.gold),
+    secondary: hc(raw.secondary, d.secondary),
+    textMuted: hc(raw.textMuted, d.textMuted),
+  };
+}
+
+function sanitizeGfxColorMode(raw) {
+  return raw === "custom" ? "custom" : "theme";
+}
 
 /** Coerce `#rgb` / `#rrggbbaa` / `#rrggbb` → `#rrggbb` (matches client clampHexColor) */
 function normalizeSideOverlayHex(value, fallback) {
@@ -429,6 +482,12 @@ let settings = {
   activeTheme: "esports",
   /** Banner strip for `/overlay/side-banner` (tournament graphic + match / map titles) */
   sideOverlayPrefs: sanitizeSideOverlayPrefs({}),
+  /** `/overlay/wwcd-only` — `theme` follows active live-ranking theme; `custom` uses wwcdStripColors */
+  wwcdStripColorMode: "theme",
+  wwcdStripColors: sanitizeWwcdStripColors({}),
+  /** `/overlay/elimination` — `theme` follows active live-ranking theme; `custom` uses eliminationBannerColors */
+  eliminationBannerColorMode: "theme",
+  eliminationBannerColors: sanitizeEliminationBannerColors({}),
   /** Multi-layer BGMI ranking overlay — `/overlay/bgmi-layered-ranking` */
   obsBgmiLayerPack: sanitizeObsBgmiLayerPackServer({}),
 };
@@ -513,6 +572,7 @@ function resetAllTeamsLiveScores() {
     rondoRecallChargesRemaining: RONDO_RECALL_CHARGE_CAP,
     rondoRecallConsumed: false,
     rondoAwaitingRecall: false,
+    rondoKnockAliveOnly: false,
   }));
 }
 
@@ -788,6 +848,23 @@ function loadPersistedSettings() {
       /* Older app-settings.json omitted this block — write once so overlays + admin share the same snapshot */
       persistAppSettings();
     }
+    if (Object.prototype.hasOwnProperty.call(raw, "wwcdStripColorMode")) {
+      settings.wwcdStripColorMode = sanitizeGfxColorMode(raw.wwcdStripColorMode);
+    } else if (raw.wwcdStripColors != null && typeof raw.wwcdStripColors === "object") {
+      /* Older saves only had custom colors — keep custom mode */
+      settings.wwcdStripColorMode = "custom";
+    }
+    if (raw.wwcdStripColors != null && typeof raw.wwcdStripColors === "object") {
+      settings.wwcdStripColors = sanitizeWwcdStripColors(raw.wwcdStripColors);
+    }
+    if (Object.prototype.hasOwnProperty.call(raw, "eliminationBannerColorMode")) {
+      settings.eliminationBannerColorMode = sanitizeGfxColorMode(raw.eliminationBannerColorMode);
+    } else if (raw.eliminationBannerColors != null && typeof raw.eliminationBannerColors === "object") {
+      settings.eliminationBannerColorMode = "custom";
+    }
+    if (raw.eliminationBannerColors != null && typeof raw.eliminationBannerColors === "object") {
+      settings.eliminationBannerColors = sanitizeEliminationBannerColors(raw.eliminationBannerColors);
+    }
     if (Object.prototype.hasOwnProperty.call(raw, "obsBgmiLayerPack")) {
       const prevSnap = settings.obsBgmiLayerPack;
       settings.obsBgmiLayerPack = sanitizeObsBgmiLayerPackServer(raw.obsBgmiLayerPack, prevSnap);
@@ -826,6 +903,10 @@ function persistAppSettings() {
           googleIntegration: settings.googleIntegration,
           activeTheme: settings.activeTheme,
           sideOverlayPrefs: settings.sideOverlayPrefs,
+          wwcdStripColorMode: settings.wwcdStripColorMode,
+          wwcdStripColors: settings.wwcdStripColors,
+          eliminationBannerColorMode: settings.eliminationBannerColorMode,
+          eliminationBannerColors: settings.eliminationBannerColors,
           obsBgmiLayerPack: settings.obsBgmiLayerPack,
         },
         null,
@@ -998,7 +1079,12 @@ const eliminateTeam = (team) => {
   checkForWinner();
 };
 
+function clearRondoKnockAliveOnly(team) {
+  if (team && typeof team === "object") team.rondoKnockAliveOnly = false;
+}
+
 function rondoBenchTeam(team) {
+  clearRondoKnockAliveOnly(team);
   team.status = "rondo_benched";
   team.alivePlayers = 0;
   team.eliminationRank = null;
@@ -1144,6 +1230,7 @@ function applyRegistrationFromSheet(row) {
       rondoRecallChargesRemaining: RONDO_RECALL_CHARGE_CAP,
       rondoRecallConsumed: false,
       rondoAwaitingRecall: false,
+      rondoKnockAliveOnly: false,
     });
   }
 }
@@ -1272,6 +1359,7 @@ app.post("/teams", (req, res) => {
     rondoRecallChargesRemaining: RONDO_RECALL_CHARGE_CAP,
     rondoRecallConsumed: false,
     rondoAwaitingRecall: false,
+    rondoKnockAliveOnly: false,
   };
 
   teams.push(item);
@@ -1315,6 +1403,7 @@ app.post("/teams/register", (req, res) => {
     rondoRecallChargesRemaining: RONDO_RECALL_CHARGE_CAP,
     rondoRecallConsumed: false,
     rondoAwaitingRecall: false,
+    rondoKnockAliveOnly: false,
   };
   teams.push(item);
   broadcast();
@@ -1391,6 +1480,7 @@ app.post("/teams/:id/knock", (req, res) => {
       message: "Benched for Rondo recall — use Recall, set eliminated from roster, or Final OUT here",
     });
   }
+  clearRondoKnockAliveOnly(team);
   const knockReq = Number(req.body.knockCount);
   const knockCount = Number.isFinite(knockReq) ? knockReq : 1;
 
@@ -1406,12 +1496,50 @@ app.post("/teams/:id/knock", (req, res) => {
   } else {
     team.alivePlayers = Math.max(0, 4 - knockCount);
     if (team.alivePlayers === 0) {
-      tryCommitFullElimination(team);
+      normalizeTeamRondoFields(team);
+      if (isRondoMapActive() && (team.rondoRecallChargesRemaining || 0) > 0) {
+        team.status = "knocked";
+      } else {
+        tryCommitFullElimination(team);
+      }
     } else {
       team.status = "knocked";
     }
   }
 
+  broadcast();
+  res.json(team);
+});
+
+/** Rondo: spend recall credits only — alive count unchanged. */
+app.post("/teams/:id/recall-player", (req, res) => {
+  if (!isRondoMapActive()) return res.status(400).json({ message: "Recall only when match map is Rondo" });
+
+  const id = Number(req.params.id);
+  const idx = teams.findIndex((t) => t.id === id);
+  if (idx === -1) return res.status(404).json({ message: "not found" });
+
+  normalizeTeamRondoFields(teams[idx]);
+  const team = teams[idx];
+  const st = String(team.status || "").toLowerCase();
+  if (st === "eliminated") {
+    return res.status(400).json({ message: "Team is eliminated." });
+  }
+
+  const raw = Number(req.body?.count ?? req.body?.recallCount ?? 1);
+  const spend = Number.isFinite(raw) ? Math.max(1, Math.min(4, Math.trunc(raw))) : 1;
+  const charges = team.rondoRecallChargesRemaining;
+  if (charges <= 0) {
+    return res.status(400).json({ message: "No recall credits left." });
+  }
+  if (spend > charges) {
+    return res.status(400).json({ message: `Only ${charges} recall credit(s) left.` });
+  }
+
+  clearRondoKnockAliveOnly(team);
+  team.rondoRecallChargesRemaining = charges - spend;
+  team.rondoRecallConsumed = team.rondoRecallChargesRemaining <= 0;
+  if (settings.autoCalculate) recalculatePoints(team);
   broadcast();
   res.json(team);
 });
@@ -1435,9 +1563,17 @@ app.post("/teams/:id/alive", (req, res) => {
     return res.json(teams[idx]);
   }
 
+  clearRondoKnockAliveOnly(teams[idx]);
   teams[idx].alivePlayers = count;
 
   if (count === 0) {
+    normalizeTeamRondoFields(teams[idx]);
+    if (isRondoMapActive() && (teams[idx].rondoRecallChargesRemaining || 0) > 0) {
+      teams[idx].alivePlayers = 0;
+      teams[idx].status = "knocked";
+      broadcast();
+      return res.json(teams[idx]);
+    }
     tryCommitFullElimination(teams[idx]);
   } else if (count < 4) {
     teams[idx].status = "knocked";
@@ -1578,6 +1714,9 @@ function restoreEliminatedTeam(team) {
   team.eliminationRank = null;
   team.positionPoints = 0;
   team.rondoAwaitingRecall = false;
+  if (isRondoMapActive()) {
+    team.rondoKnockAliveOnly = true;
+  }
 
   if (oldRank != null && Number.isFinite(oldRank)) {
     teams.forEach((t) => {
@@ -1827,6 +1966,47 @@ app.post("/settings", (req, res) => {
   if (Object.prototype.hasOwnProperty.call(req.body, "sideOverlayPrefs")) {
     settings.sideOverlayPrefs = sanitizeSideOverlayPrefs(req.body.sideOverlayPrefs || {});
   }
+  let gfxDraftBroadcast = null;
+  if (Object.prototype.hasOwnProperty.call(req.body, "wwcdStripColorMode")) {
+    settings.wwcdStripColorMode = sanitizeGfxColorMode(req.body.wwcdStripColorMode);
+    gfxDraftBroadcast = {
+      wwcdStripColorMode: settings.wwcdStripColorMode,
+      wwcdStripColors: settings.wwcdStripColors,
+      eliminationBannerColorMode: settings.eliminationBannerColorMode,
+      eliminationBannerColors: settings.eliminationBannerColors,
+      ts: Date.now(),
+    };
+  }
+  if (Object.prototype.hasOwnProperty.call(req.body, "wwcdStripColors")) {
+    settings.wwcdStripColors = sanitizeWwcdStripColors(req.body.wwcdStripColors || {});
+    gfxDraftBroadcast = {
+      wwcdStripColorMode: settings.wwcdStripColorMode,
+      wwcdStripColors: settings.wwcdStripColors,
+      eliminationBannerColorMode: settings.eliminationBannerColorMode,
+      eliminationBannerColors: settings.eliminationBannerColors,
+      ts: Date.now(),
+    };
+  }
+  if (Object.prototype.hasOwnProperty.call(req.body, "eliminationBannerColorMode")) {
+    settings.eliminationBannerColorMode = sanitizeGfxColorMode(req.body.eliminationBannerColorMode);
+    gfxDraftBroadcast = {
+      wwcdStripColorMode: settings.wwcdStripColorMode,
+      wwcdStripColors: settings.wwcdStripColors,
+      eliminationBannerColorMode: settings.eliminationBannerColorMode,
+      eliminationBannerColors: settings.eliminationBannerColors,
+      ts: Date.now(),
+    };
+  }
+  if (Object.prototype.hasOwnProperty.call(req.body, "eliminationBannerColors")) {
+    settings.eliminationBannerColors = sanitizeEliminationBannerColors(req.body.eliminationBannerColors || {});
+    gfxDraftBroadcast = {
+      wwcdStripColorMode: settings.wwcdStripColorMode,
+      wwcdStripColors: settings.wwcdStripColors,
+      eliminationBannerColorMode: settings.eliminationBannerColorMode,
+      eliminationBannerColors: settings.eliminationBannerColors,
+      ts: Date.now(),
+    };
+  }
   if (Object.prototype.hasOwnProperty.call(req.body, "obsBgmiLayerPack")) {
     const prevObs = settings.obsBgmiLayerPack;
     settings.obsBgmiLayerPack = sanitizeObsBgmiLayerPackServer(req.body.obsBgmiLayerPack || {}, prevObs);
@@ -1838,6 +2018,9 @@ app.post("/settings", (req, res) => {
   }
   persistAppSettings();
   io.emit("settingsUpdated", settings);
+  if (gfxDraftBroadcast) {
+    io.emit("overlayGfxDraft", gfxDraftBroadcast);
+  }
   if (Object.prototype.hasOwnProperty.call(req.body, "tournamentLogo")) {
     io.emit("tournamentLogoUpdated", { tournamentLogo: settings.tournamentLogo });
   }
@@ -2417,6 +2600,12 @@ io.on("connection", (socket) => {
   socket.on("requestTournamentLogo", () => {
     socket.emit("tournamentLogoUpdated", { tournamentLogo: settings.tournamentLogo });
     socket.emit("settingsUpdated", settings);
+  });
+
+  /** Live gfx color draft from admin — OBS overlays update before Apply */
+  socket.on("overlayGfxDraft", (payload) => {
+    if (!payload || typeof payload !== "object") return;
+    socket.broadcast.emit("overlayGfxDraft", payload);
   });
 });
 

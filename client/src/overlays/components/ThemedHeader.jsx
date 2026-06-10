@@ -1,9 +1,15 @@
 import { memo } from "react";
 
-function ThemedHeader({ theme, anim, columns, finishPointsRankingOnly }) {
+function ThemedHeader({ theme, anim, columns, finishPointsRankingOnly, rondoRecallColumn = false }) {
   const cols = columns || "52px 92px 38px 52px 46px";
   const t = theme.typography;
-  const labels = finishPointsRankingOnly ? ["RANK", "TEAM", "FIN", "ALIVE"] : ["RANK", "TEAM", "FIN", "TOTAL", "ALIVE"];
+  const labels = finishPointsRankingOnly
+    ? rondoRecallColumn
+      ? ["RANK", "TEAM", "FIN", "RECALL", "ALIVE"]
+      : ["RANK", "TEAM", "FIN", "ALIVE"]
+    : rondoRecallColumn
+      ? ["RANK", "TEAM", "FIN", "TOTAL", "RECALL", "ALIVE"]
+      : ["RANK", "TEAM", "FIN", "TOTAL", "ALIVE"];
 
   return (
     <div

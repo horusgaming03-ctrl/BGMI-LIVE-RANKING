@@ -180,6 +180,8 @@ function OverlayInner({ cumulativeOverall = false }) {
     [finishPointsRankingOnly],
   );
 
+  const rondoRecallColumn = normalizeMatchMeta(matchMeta)?.map === "rondo";
+
   const boardTeams = useMemo(() => {
     const matchIsLive = String(matchMeta.status || "live").toLowerCase() === "live";
 
@@ -244,6 +246,7 @@ function OverlayInner({ cumulativeOverall = false }) {
         anim={anim}
         config={config}
         finishPointsRankingOnly={finishPointsRankingOnly}
+        rondoRecallColumn={rondoRecallColumn}
         aliveStyle={aliveDisplay.style}
         aliveLayout={aliveDisplay.layout}
         aliveCustomAlive={aliveDisplay.customAlive}

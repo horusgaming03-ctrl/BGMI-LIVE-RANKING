@@ -3,7 +3,7 @@
   "tournamentLogo": "/uploads/tournament/tournament-logo-1779527454385.jpeg",
   "engineOverlayPrefs": null,
   "themedOverlayPrefs": {
-    "aliveStyle": "bolt",
+    "aliveStyle": "bar",
     "aliveLayout": "line",
     "aliveCustomAlive": null,
     "aliveCustomDead": null
@@ -19,16 +19,19 @@
     },
     "cleanBroadcast": {
       "colors": {
-        "accent": "#008cff",
-        "primary": "#1c3e5a",
-        "secondary": "#0d2b59"
+        "accent": "#ffffff",
+        "primary": "#ffffff",
+        "secondary": "#ffffff",
+        "gold": "#000000",
+        "textMuted": "#ffffff"
       },
       "alive": {
-        "color": "#399d3c"
+        "color": "#ffffff",
+        "deadColor": "#ffffff"
       },
       "row": {
-        "bgA": "#1b2431",
-        "bgB": "#262d36"
+        "bgA": "#0060e6",
+        "bgB": "#0e53b4"
       }
     }
   },
@@ -72,6 +75,24 @@
     "sparkleColor": "#e63946",
     "showSparkle": true,
     "bannerScale": 1
+  },
+  "wwcdStripColorMode": "custom",
+  "wwcdStripColors": {
+    "footerBg": "#0060e6",
+    "footerText": "#e8eaed",
+    "barFilled": "#ffffff",
+    "barDead": "#ffffff",
+    "barsBg": "#0e53b4",
+    "logoBoxBg": "#ffffff",
+    "initialsColor": "#000000"
+  },
+  "eliminationBannerColorMode": "custom",
+  "eliminationBannerColors": {
+    "primary": "#0060e6",
+    "accent": "#0060e6",
+    "gold": "#f5f5f5",
+    "secondary": "#0e53b4",
+    "textMuted": "#ffffff"
   },
   "obsBgmiLayerPack": {
     "layers": {
