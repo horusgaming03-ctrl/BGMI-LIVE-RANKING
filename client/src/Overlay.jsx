@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { connectSocket, getApiBase } from "./apiOrigin";
 import { buildOverlayStreamRankingOrder } from "./teamDisplayOrder";
+import { normalizeTeamsPayload, teamsPayloadEqual } from "./overlays/hooks/useSocketTeams";
 
 const API = getApiBase();
 
@@ -32,9 +33,8 @@ export default function Overlay() {
 
   useEffect(() => {
     const onTeams = (data) => {
-      setTeams(
-        Array.isArray(data) ? data : []
-      );
+      const next = normalizeTeamsPayload(data);
+      setTeams((prev) => (teamsPayloadEqual(prev, next) ? prev : next));
     };
 
     const onChicken = (data) => {

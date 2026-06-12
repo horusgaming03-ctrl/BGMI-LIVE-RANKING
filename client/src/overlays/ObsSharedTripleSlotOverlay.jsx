@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import socket, { API } from "./socket";
+import { normalizeTeamsPayload, teamsPayloadEqual } from "./hooks/useSocketTeams";
 import { buildOverlayStreamRankingOrder } from "../teamDisplayOrder";
 
 const SLOT_LABEL = {
@@ -386,7 +387,8 @@ export default function ObsSharedTripleSlotOverlay() {
   useEffect(() => {
     function onTeams(data) {
       teamsFromSocketRef.current = true;
-      setTeams(Array.isArray(data) ? data : []);
+      const next = normalizeTeamsPayload(data);
+      setTeams((prev) => (teamsPayloadEqual(prev, next) ? prev : next));
     }
     function requestTeams() {
       socket.emit("requestTeams");
@@ -415,7 +417,9 @@ export default function ObsSharedTripleSlotOverlay() {
           return;
         }
         if (!Array.isArray(d)) return;
-        if (!teamsFromSocketRef.current) setTeams(d);
+        if (!teamsFromSocketRef.current) {
+          setTeams((prev) => (teamsPayloadEqual(prev, d) ? prev : d));
+        }
       } catch {
         /* offline */
       }

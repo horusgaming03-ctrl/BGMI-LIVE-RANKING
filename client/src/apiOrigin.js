@@ -88,19 +88,22 @@ function directSocketBackendOrigin() {
 
 export function connectSocket(options = {}) {
   const base = getApiBase();
-  const opts = { transports: ["polling", "websocket"], ...options };
+  const opts = {
+    transports: ["polling", "websocket"],
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    timeout: 20000,
+    ...options,
+  };
 
   /**
-   * Vite dev: loopback opens UI as `localhost` / `127.0.0.1` → direct Socket.IO to Node avoids flaky ws proxy churn.
-   * LAN / hostname (e.g. `http://192.168.x.x:5173`) must use **same-origin** Socket.IO so Vite proxies `/socket.io` →
-   * `:3001`. Otherwise the client tries `hostname:3001`, which fails when Node only listens on `127.0.0.1` (blank overlays).
+   * Vite dev/preview: always connect Socket.IO straight to Node on :3001 (API binds 0.0.0.0).
+   * Never tunnel WebSockets through Vite — that causes `ws proxy ECONNRESET` when the API restarts.
    */
   const port = typeof window !== "undefined" ? String(window.location.port || "") : "";
   if (base === "/api" && viteDevUiPorts().has(port)) {
-    const host = typeof window !== "undefined" ? window.location.hostname : "";
-    if (host && !isBrowserLoopbackHostname(host)) {
-      return io(typeof window !== "undefined" ? window.location.origin : undefined, opts);
-    }
     return io(directSocketBackendOrigin(), opts);
   }
 

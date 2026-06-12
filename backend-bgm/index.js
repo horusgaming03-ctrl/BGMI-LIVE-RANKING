@@ -1511,7 +1511,7 @@ app.post("/teams/:id/knock", (req, res) => {
   res.json(team);
 });
 
-/** Rondo: spend recall credits only — alive count unchanged. */
+/** Rondo: spend recall credits and restore alive slots (1 credit per player recalled). */
 app.post("/teams/:id/recall-player", (req, res) => {
   if (!isRondoMapActive()) return res.status(400).json({ message: "Recall only when match map is Rondo" });
 
@@ -1525,18 +1525,31 @@ app.post("/teams/:id/recall-player", (req, res) => {
   if (st === "eliminated") {
     return res.status(400).json({ message: "Team is eliminated." });
   }
+  if (st === "rondo_benched") {
+    return res.status(400).json({ message: "Squad is benched — use Rondo bench redeploy instead." });
+  }
+
+  const ap = Math.max(0, Math.min(4, Number(team.alivePlayers) || 0));
+  const maxAdd = 4 - ap;
+  if (maxAdd <= 0) {
+    return res.status(400).json({ message: "Squad is already 4/4 — no slots to recall." });
+  }
 
   const raw = Number(req.body?.count ?? req.body?.recallCount ?? 1);
-  const spend = Number.isFinite(raw) ? Math.max(1, Math.min(4, Math.trunc(raw))) : 1;
+  const spend = Number.isFinite(raw) ? Math.max(1, Math.min(maxAdd, Math.trunc(raw))) : 1;
   const charges = team.rondoRecallChargesRemaining;
   if (charges <= 0) {
     return res.status(400).json({ message: "No recall credits left." });
   }
   if (spend > charges) {
-    return res.status(400).json({ message: `Only ${charges} recall credit(s) left.` });
+    return res.status(400).json({ message: `Need ${spend} recall credit(s) but squad only has ${charges} left.` });
   }
 
   clearRondoKnockAliveOnly(team);
+  team.rondoAwaitingRecall = false;
+  const nextAlive = Math.min(4, ap + spend);
+  team.alivePlayers = nextAlive;
+  team.status = nextAlive === 4 ? "alive" : "knocked";
   team.rondoRecallChargesRemaining = charges - spend;
   team.rondoRecallConsumed = team.rondoRecallChargesRemaining <= 0;
   if (settings.autoCalculate) recalculatePoints(team);

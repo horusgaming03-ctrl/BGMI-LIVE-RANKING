@@ -14,7 +14,8 @@ function MiniBars({ alive, total = 4 }) {
             width: 8,
             height: 22,
             borderRadius: 3,
-            background: i < ap ? "#f8fafc" : "rgba(255,255,255,.18)",
+            background: i < ap ? "#5cff72" : "#e63946",
+            opacity: i < ap ? 1 : 0.85,
           }}
         />
       ))}
@@ -44,7 +45,7 @@ function MiniBolts({ credits, total = RONDO_RECALL_CHARGE_CAP }) {
 }
 
 /**
- * Rondo: player down — choose Eliminate (alive only) or Recall (recall bolts only).
+ * Rondo: confirm player elimination (alive down) or squad recall (alive up + credits down).
  */
 export default function RondoPlayerChoiceModal({
   team,
@@ -99,6 +100,7 @@ export default function RondoPlayerChoiceModal({
             {Array.from({ length: maxRecall }, (_, i) => {
               const n = i + 1;
               const nextCredits = credits - n;
+              const nextAlive = Math.min(4, currentAlive + n);
               return (
                 <button
                   key={n}
@@ -108,7 +110,7 @@ export default function RondoPlayerChoiceModal({
                 >
                   ⚡ Recall +{n}
                   <span className="rpc-btn__sub">
-                    {nextCredits > 0 ? `${nextCredits} recall${nextCredits === 1 ? "" : "s"} left` : "No recalls left"} · Alive stays {currentAlive}/4
+                    Alive → {nextAlive}/4 · {nextCredits} credit{nextCredits === 1 ? "" : "s"} left
                   </span>
                 </button>
               );

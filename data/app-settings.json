@@ -1,6 +1,6 @@
 {
   "autoCalculate": true,
-  "tournamentLogo": "/uploads/tournament/tournament-logo-1779527454385.jpeg",
+  "tournamentLogo": null,
   "engineOverlayPrefs": null,
   "themedOverlayPrefs": {
     "aliveStyle": "bar",
@@ -32,6 +32,56 @@
       "row": {
         "bgA": "#0060e6",
         "bgB": "#0e53b4"
+      }
+    },
+    "minimal": {
+      "colors": {
+        "primary": "#ffffff",
+        "secondary": "#fffafa",
+        "accent": "#f2f2f2",
+        "textMuted": "#fff0f0",
+        "gold": "#000000"
+      },
+      "alive": {
+        "color": "#e6e6e6"
+      },
+      "row": {
+        "bgA": "#e00000",
+        "bgB": "#931b1b"
+      }
+    },
+    "esports": {
+      "colors": {
+        "primary": "#ffffff",
+        "secondary": "#ffffff",
+        "accent": "#ffffff",
+        "gold": "#1e2a3a",
+        "textMuted": "#ffffff"
+      },
+      "alive": {
+        "color": "#ffffff",
+        "deadColor": "#000000"
+      },
+      "row": {
+        "bgA": "#113e0e",
+        "bgB": "#1b651a"
+      }
+    },
+    "premiumGold": {
+      "colors": {
+        "primary": "#ffffff",
+        "secondary": "#ffffff",
+        "accent": "#ffffff",
+        "textMuted": "#ffffff",
+        "gold": "#0f0000",
+        "text": "#ffffff"
+      },
+      "alive": {
+        "color": "#ffffff"
+      },
+      "row": {
+        "bgA": "#ffb638",
+        "bgB": "#ca8a1c"
       }
     }
   },
@@ -82,7 +132,7 @@
     "footerText": "#e8eaed",
     "barFilled": "#ffffff",
     "barDead": "#ffffff",
-    "barsBg": "#0e53b4",
+    "barsBg": "#0060e6",
     "logoBoxBg": "#ffffff",
     "initialsColor": "#000000"
   },

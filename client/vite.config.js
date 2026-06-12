@@ -4,8 +4,7 @@ import { scheduleOverlayApiPlugin } from "./vite-schedule-overlay-api.js";
 
 /** Forward to Node API on 127.0.0.1 to avoid localhost IPv6 vs IPv4 mismatches on Windows. */
 const proxy = {
-  /** changeOrigin avoids odd WS upgrade edge cases when proxying Socket.IO */
-  "/socket.io": { target: "http://127.0.0.1:3001", ws: true, changeOrigin: true },
+  /** Socket.IO connects directly to :3001 in dev (see client/src/apiOrigin.js) — no ws proxy. */
   "/api": {
     target: "http://127.0.0.1:3001",
     changeOrigin: true,

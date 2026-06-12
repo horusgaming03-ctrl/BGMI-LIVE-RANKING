@@ -73,29 +73,41 @@ export function scheduleBackgroundMediaType(bg) {
   return isScheduleVideoUrl(bg.imageUrl) ? "video" : "image";
 }
 
-/** Client-side duration check for background video (1–10 s). */
+/** Client-side duration check for background video (1–10 s). Images use onload (not onloadedmetadata). */
 export function probeBackgroundFile(file) {
   return new Promise((resolve, reject) => {
     if (!file) return reject(new Error("No file"));
     const url = URL.createObjectURL(file);
-    const isVideo = (file.type || "").startsWith("video/");
-    const el = document.createElement(isVideo ? "video" : "img");
-    el.preload = "metadata";
+    const isVideo =
+      (file.type || "").startsWith("video/") ||
+      /\.(mp4|webm|mov|m4v|ogg)(\?|#|$)/i.test(file.name || "");
     const cleanup = () => URL.revokeObjectURL(url);
-    el.onloadedmetadata = () => {
-      const duration = isVideo ? el.duration : null;
-      cleanup();
-      resolve({ isVideo, duration });
-    };
-    el.onerror = () => {
+    const fail = () => {
       cleanup();
       reject(new Error("Could not read file"));
     };
+
     if (isVideo) {
-      el.muted = true;
-      el.playsInline = true;
+      const video = document.createElement("video");
+      video.preload = "metadata";
+      video.muted = true;
+      video.playsInline = true;
+      video.onloadedmetadata = () => {
+        cleanup();
+        resolve({ isVideo: true, duration: video.duration });
+      };
+      video.onerror = fail;
+      video.src = url;
+      return;
     }
-    el.src = url;
+
+    const img = new Image();
+    img.onload = () => {
+      cleanup();
+      resolve({ isVideo: false, duration: null });
+    };
+    img.onerror = fail;
+    img.src = url;
   });
 }
 

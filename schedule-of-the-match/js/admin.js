@@ -646,7 +646,7 @@ async function init() {
   populateForm();
   wireEvents();
   await pollLiveTournament();
-  setInterval(pollLiveTournament, 2000);
+  setInterval(pollLiveTournament, 20000);
 }
 
 init();

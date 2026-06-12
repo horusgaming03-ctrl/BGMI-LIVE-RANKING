@@ -526,48 +526,6 @@ export default function AdminPanel() {
     setMessage("Alive count updated.");
   }, [API, teams, currentMatch]);
 
-  const spendRondoRecall = useCallback(
-    async (teamId, count = 1) => {
-      const res = await fetch(`${API}/teams/${teamId}/recall-player`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ count: Math.trunc(count) }),
-      });
-      if (!res.ok) {
-        let msg = "Recall failed.";
-        try {
-          const j = await res.json();
-          if (j?.message) msg = String(j.message);
-        } catch {
-          /* ignore */
-        }
-        if (res.status === 404) {
-          msg = "Recall API missing — restart backend (npm run start:backend) then retry.";
-        }
-        setMessage(msg);
-        socket.emit("requestTeams");
-        return null;
-      }
-      try {
-        const t = await res.json();
-        const rem = getRondoRecallChargesRemaining(t);
-        setMessage(
-          rem > 0
-            ? `Recall used — ${rem} chance${rem === 1 ? "" : "s"} left. Alive unchanged.`
-            : "All recalls used — only eliminations affect alive now.",
-        );
-        socket.emit("requestTeams");
-        socket.emit("requestMatch");
-        return t;
-      } catch {
-        setMessage("Recall used — alive unchanged.");
-        socket.emit("requestTeams");
-        return null;
-      }
-    },
-    [API],
-  );
-
   const triggerRondoRecall = useCallback(
     async (teamId, addAliveSlots) => {
       const mapSlug = normalizeMatchMeta(currentMatch)?.map || "erangel";
@@ -2029,11 +1987,23 @@ export default function AdminPanel() {
                                   style={{
                                     ...dash.aliveSlot,
                                     fontSize: 11,
-                                    background: i < aliveSlots ? "rgba(67,233,123,.12)" : "rgba(255,255,255,.04)",
-                                    color: i < aliveSlots ? "#43e97b" : "#5c6370",
-                                    border: `1px solid ${i < aliveSlots ? "rgba(67,233,123,.42)" : "rgba(255,255,255,.07)"}`,
+                                    background:
+                                      i < aliveSlots
+                                        ? "rgba(92,255,114,.18)"
+                                        : aliveSlots > 0
+                                          ? "rgba(230,57,70,.22)"
+                                          : "rgba(255,255,255,.04)",
+                                    color: i < aliveSlots ? "#5cff72" : aliveSlots > 0 ? "#e63946" : "#5c6370",
+                                    borderWidth: 1,
+                                    borderStyle: "solid",
+                                    borderColor:
+                                      i < aliveSlots
+                                        ? "rgba(92,255,114,.55)"
+                                        : aliveSlots > 0
+                                          ? "rgba(230,57,70,.55)"
+                                          : "rgba(255,255,255,.07)",
                                   }}
-                                  title={i < aliveSlots ? "Alive" : "Down"}
+                                  title={i < aliveSlots ? "Alive" : aliveSlots > 0 ? "Eliminated" : "Down"}
                                 >
                                   👤
                                 </div>
@@ -2720,7 +2690,6 @@ export default function AdminPanel() {
                 ns={ns}
                 knockTeam={knockTeam}
                 setAlive={setAlive}
-                spendRondoRecall={spendRondoRecall}
                 adjustTeamFinishes={adjustTeamFinishes}
                 triggerRondoRecall={triggerRondoRecall}
                 undoRondoMistakenBench={undoRondoMistakenBench}

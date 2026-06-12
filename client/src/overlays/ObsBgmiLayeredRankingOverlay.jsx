@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import socket, { API, apiUrl } from "./socket";
 import { buildOverlayStreamRankingOrder } from "../teamDisplayOrder";
+import { normalizeTeamsPayload, overlayPackEqual, teamsPayloadEqual } from "./hooks/useSocketTeams";
 import { mergeObsBgmiLayerPack, OBS_BGMI_LAYER_IDS, resolveBgmiLayerPlateId } from "../obsBgmiLayerPack";
 
 /**
@@ -122,8 +123,12 @@ export default function ObsBgmiLayeredRankingOverlay() {
   useEffect(() => {
     const apply = (payload) => {
       if (!payload?.obsBgmiLayerPack || typeof payload.obsBgmiLayerPack !== "object") return;
-      setPack(mergeObsBgmiLayerPack({}, payload.obsBgmiLayerPack));
-      setAssetsEpoch((n) => n + 1);
+      const nextPack = mergeObsBgmiLayerPack({}, payload.obsBgmiLayerPack);
+      setPack((prevPack) => {
+        if (overlayPackEqual(prevPack, nextPack)) return prevPack;
+        setAssetsEpoch((n) => n + 1);
+        return nextPack;
+      });
     };
     socket.on("settingsUpdated", apply);
     socket.emit("requestSettings");
@@ -135,7 +140,10 @@ export default function ObsBgmiLayeredRankingOverlay() {
   }, []);
 
   useEffect(() => {
-    const onTeams = (data) => setTeams(Array.isArray(data) ? data : []);
+    const onTeams = (data) => {
+      const next = normalizeTeamsPayload(data);
+      setTeams((prev) => (teamsPayloadEqual(prev, next) ? prev : next));
+    };
     socket.on("teamsUpdated", onTeams);
     socket.emit("requestTeams");
     return () => socket.off("teamsUpdated", onTeams);
