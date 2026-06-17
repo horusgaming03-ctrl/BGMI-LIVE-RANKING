@@ -42,8 +42,8 @@
         "knockedColor": "#f50505"
       },
       "typography": {
-        "fontFamily": "'Teko', sans-serif",
-        "numbersFontFamily": "'Teko', sans-serif"
+        "fontFamily": "'Oswald', sans-serif",
+        "numbersFontFamily": "'Oswald', sans-serif"
       }
     },
     "minimal": {

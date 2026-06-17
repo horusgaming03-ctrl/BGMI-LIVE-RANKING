@@ -312,14 +312,16 @@
   flex-direction: row;
   align-items: stretch;
   justify-content: center;
-  gap: 3px;
+  gap: 5px;
   height: 26px;
-  width: 33px;
+  width: auto;
+  max-width: 100%;
 }
 
 .lr-status-bar {
   width: 6px;
-  border-radius: 3px;
+  height: 100%;
+  border-radius: 0;
   flex-shrink: 0;
   transition: background-color var(--lr-transition-fast);
 }

@@ -30,7 +30,7 @@ function SquadBars({ alivePlayers, barGreen, barDead, barsBg }) {
         display: "flex",
         alignItems: "flex-end",
         justifyContent: "center",
-        gap: 6,
+        gap: 8,
         padding: "10px 8px",
         background: barsBg,
         minHeight: 72,
@@ -42,7 +42,7 @@ function SquadBars({ alivePlayers, barGreen, barDead, barsBg }) {
           style={{
             width: 10,
             height: 46,
-            borderRadius: 3,
+            borderRadius: 0,
             background: i < n ? barGreen : barDead,
             boxShadow: i < n ? "inset 0 -2px 0 rgba(0,0,0,.2)" : "none",
           }}

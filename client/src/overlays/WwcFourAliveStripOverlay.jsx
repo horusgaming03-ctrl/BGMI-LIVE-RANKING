@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
-import socket from "./socket";
-import { wwcdPercentsForStripTeams, stripTeamsFromAlive } from "../wwcdModel";
-import WwcdStripTeamCard, { wwcdStripStyleFromColors } from "./WwcdStripTeamCard";
-import BroadcastWwcdStripCard from "./BroadcastWwcdStripCard";
+import { useEffect, useState } from "react";
+import WwcdFourAliveStrip from "./WwcdFourAliveStrip";
+import { stripTeamsFromAlive } from "../wwcdModel";
 import { useGfxOverlayColors } from "./hooks/useGfxOverlayColors";
+import socket from "./socket";
 
 export default function WwcFourAliveStripOverlay() {
   const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
@@ -12,8 +11,6 @@ export default function WwcFourAliveStripOverlay() {
 
   const [teams, setTeams] = useState([]);
   const { wwcdStripColors } = useGfxOverlayColors();
-  const stripStyle = useMemo(() => wwcdStripStyleFromColors(wwcdStripColors), [wwcdStripColors]);
-  const StripCard = stripStyle.broadcastLayout ? BroadcastWwcdStripCard : WwcdStripTeamCard;
 
   useEffect(() => {
     const onTeams = (data) => setTeams(Array.isArray(data) ? data : []);
@@ -29,17 +26,8 @@ export default function WwcFourAliveStripOverlay() {
     };
   }, []);
 
-  /** Show strip for final-circle counts only: 1–4 squads still alive (>4 hidden). */
-  const stripTeams = useMemo(() => {
-    const sorted = stripTeamsFromAlive(teams);
-    return sorted.length ? sorted : null;
-  }, [teams]);
-
-  const aliveTeams = useMemo(() => {
-    return teams.filter((t) => String(t.status || "").toLowerCase() !== "eliminated");
-  }, [teams]);
-
-  const percents = useMemo(() => wwcdPercentsForStripTeams(stripTeams), [stripTeams]);
+  const stripTeams = stripTeamsFromAlive(teams);
+  const aliveTeams = teams.filter((t) => String(t.status || "").toLowerCase() !== "eliminated");
 
   return (
     <div
@@ -52,49 +40,9 @@ export default function WwcFourAliveStripOverlay() {
         overflow: "hidden",
       }}
     >
-      {stripTeams && (
-        <div
-          style={{
-            position: "absolute",
-            left: "50%",
-            ...(position === "bottom"
-              ? { bottom: "7%", transform: "translateX(-50%)" }
-              : { top: "50%", transform: "translate(-50%, -50%)" }),
-            width: "max-content",
-            maxWidth: "min(1680px, 96vw)",
-            display: "flex",
-            flexDirection: "row",
-            gap: stripStyle.broadcastLayout ? 8 : 14,
-            flexWrap: "nowrap",
-            alignItems: "stretch",
-            justifyContent: "center",
-          }}
-        >
-          {stripTeams.map((team, i) => (
-            <StripCard
-              key={team.id ?? `${team.team}-${i}`}
-              team={team}
-              wwcdPct={percents[i] ?? 0}
-              logoBoxBg={stripStyle.logoBoxBg}
-              barGreen={stripStyle.barGreen}
-              barDead={stripStyle.barDead}
-              barsBg={stripStyle.barsBg}
-              footerBg={stripStyle.footerBg}
-              footerText={stripStyle.footerText}
-              dividerColor={stripStyle.dividerColor}
-              pctTextColor={stripStyle.pctTextColor}
-              initialsColor={stripStyle.initialsColor}
-              fontFamily={stripStyle.fontFamily}
-              cardBoxShadow={stripStyle.cardBoxShadow}
-              cardWidth={stripStyle.cardWidth}
-              teamTagBg={stripStyle.teamTagBg}
-              teamTagText={stripStyle.teamTagText}
-            />
-          ))}
-        </div>
-      )}
+      <WwcdFourAliveStrip teams={teams} stripColors={wwcdStripColors} position={position} />
 
-      {debug && !stripTeams && (
+      {debug && !stripTeams.length && (
         <div
           style={{
             position: "fixed",

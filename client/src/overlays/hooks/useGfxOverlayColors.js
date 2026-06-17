@@ -35,9 +35,11 @@ function gfxFromSettings(s) {
 /**
  * Resolved WWCD strip + elimination colors for OBS overlays.
  * Default: follow active live-ranking theme. Custom mode uses saved picker values.
+ * @param {{ theme?: object }} [options] — pass theme from ThemeContext on `/overlay/themed`
  */
-export function useGfxOverlayColors() {
-  const { mergedTheme, themeName } = useLiveRankingThemePalette();
+export function useGfxOverlayColors(options = {}) {
+  const { mergedTheme: activeTheme, themeName } = useLiveRankingThemePalette();
+  const mergedTheme = options.theme ?? activeTheme;
   const [gfxSettings, setGfxSettings] = useState(DEFAULT_GFX_SETTINGS);
   const [draft, setDraft] = useState(null);
 

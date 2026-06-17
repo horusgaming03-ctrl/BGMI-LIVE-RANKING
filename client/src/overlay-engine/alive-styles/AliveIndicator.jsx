@@ -456,12 +456,11 @@ function AliveIndicator({
     );
   }
 
-  /** Four tall vertical bars in one row — flat rects with slight corners (not full pills). */
+  /** Four tall vertical bars in one row — flat rectangles. */
   if (styleId === "bar") {
     const barW = Math.max(7, Math.round(size));
     const barH = Math.max(Math.round(barW * 3.5), Math.round(size * 3.25));
-    const barGap = Math.max(4, Math.round(barW * 0.75));
-    const barRadius = Math.max(2, Math.round(barW * 0.22));
+    const barGap = Math.max(5, Math.round(barW * 1.05));
     return (
       <div
         style={{
@@ -480,7 +479,7 @@ function AliveIndicator({
             style={{
               width: barW,
               height: barH,
-              borderRadius: barRadius,
+              borderRadius: 0,
               background: i < c ? color : deadColor,
               opacity: i < c ? 1 : 0.55,
               boxShadow: "none",

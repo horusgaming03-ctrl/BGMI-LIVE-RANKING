@@ -18,6 +18,7 @@ import { overlayPathMatches } from "./utils/overlayPrefsMatch";
 import { buildOverlayStreamRankingOrder } from "../teamDisplayOrder";
 import { normalizeMatchMeta } from "../normalizeMatchMeta";
 import { useOverlayTeams } from "./hooks/useSocketTeams";
+import { stripTeamsFromAlive } from "../wwcdModel";
 
 function OverlayInner({ cumulativeOverall = false }) {
   const location = useLocation();
@@ -227,6 +228,8 @@ function OverlayInner({ cumulativeOverall = false }) {
 
   const broadcastCssVars = useMemo(() => themeToBroadcastCssVars(theme), [theme]);
   const useBroadcastLayout = Boolean(theme.broadcastLayout);
+  /** Final circle (1–4 squads left): hide live ranking entirely — use `/overlay/wwcd-only` for the strip. */
+  const hideLiveRanking = useMemo(() => stripTeamsFromAlive(teams).length > 0, [teams]);
 
   return (
     <div
@@ -241,7 +244,9 @@ function OverlayInner({ cumulativeOverall = false }) {
         position: "relative",
       }}
     >
-      {!useBroadcastLayout ? <BackgroundEffects theme={theme} enabled={config.enableBackgroundEffects} /> : null}
+      {!useBroadcastLayout && !hideLiveRanking ? (
+        <BackgroundEffects theme={theme} enabled={config.enableBackgroundEffects} />
+      ) : null}
 
       {showWWCD && winner && (
         <ThemedWWCD
@@ -253,7 +258,7 @@ function OverlayInner({ cumulativeOverall = false }) {
         />
       )}
 
-      {useBroadcastLayout ? (
+      {!hideLiveRanking && useBroadcastLayout ? (
         <BroadcastRankingBoard
           teams={boardTeams}
           finishPointsRankingOnly={finishPointsRankingOnly}
@@ -262,7 +267,7 @@ function OverlayInner({ cumulativeOverall = false }) {
           showRecall={rondoRecallColumn}
           hotRank={theme.broadcast?.hotRank}
         />
-      ) : (
+      ) : !hideLiveRanking ? (
         <ThemedBoard
           teams={boardTeams}
           theme={theme}
@@ -275,8 +280,8 @@ function OverlayInner({ cumulativeOverall = false }) {
           aliveCustomAlive={aliveDisplay.customAlive}
           aliveCustomDead={aliveDisplay.customDead}
         />
-      )}
-      {!useBroadcastLayout ? <ThemeSwitcher /> : null}
+      ) : null}
+      {!useBroadcastLayout && !hideLiveRanking ? <ThemeSwitcher /> : null}
 
       <style>{`
         * { margin: 0; padding: 0; box-sizing: border-box; }
