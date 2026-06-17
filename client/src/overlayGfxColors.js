@@ -1,4 +1,5 @@
 import { clampHexColor } from "./sideOverlayPrefs";
+import { broadcastElimStyleFromTheme, broadcastElimStyleFromPatch, broadcastWwcdStripColorsResolved, isLegacyWwcdStripCustom, isBroadcastGfxTheme, BROADCAST_ELIMINATION_COLOR_KEYS, BROADCAST_ELIMINATION_DEFAULTS, BROADCAST_WWCD_STRIP_COLOR_KEYS } from "./overlays/broadcastGfxUtils";
 
 export const GFX_COLOR_MODE_THEME = "theme";
 export const GFX_COLOR_MODE_CUSTOM = "custom";
@@ -47,7 +48,20 @@ export function mergeWwcdStripColors(patch) {
   for (const k of WWCD_STRIP_COLOR_KEYS) {
     if (patch[k] != null) o[k] = patch[k];
   }
-  return clampWwcdStripColors(o);
+  const out = clampWwcdStripColors(o);
+  if (patch.broadcastLayout) out.broadcastLayout = true;
+  if (typeof patch.fontFamily === "string" && patch.fontFamily.length <= 120) {
+    out.fontFamily = patch.fontFamily.trim();
+  }
+  for (const k of BROADCAST_WWCD_STRIP_COLOR_KEYS) {
+    if (patch[k] != null) {
+      out[k] = clampHexColor(patch[k], out.teamTagBg || out.footerBg || "#ffffff");
+    }
+  }
+  if (out.broadcastLayout || BROADCAST_WWCD_STRIP_COLOR_KEYS.some((k) => patch[k] != null)) {
+    out.broadcastLayout = true;
+  }
+  return out;
 }
 
 export function mergeEliminationBannerColors(patch) {
@@ -56,7 +70,14 @@ export function mergeEliminationBannerColors(patch) {
   for (const k of ELIMINATION_BANNER_COLOR_KEYS) {
     if (patch[k] != null) o[k] = patch[k];
   }
-  return clampEliminationBannerColors(o);
+  const out = clampEliminationBannerColors(o);
+  if (patch.broadcastLayout) out.broadcastLayout = true;
+  for (const k of BROADCAST_ELIMINATION_COLOR_KEYS) {
+    if (patch[k] != null) {
+      out[k] = clampHexColor(patch[k], BROADCAST_ELIMINATION_DEFAULTS[k]);
+    }
+  }
+  return out;
 }
 
 export function clampWwcdStripColors(obj) {
@@ -122,6 +143,10 @@ export function inferEliminationBannerColorMode(savedMode, savedColors) {
 
 /** Derive WWCD 4-squad strip palette from active live-ranking theme */
 export function wwcdStripColorsFromTheme(theme) {
+  if (isBroadcastGfxTheme(theme)) {
+    return broadcastWwcdStripColorsResolved(theme, {});
+  }
+
   const c = theme?.colors || {};
   const alive = theme?.alive || {};
   const row = theme?.row || {};
@@ -139,6 +164,21 @@ export function wwcdStripColorsFromTheme(theme) {
 
 /** Derive elimination banner palette from active live-ranking theme */
 export function eliminationBannerColorsFromTheme(theme) {
+  if (isBroadcastGfxTheme(theme)) {
+    const b = broadcastElimStyleFromTheme(theme);
+    return {
+      ...clampEliminationBannerColors({
+        primary: b.elimBg,
+        accent: b.panelBg,
+        gold: b.nameTagBg,
+        secondary: b.panelBg,
+        textMuted: b.statsText,
+      }),
+      broadcastLayout: true,
+      broadcastStyle: b,
+    };
+  }
+
   const c = theme?.colors || {};
   const wwcd = theme?.wwcd || {};
   return clampEliminationBannerColors({
@@ -151,6 +191,16 @@ export function eliminationBannerColorsFromTheme(theme) {
 }
 
 export function resolveWwcdStripColors(mode, customColors, theme) {
+  if (isBroadcastGfxTheme(theme)) {
+    const useCustom =
+      normalizeGfxColorMode(mode) === GFX_COLOR_MODE_CUSTOM &&
+      customColors?.broadcastLayout === true &&
+      !isLegacyWwcdStripCustom(customColors);
+    if (useCustom) {
+      return broadcastWwcdStripColorsResolved(theme, customColors);
+    }
+    return broadcastWwcdStripColorsResolved(theme, {});
+  }
   if (normalizeGfxColorMode(mode) === GFX_COLOR_MODE_CUSTOM) {
     return mergeWwcdStripColors(customColors);
   }
@@ -158,6 +208,30 @@ export function resolveWwcdStripColors(mode, customColors, theme) {
 }
 
 export function resolveEliminationBannerColors(mode, customColors, theme) {
+  if (isBroadcastGfxTheme(theme)) {
+    const base = broadcastElimStyleFromTheme(theme);
+    if (normalizeGfxColorMode(mode) === GFX_COLOR_MODE_CUSTOM) {
+      const merged = mergeEliminationBannerColors(customColors);
+      const broadcastStyle = broadcastElimStyleFromPatch(base, merged);
+      return {
+        ...merged,
+        broadcastLayout: true,
+        broadcastStyle,
+      };
+    }
+    return {
+      ...clampEliminationBannerColors({
+        primary: base.elimBg,
+        accent: base.panelBg,
+        gold: base.nameTagBg,
+        secondary: base.panelBg,
+        textMuted: base.statsText,
+      }),
+      broadcastLayout: true,
+      broadcastStyle: base,
+    };
+  }
+
   if (normalizeGfxColorMode(mode) === GFX_COLOR_MODE_CUSTOM) {
     return mergeEliminationBannerColors(customColors);
   }

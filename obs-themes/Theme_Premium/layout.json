@@ -1,0 +1,57 @@
+{
+  "id": "Theme_Premium",
+  "name": "PMGC Gold",
+  "description": "Cinematic gold/black broadcast — glass right panel, full stats, elegant motion.",
+  "version": "1.0.0",
+  "fields": {
+    "rank": true,
+    "teamName": true,
+    "teamLogo": true,
+    "totalPoints": true,
+    "finishPoints": true,
+    "placementPoints": true,
+    "alivePlayers": true,
+    "eliminatorName": false
+  },
+  "modules": {
+    "live-ranking": { "enabled": true, "maxRows": 14, "title": "Live Ranking" },
+    "eliminated": { "enabled": true, "durationMs": 7000 },
+    "top-four": { "enabled": true },
+    "recall": { "enabled": true },
+    "mvp": { "enabled": true },
+    "match-winner": { "enabled": true },
+    "kill-feed": { "enabled": false },
+    "team-spotlight": { "enabled": true },
+    "final-results": { "enabled": true, "maxRows": 14, "title": "Championship Standings" }
+  },
+  "pngSlots": {
+    "liveRanking": {
+      "assetKey": "liveRanking",
+      "frame": { "x": 58, "y": 10, "w": 38, "h": 82 },
+      "fit": "cover",
+      "mask": "rounded",
+      "shadow": true,
+      "glow": true,
+      "glowColor": "rgba(212,175,55,0.35)"
+    },
+    "teamBanner": {
+      "assetKey": "teamBanner",
+      "frame": { "x": 4, "y": 12, "w": 50, "h": 18 },
+      "fit": "cover",
+      "brightness": 0.95
+    },
+    "mvp": {
+      "assetKey": "mvp",
+      "frame": { "x": 8, "y": 72, "w": 18, "h": 22 },
+      "fit": "contain",
+      "glow": true,
+      "glowColor": "rgba(255,215,100,0.5)"
+    }
+  },
+  "assets": {
+    "background": "assets/bg-main.svg"
+  },
+  "typography": {
+    "fontFamily": "\"Cinzel\", \"Times New Roman\", serif"
+  }
+}

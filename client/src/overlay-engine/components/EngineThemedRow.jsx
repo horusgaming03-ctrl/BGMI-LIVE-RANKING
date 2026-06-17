@@ -76,7 +76,7 @@ function EngineThemedRow({ team, index, theme, anim, columns, aliveStyle, aliveL
       <div
         style={{
           textAlign: "center",
-          color: (team.finishes ?? 0) > 0 ? theme.colors.gold : theme.colors.textMuted,
+          color: theme.colors.text,
           fontSize: t.numberSize,
           fontWeight: 700,
         }}

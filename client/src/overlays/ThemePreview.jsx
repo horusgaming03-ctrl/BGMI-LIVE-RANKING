@@ -15,6 +15,14 @@ import {
   resolveThemePreviewPremiumPack,
   listThemePreviewPremiumPackOptions,
 } from "./themePreviewPremiumAnimations";
+import BroadcastRankingBoard, { themeToBroadcastCssVars } from "./components/BroadcastRankingBoard";
+import { BMPS_PREVIEW_TEAMS, LIVE_RANKING_FONT_OPTIONS } from "./broadcastBmpsUtils";
+import { BROADCAST_ELIMINATION_PICKERS, BROADCAST_WWCD_STRIP_PICKERS, BROADCAST_WWCD_STRIP_DEFAULTS, broadcastElimStyleFromTheme, broadcastElimStyleToGfxDraft, broadcastWwcdDraftFromTheme, broadcastWwcdStripStyleFromTheme, broadcastWwcdStripToGfxDraft } from "./broadcastGfxUtils";
+import BroadcastEliminationBanner from "./components/BroadcastEliminationBanner";
+import BroadcastWwcdStripCard from "./BroadcastWwcdStripCard";
+import { publishGfxPreviewDraft } from "./OverlayGfxAdminPreview";
+import { GFX_COLOR_MODE_CUSTOM } from "../overlayGfxColors";
+import { wwcdPercentsForStripTeams } from "../wwcdModel";
 
 const SAMPLE_TEAMS = [
   { id: 1, team: "SOUL", finishes: 4, points: 42, logo: null, alivePlayers: 4, status: "alive" },
@@ -23,12 +31,18 @@ const SAMPLE_TEAMS = [
   { id: 4, team: "TSM", finishes: 1, points: 23, logo: null, alivePlayers: 4, status: "alive" },
 ];
 
-function pruneColorOverrideDraft(d) {
+function pruneColorOverrideDraft(d, broadcastLayout = false) {
   if (!d || typeof d !== "object") return {};
   const out = {};
-  if (d.colors && typeof d.colors === "object" && Object.keys(d.colors).length) out.colors = d.colors;
-  if (d.alive && typeof d.alive === "object" && Object.keys(d.alive).length) out.alive = d.alive;
-  if (d.row && typeof d.row === "object" && Object.keys(d.row).length) out.row = d.row;
+  if (!broadcastLayout) {
+    if (d.colors && typeof d.colors === "object" && Object.keys(d.colors).length) out.colors = d.colors;
+    if (d.alive && typeof d.alive === "object" && Object.keys(d.alive).length) out.alive = d.alive;
+    if (d.row && typeof d.row === "object" && Object.keys(d.row).length) out.row = d.row;
+  }
+  if (d.broadcast && typeof d.broadcast === "object" && Object.keys(d.broadcast).length) out.broadcast = d.broadcast;
+  if (d.elimination && typeof d.elimination === "object" && Object.keys(d.elimination).length) out.elimination = d.elimination;
+  if (d.wwcdStrip && typeof d.wwcdStrip === "object" && Object.keys(d.wwcdStrip).length) out.wwcdStrip = d.wwcdStrip;
+  if (d.typography && typeof d.typography === "object" && Object.keys(d.typography).length) out.typography = d.typography;
   return out;
 }
 
@@ -65,6 +79,10 @@ export default function ThemePreview() {
   });
   const baseTheme = useMemo(() => getTheme(selected), [selected]);
   const theme = useMemo(() => mergeThemeOverride(baseTheme, colorDraft), [baseTheme, colorDraft]);
+  const isBmpsBoard = Boolean(theme.broadcastLayout);
+  const teamFont = theme.typography?.fontFamily;
+  const numbersFont = theme.typography?.numbersFontFamily || teamFont;
+  const broadcastCssVars = useMemo(() => themeToBroadcastCssVars(theme), [theme]);
 
   const previewConfig = useMemo(() => {
     const base = { ...overlayConfig };
@@ -77,6 +95,8 @@ export default function ThemePreview() {
 
   /** Theme Preview demo board only — not wired to `/overlay/themed`. */
   const [previewEnterMode, setPreviewEnterMode] = useState("preset");
+  /** BMPS broadcast: standard maps vs Rondo (recall column). */
+  const [previewMapMode, setPreviewMapMode] = useState("standard");
 
   const anim = useAnimation(previewConfig);
   const previewPremiumAnim = useMemo(
@@ -185,6 +205,10 @@ export default function ThemePreview() {
         colors: { ...(patch.colors || {}) },
         alive: { ...(patch.alive || {}) },
         row: { ...(patch.row || {}) },
+        broadcast: { ...(patch.broadcast || {}) },
+        elimination: { ...(patch.elimination || {}) },
+        wwcdStrip: { ...(patch.wwcdStrip || {}) },
+        typography: { ...(patch.typography || {}) },
       };
       setColorDraft(nextDraft);
       colorAutoLastSigRef.current = `${selected}|${JSON.stringify(pruneColorOverrideDraft(nextDraft))}`;
@@ -222,7 +246,7 @@ export default function ThemePreview() {
   }, [hydrateAliveFromSettings]);
 
   useEffect(() => {
-    const cleaned = pruneColorOverrideDraft(colorDraft);
+    const cleaned = pruneColorOverrideDraft(colorDraft, isBmpsBoard);
     const sig = `${selected}|${JSON.stringify(cleaned)}`;
     if (Object.keys(cleaned).length === 0) {
       if (sig === colorAutoLastSigRef.current) colorDraftDirtyRef.current = false;
@@ -236,7 +260,9 @@ export default function ThemePreview() {
       try {
         const cur = await fetch(`${API}/settings`).then((r) => r.json());
         const prev = cur.themeColorOverrides && typeof cur.themeColorOverrides === "object" ? { ...cur.themeColorOverrides } : {};
-        const next = { ...prev, [selected]: cleaned };
+        const prevThemePatch =
+          prev[selected] && typeof prev[selected] === "object" ? { ...prev[selected] } : {};
+        const next = { ...prev, [selected]: { ...prevThemePatch, ...cleaned } };
         const res = await fetch(`${API}/settings`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -259,7 +285,30 @@ export default function ThemePreview() {
     return () => {
       if (colorAutoTimerRef.current) clearTimeout(colorAutoTimerRef.current);
     };
-  }, [colorDraft, selected]);
+  }, [colorDraft, selected, isBmpsBoard]);
+
+  useEffect(() => {
+    if (!isBmpsBoard || !colorDraft.elimination || typeof colorDraft.elimination !== "object") return;
+    if (Object.keys(colorDraft.elimination).length === 0) return;
+    const style = broadcastElimStyleFromTheme(theme);
+    publishGfxPreviewDraft({
+      eliminationBannerColorMode: GFX_COLOR_MODE_CUSTOM,
+      eliminationBannerColors: broadcastElimStyleToGfxDraft(style),
+    });
+  }, [isBmpsBoard, theme, colorDraft.elimination]);
+
+  useEffect(() => {
+    if (!isBmpsBoard || !colorDraft.wwcdStrip || typeof colorDraft.wwcdStrip !== "object") return;
+    if (Object.keys(colorDraft.wwcdStrip).length === 0) return;
+    const style = broadcastWwcdStripToGfxDraft({
+      ...broadcastWwcdDraftFromTheme(theme),
+      ...colorDraft.wwcdStrip,
+    });
+    publishGfxPreviewDraft({
+      wwcdStripColorMode: GFX_COLOR_MODE_CUSTOM,
+      wwcdStripColors: style,
+    });
+  }, [isBmpsBoard, theme, colorDraft.wwcdStrip]);
 
   const buildThemedSearch = useCallback(() => {
     const p = new URLSearchParams();
@@ -628,6 +677,93 @@ export default function ThemePreview() {
               </button>
             </div>
             <div style={{ marginBottom: 12 }}>
+              {isBmpsBoard ? (
+                <>
+                  <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 6 }}>
+                    MAP LAYOUT (BMPS PREVIEW)
+                  </label>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+                    {[
+                      { id: "standard", label: "Erangel / Miramar" },
+                      { id: "rondo", label: "Rondo (Recall)" },
+                    ].map((x) => (
+                      <button
+                        key={x.id}
+                        type="button"
+                        onClick={() => setPreviewMapMode(x.id)}
+                        style={{
+                          padding: "8px 14px",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          borderRadius: 8,
+                          border: previewMapMode === x.id ? "2px solid #41E8B8" : "1px solid rgba(255,255,255,.12)",
+                          background: previewMapMode === x.id ? "rgba(65,232,184,.12)" : "rgba(255,255,255,.04)",
+                          color: previewMapMode === x.id ? "#6FF3CB" : "#999",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {x.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div
+                    style={{
+                      width: previewMapMode === "rondo" ? 348 : 334,
+                      position: "relative",
+                      minHeight: 200,
+                      background: "transparent",
+                    }}
+                  >
+                    <BroadcastRankingBoard
+                      teams={BMPS_PREVIEW_TEAMS}
+                      cssVars={broadcastCssVars}
+                      align="center"
+                      showRecall={previewMapMode === "rondo"}
+                      hotRank={theme.broadcast?.hotRank}
+                      previewMode
+                    />
+                  </div>
+                  <p style={{ fontSize: 10, color: "#64748b", marginTop: 10, maxWidth: 360, lineHeight: 1.45 }}>
+                    Live overlay switches automatically: <strong style={{ color: "#94a3b8" }}>Rondo</strong> map adds Recall column; other maps use the standard board.
+                  </p>
+                  <div style={{ marginTop: 18 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>Elimination banner preview</div>
+                    <BroadcastEliminationBanner
+                      banner={{ team: "SAMPLE", rank: 8, finishes: 3, logo: null }}
+                      theme={theme}
+                      scale={0.55}
+                      origin="top left"
+                    />
+                  </div>
+                  <div style={{ marginTop: 18 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>WWCD 4-squad strip preview</div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {(() => {
+                        const sample = BMPS_PREVIEW_TEAMS.slice(0, 4);
+                        const ws = broadcastWwcdStripStyleFromTheme(theme);
+                        const pcts = wwcdPercentsForStripTeams(sample);
+                        return sample.map((t, i) => (
+                          <BroadcastWwcdStripCard
+                            key={t.id}
+                            team={t}
+                            wwcdPct={pcts[i] ?? 0}
+                            teamTagBg={ws.teamTagBg}
+                            teamTagText={ws.teamTagText}
+                            barGreen={ws.barFilled}
+                            barDead={ws.barDead}
+                            footerBg={ws.footerBg}
+                            footerText={ws.footerText}
+                            dividerColor={ws.dividerColor}
+                            pctTextColor={ws.pctTextColor}
+                            fontFamily={ws.fontFamily}
+                          />
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
               <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 6 }}>
                 DEMO ENTER ANIMATION (THIS PAGE ONLY)
               </label>
@@ -658,7 +794,10 @@ export default function ThemePreview() {
                 12 preview-only packs · live OBS overlays still follow{" "}
                 <strong style={{ color: "#94a3b8" }}>presets</strong>/<strong style={{ color: "#94a3b8" }}>overlayConfig</strong>. Re-play by toggling packs.
               </div>
+                </>
+              )}
             </div>
+            {!isBmpsBoard ? (
             <div
               key={`demo-${previewEnterMode}-${selected}-${activePreset || "nopreset"}`}
               style={{
@@ -684,7 +823,7 @@ export default function ThemePreview() {
                 }}
               >
                 {["RANK", "TEAM", "FIN", "TOTAL", "ALIVE"].map((l, i) => (
-                  <div key={l} style={{ textAlign: i === 1 ? "left" : "center", color: theme.colors.gold, fontSize: theme.typography.headerSize, fontWeight: 700, letterSpacing: 1, paddingLeft: i === 1 ? 2 : 0 }}>{l}</div>
+                  <div key={l} style={{ textAlign: i === 1 ? "left" : "center", color: theme.colors.gold, fontSize: theme.typography.headerSize, fontWeight: 700, letterSpacing: 1, paddingLeft: i === 1 ? 2 : 0, fontFamily: teamFont }}>{l}</div>
                 ))}
               </div>
               {SAMPLE_TEAMS.map((t, i) => {
@@ -703,15 +842,15 @@ export default function ThemePreview() {
                       animation: previewPremiumAnim ? previewPremiumAnim.row(i) : anim.row(i),
                     }}
                   >
-                    <div style={{ color: theme.colors.text, fontSize: theme.typography.rankSize, fontWeight: 700, textAlign: "center", fontStyle: "italic" }}>#{i + 1}</div>
+                    <div style={{ color: theme.colors.text, fontSize: theme.typography.rankSize, fontWeight: 700, textAlign: "center", fontStyle: "italic", fontFamily: numbersFont }}>#{i + 1}</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                       <div style={{ width: 24, height: 24, border: `1px solid ${theme.colors.primary}40`, background: theme.gradients.panel, display: "grid", placeItems: "center", flexShrink: 0 }}>
                         <span style={{ color: theme.colors.gold, fontSize: 9, fontWeight: 800 }}>{t.team.slice(0, 2)}</span>
                       </div>
-                      <div style={{ color: theme.colors.text, fontWeight: 700, fontSize: theme.typography.teamSize, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.team}</div>
+                      <div style={{ color: theme.colors.text, fontWeight: 700, fontSize: theme.typography.teamSize, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontFamily: teamFont }}>{t.team}</div>
                     </div>
-                    <div style={{ textAlign: "center", color: t.finishes > 0 ? theme.colors.gold : theme.colors.textMuted, fontSize: theme.typography.numberSize, fontWeight: 700 }}>{t.finishes}</div>
-                    <div style={{ textAlign: "center", color: theme.colors.text, fontSize: theme.typography.numberSize, fontWeight: 700 }}>{t.points}</div>
+                    <div style={{ textAlign: "center", color: theme.colors.text, fontSize: theme.typography.numberSize, fontWeight: 700, fontFamily: numbersFont }}>{t.finishes}</div>
+                    <div style={{ textAlign: "center", color: theme.colors.text, fontSize: theme.typography.numberSize, fontWeight: 700, fontFamily: numbersFont }}>{t.points}</div>
                     <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minWidth: 0, overflow: "visible" }}>
                       <AliveIndicator
                         count={alive}
@@ -726,6 +865,9 @@ export default function ThemePreview() {
                 );
               })}
             </div>
+            ) : null}
+            {!isBmpsBoard ? (
+            <>
             <div style={{ marginTop: 22, marginBottom: 10 }}>
               <div style={{ fontSize: 11, fontWeight: 800, color: "#94a3b8", letterSpacing: "0.08em" }}>FINISH POINTS RANKING OVERLAY</div>
               <div style={{ fontSize: 10, color: "#64748b", marginTop: 4, maxWidth: 334, lineHeight: 1.45 }}>
@@ -757,7 +899,7 @@ export default function ThemePreview() {
                 }}
               >
                 {["RANK", "TEAM", "FIN", "ALIVE"].map((l, i) => (
-                  <div key={l} style={{ textAlign: i === 1 ? "left" : "center", color: theme.colors.gold, fontSize: theme.typography.headerSize, fontWeight: 700, letterSpacing: 1, paddingLeft: i === 1 ? 2 : 0 }}>{l}</div>
+                  <div key={l} style={{ textAlign: i === 1 ? "left" : "center", color: theme.colors.gold, fontSize: theme.typography.headerSize, fontWeight: 700, letterSpacing: 1, paddingLeft: i === 1 ? 2 : 0, fontFamily: teamFont }}>{l}</div>
                 ))}
               </div>
               {finishPreviewTeams.map((t, rankIdx) => {
@@ -776,14 +918,14 @@ export default function ThemePreview() {
                         animation: previewPremiumAnim ? previewPremiumAnim.row(rankIdx) : anim.row(rankIdx),
                       }}
                     >
-                      <div style={{ color: theme.colors.text, fontSize: theme.typography.rankSize, fontWeight: 700, textAlign: "center", fontStyle: "italic" }}>#{rankIdx + 1}</div>
+                      <div style={{ color: theme.colors.text, fontSize: theme.typography.rankSize, fontWeight: 700, textAlign: "center", fontStyle: "italic", fontFamily: numbersFont }}>#{rankIdx + 1}</div>
                       <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                         <div style={{ width: 24, height: 24, border: `1px solid ${theme.colors.primary}40`, background: theme.gradients.panel, display: "grid", placeItems: "center", flexShrink: 0 }}>
                           <span style={{ color: theme.colors.gold, fontSize: 9, fontWeight: 800 }}>{t.team.slice(0, 2)}</span>
                         </div>
-                        <div style={{ color: theme.colors.text, fontWeight: 700, fontSize: theme.typography.teamSize, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.team}</div>
+                        <div style={{ color: theme.colors.text, fontWeight: 700, fontSize: theme.typography.teamSize, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontFamily: teamFont }}>{t.team}</div>
                       </div>
-                      <div style={{ textAlign: "center", color: t.finishes > 0 ? theme.colors.gold : theme.colors.textMuted, fontSize: theme.typography.numberSize, fontWeight: 700 }}>{t.finishes}</div>
+                      <div style={{ textAlign: "center", color: theme.colors.text, fontSize: theme.typography.numberSize, fontWeight: 700, fontFamily: numbersFont }}>{t.finishes}</div>
                       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minWidth: 0, overflow: "visible" }}>
                         <AliveIndicator
                           count={alive}
@@ -798,6 +940,8 @@ export default function ThemePreview() {
                   );
                 })}
             </div>
+            </>
+            ) : null}
           </div>
 
           {/* Info panel */}
@@ -820,12 +964,23 @@ export default function ThemePreview() {
                 <p style={{ fontSize: 11, color: "#6FF3CB", margin: "0 0 12px" }}>{colorSaveMsg}</p>
               ) : null}
               <p style={{ fontSize: 11, color: "#666", margin: "0 0 14px", lineHeight: 1.45 }}>
-                Pickers update this page immediately; changes are <strong style={{ color: "#888" }}>saved automatically</strong> (≈½s) to the server for{" "}
-                <code style={{ color: "#6ff3cb" }}>/overlay/themed</code> and <code style={{ color: "#6ff3cb" }}>/overlay/themed/overall</code> and{" "}
-                <code style={{ color: "#6ff3cb" }}>/overlay/elimination</code> and <code style={{ color: "#6ff3cb" }}>/overlay/wwcd-only</code> when they follow the
-                live theme id (see <strong style={{ color: "#888" }}>Save &amp; Apply</strong>). You can still use{" "}
-                <strong style={{ color: "#888" }}>Save colors (live)</strong> to force an immediate write.
+                {isBmpsBoard ? (
+                  <>
+                    Clean Broadcast uses the BMPS board, elimination banner, and WWCD strip pickers below — not the generic palette. Changes{" "}
+                    <strong style={{ color: "#888" }}>auto-save</strong> (≈½s) after you pick a color.
+                  </>
+                ) : (
+                  <>
+                    Pickers update this page immediately; changes are <strong style={{ color: "#888" }}>saved automatically</strong> (≈½s) to the server for{" "}
+                    <code style={{ color: "#6ff3cb" }}>/overlay/themed</code> and <code style={{ color: "#6ff3cb" }}>/overlay/themed/overall</code> and{" "}
+                    <code style={{ color: "#6ff3cb" }}>/overlay/elimination</code> and <code style={{ color: "#6ff3cb" }}>/overlay/wwcd-only</code> when they follow the
+                    live theme id (see <strong style={{ color: "#888" }}>Save &amp; Apply</strong>). You can still use{" "}
+                    <strong style={{ color: "#888" }}>Save colors (live)</strong> to force an immediate write.
+                  </>
+                )}
               </p>
+              {!isBmpsBoard ? (
+                <>
               <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>Palette</div>
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
                 {Object.keys(baseTheme.colors).map((key) => (
@@ -882,7 +1037,7 @@ export default function ThemePreview() {
                 ))}
               </div>
               <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>Row backgrounds</div>
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
                 {["bgA", "bgB"].map((key) => (
                   <label key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}>
                     <input
@@ -907,6 +1062,177 @@ export default function ThemePreview() {
                     <span style={{ fontSize: 9, color: "#888", fontWeight: 600 }}>row.{key}</span>
                   </label>
                 ))}
+              </div>
+                </>
+              ) : null}
+
+              {isBmpsBoard ? (
+                <>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#888", margin: "18px 0 8px" }}>BMPS team area</div>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+                    <label style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                      <input
+                        type="color"
+                        value={toInputColor(
+                          colorDraft.broadcast?.leftRowColor ??
+                            colorDraft.broadcast?.leftRowA ??
+                            baseTheme.broadcast?.leftRowColor ??
+                            baseTheme.broadcast?.leftRowA ??
+                            "#ffffff",
+                        )}
+                        onChange={(e) => {
+                          colorDraftDirtyRef.current = true;
+                          setColorDraft((d) => ({
+                            ...d,
+                            broadcast: { ...(d.broadcast || {}), leftRowColor: e.target.value },
+                          }));
+                        }}
+                        style={{ width: 48, height: 36, border: "1px solid rgba(255,255,255,.2)", borderRadius: 8, padding: 0, cursor: "pointer" }}
+                      />
+                      <span style={{ fontSize: 9, color: "#888", fontWeight: 600, textAlign: "center", maxWidth: 96 }}>
+                        Team area color (all rows)
+                      </span>
+                    </label>
+                  </div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>BMPS stats panel &amp; header</div>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+                    {[
+                      ["headerBg", "Header bg"],
+                      ["headerText", "Header text"],
+                      ["statsBg", "Stats bg"],
+                      ["statsText", "FIN / PTS text"],
+                      ["knockedColor", "Knocked bars"],
+                      ["recallOn", "Recall on"],
+                      ["recallOff", "Recall off"],
+                    ].map(([key, label]) => (
+                      <label key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                        <input
+                          type="color"
+                          value={toInputColor(colorDraft.broadcast?.[key] ?? baseTheme.broadcast?.[key] ?? "#888888")}
+                          onChange={(e) => {
+                            colorDraftDirtyRef.current = true;
+                            setColorDraft((d) => ({
+                              ...d,
+                              broadcast: { ...(d.broadcast || {}), [key]: e.target.value },
+                            }));
+                          }}
+                          style={{ width: 48, height: 36, border: "1px solid rgba(255,255,255,.2)", borderRadius: 8, padding: 0, cursor: "pointer" }}
+                        />
+                        <span style={{ fontSize: 9, color: "#888", fontWeight: 600, textAlign: "center", maxWidth: 72 }}>{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>Elimination banner</div>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+                    {BROADCAST_ELIMINATION_PICKERS.map(([key, label]) => (
+                      <label key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                        <input
+                          type="color"
+                          value={toInputColor(
+                            colorDraft.elimination?.[key] ??
+                              baseTheme.elimination?.[key] ??
+                              "#888888",
+                          )}
+                          onChange={(e) => {
+                            colorDraftDirtyRef.current = true;
+                            setColorDraft((d) => ({
+                              ...d,
+                              elimination: { ...(d.elimination || {}), [key]: e.target.value },
+                            }));
+                          }}
+                          style={{ width: 48, height: 36, border: "1px solid rgba(255,255,255,.2)", borderRadius: 8, padding: 0, cursor: "pointer" }}
+                        />
+                        <span style={{ fontSize: 9, color: "#888", fontWeight: 600, textAlign: "center", maxWidth: 80 }}>{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>WWCD 4-squad strip</div>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+                    {BROADCAST_WWCD_STRIP_PICKERS.map(([key, label]) => (
+                      <label key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                        <input
+                          type="color"
+                          value={toInputColor(
+                            colorDraft.wwcdStrip?.[key] ??
+                              baseTheme.wwcdStrip?.[key] ??
+                              BROADCAST_WWCD_STRIP_DEFAULTS[key] ??
+                              "#888888",
+                          )}
+                          onChange={(e) => {
+                            colorDraftDirtyRef.current = true;
+                            setColorDraft((d) => ({
+                              ...d,
+                              wwcdStrip: { ...(d.wwcdStrip || {}), [key]: e.target.value },
+                            }));
+                          }}
+                          style={{ width: 48, height: 36, border: "1px solid rgba(255,255,255,.2)", borderRadius: 8, padding: 0, cursor: "pointer" }}
+                        />
+                        <span style={{ fontSize: 9, color: "#888", fontWeight: 600, textAlign: "center", maxWidth: 80 }}>{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              ) : null}
+
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#888", margin: isBmpsBoard ? "0 0 8px" : "18px 0 8px" }}>Live ranking fonts</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 8 }}>
+                <label style={{ fontSize: 11, color: "#aaa", display: "flex", flexDirection: "column", gap: 4 }}>
+                  Team / header text
+                  <select
+                    value={
+                      LIVE_RANKING_FONT_OPTIONS.find(
+                        (f) =>
+                          f.stack === (colorDraft.typography?.fontFamily ?? baseTheme.typography?.fontFamily),
+                      )?.id || "teko"
+                    }
+                    onChange={(e) => {
+                      const opt = LIVE_RANKING_FONT_OPTIONS.find((f) => f.id === e.target.value);
+                      if (!opt) return;
+                      colorDraftDirtyRef.current = true;
+                      setColorDraft((d) => ({
+                        ...d,
+                        typography: { ...(d.typography || {}), fontFamily: opt.stack },
+                      }));
+                    }}
+                    style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,.15)", background: "#0f172a", color: "#e2e8f0", fontSize: 12 }}
+                  >
+                    {LIVE_RANKING_FONT_OPTIONS.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label style={{ fontSize: 11, color: "#aaa", display: "flex", flexDirection: "column", gap: 4 }}>
+                  Rank / FIN / PTS numbers
+                  <select
+                    value={
+                      LIVE_RANKING_FONT_OPTIONS.find(
+                        (f) =>
+                          f.stack ===
+                          (colorDraft.typography?.numbersFontFamily ??
+                            baseTheme.typography?.numbersFontFamily ??
+                            baseTheme.typography?.fontFamily),
+                      )?.id || "teko"
+                    }
+                    onChange={(e) => {
+                      const opt = LIVE_RANKING_FONT_OPTIONS.find((f) => f.id === e.target.value);
+                      if (!opt) return;
+                      colorDraftDirtyRef.current = true;
+                      setColorDraft((d) => ({
+                        ...d,
+                        typography: { ...(d.typography || {}), numbersFontFamily: opt.stack },
+                      }));
+                    }}
+                    style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,.15)", background: "#0f172a", color: "#e2e8f0", fontSize: 12 }}
+                  >
+                    {LIVE_RANKING_FONT_OPTIONS.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </div>
             </div>
 

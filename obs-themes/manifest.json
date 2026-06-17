@@ -1,0 +1,35 @@
+{
+  "version": "1.0.0",
+  "engine": "obs-theme-engine",
+  "themes": [
+    {
+      "id": "Theme_Green",
+      "folder": "Theme_Green",
+      "name": "Forest Arena",
+      "description": "Tactical military sidebar — finish points only"
+    },
+    {
+      "id": "Theme_Red",
+      "folder": "Theme_Red",
+      "name": "Neon Strike",
+      "description": "Cyberpunk bottom board — full stat columns"
+    },
+    {
+      "id": "Theme_Premium",
+      "folder": "Theme_Premium",
+      "name": "PMGC Gold",
+      "description": "Cinematic gold glass panel — broadcast premium"
+    }
+  ],
+  "modules": [
+    "live-ranking",
+    "eliminated",
+    "top-four",
+    "recall",
+    "mvp",
+    "match-winner",
+    "kill-feed",
+    "team-spotlight",
+    "final-results"
+  ]
+}

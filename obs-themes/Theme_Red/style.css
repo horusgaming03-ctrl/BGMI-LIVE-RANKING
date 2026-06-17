@@ -1,0 +1,150 @@
+/* Theme_Red — cyberpunk bottom horizontal card stack */
+
+.theme-red {
+  --accent: #ff2040;
+  --accent2: #ff6080;
+  --text: #ffe8ec;
+  --muted: rgba(255, 180, 190, 0.6);
+  --card: rgba(14, 0, 10, 0.82);
+}
+
+.theme-red .obs-mod-live-ranking .obs-content {
+  position: absolute;
+  left: 5%;
+  bottom: 5%;
+  width: 90%;
+  height: 42%;
+  display: flex;
+  flex-direction: column;
+  padding: 0.8em 1em;
+  background: var(--card);
+  border: 1px solid rgba(255, 32, 64, 0.45);
+  box-shadow: 0 0 2.5em rgba(255, 20, 60, 0.25), inset 0 0 3em rgba(255, 0, 40, 0.06);
+}
+
+.theme-red .obs-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5em;
+}
+
+.theme-red .obs-panel-title {
+  font-size: 1.1em;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  color: var(--accent);
+  text-shadow: 0 0 1em var(--accent);
+}
+
+.theme-red .obs-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22em;
+  flex: 1;
+  overflow: hidden;
+}
+
+.theme-red .obs-row {
+  grid-template-columns: 2.2em 2em 1fr 3em 3em 3.5em 4.5em !important;
+  padding: 0.32em 0.6em;
+  background: linear-gradient(90deg, rgba(255, 32, 64, 0.12), transparent);
+  border-left: 3px solid var(--accent);
+  font-size: clamp(0.68rem, 0.95vw, 0.92rem);
+  color: var(--text);
+  transform: skewX(-2deg);
+}
+
+.theme-red .obs-row > * { transform: skewX(2deg); }
+
+.theme-red .obs-cell-rank {
+  color: var(--accent2);
+  font-weight: 900;
+}
+
+.theme-red .obs-cell-fp::before { content: "K:"; color: var(--muted); margin-right: 0.2em; font-size: 0.75em; }
+.theme-red .obs-cell-pp::before { content: "P:"; color: var(--muted); margin-right: 0.2em; font-size: 0.75em; }
+.theme-red .obs-cell-tp::before { content: "PTS:"; color: var(--muted); margin-right: 0.2em; font-size: 0.75em; }
+
+.theme-red .obs-mod-eliminated {
+  align-items: center;
+  justify-content: center;
+}
+
+.theme-red .obs-elim-card {
+  text-align: center;
+  padding: 2em 3em;
+  background: var(--card);
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 4em rgba(255, 32, 64, 0.45);
+}
+
+.theme-red .obs-elim-title {
+  font-size: 2.8em;
+  font-weight: 900;
+  color: var(--text);
+  text-shadow: 0 0 1.5em var(--accent);
+}
+
+.theme-red .obs-mod-top-four .obs-top4-grid {
+  position: absolute;
+  top: 8%;
+  left: 5%;
+  display: flex;
+  gap: 1.2em;
+}
+
+.theme-red .obs-top4-card {
+  width: 9em;
+  padding: 1em;
+  background: var(--card);
+  border-top: 3px solid var(--accent);
+  color: var(--text);
+  text-align: center;
+}
+
+.theme-red .obs-mod-kill-feed .obs-kill-list {
+  position: absolute;
+  top: 10%;
+  right: 4%;
+  width: 24%;
+}
+
+.theme-red .obs-kill-item {
+  margin-bottom: 0.3em;
+  padding: 0.5em;
+  background: rgba(255, 32, 64, 0.15);
+  border: 1px solid rgba(255, 32, 64, 0.35);
+  color: var(--text);
+  font-size: 0.8em;
+}
+
+.theme-red .obs-mod-winner .obs-winner-team {
+  font-size: 4em;
+  font-weight: 900;
+  color: var(--text);
+  text-shadow: 0 0 2em var(--accent);
+}
+
+.theme-red .obs-mod-recall .obs-recall-popup {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1.5em 3em;
+  background: var(--card);
+  border: 2px solid var(--accent);
+  color: var(--text);
+  box-shadow: 0 0 3em rgba(255, 32, 64, 0.5);
+}
+
+.theme-red .obs-mod-final .obs-content {
+  position: absolute;
+  left: 5%;
+  bottom: 5%;
+  width: 90%;
+  height: 45%;
+  background: var(--card);
+  padding: 1em;
+  border: 1px solid rgba(255, 32, 64, 0.4);
+}

@@ -1,0 +1,50 @@
+{
+  "id": "Theme_Red",
+  "name": "Neon Strike",
+  "description": "Aggressive cyberpunk broadcast — bottom card stack, full stat columns, heavy glow.",
+  "version": "1.0.0",
+  "fields": {
+    "rank": true,
+    "teamName": true,
+    "teamLogo": true,
+    "totalPoints": true,
+    "finishPoints": true,
+    "placementPoints": true,
+    "alivePlayers": true,
+    "eliminatorName": true
+  },
+  "modules": {
+    "live-ranking": { "enabled": true, "maxRows": 10, "title": "Live Board" },
+    "eliminated": { "enabled": true, "durationMs": 5500 },
+    "top-four": { "enabled": true },
+    "recall": { "enabled": true },
+    "mvp": { "enabled": true },
+    "match-winner": { "enabled": true },
+    "kill-feed": { "enabled": true, "maxItems": 6 },
+    "team-spotlight": { "enabled": true },
+    "final-results": { "enabled": true, "maxRows": 12 }
+  },
+  "pngSlots": {
+    "liveRanking": {
+      "assetKey": "liveRanking",
+      "frame": { "x": 5, "y": 52, "w": 90, "h": 44 },
+      "fit": "cover",
+      "mask": "none",
+      "glow": true,
+      "glowColor": "rgba(255,40,60,0.55)"
+    },
+    "eliminator": {
+      "assetKey": "eliminator",
+      "frame": { "x": 72, "y": 8, "w": 24, "h": 38 },
+      "fit": "contain",
+      "glow": true,
+      "glowColor": "rgba(255,0,80,0.7)"
+    }
+  },
+  "assets": {
+    "background": "assets/bg-main.svg"
+  },
+  "typography": {
+    "fontFamily": "\"Orbitron\", \"Segoe UI\", sans-serif"
+  }
+}

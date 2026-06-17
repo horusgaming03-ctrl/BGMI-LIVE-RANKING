@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import socket from "./socket";
 import { wwcdPercentsForStripTeams, stripTeamsFromAlive } from "../wwcdModel";
 import WwcdStripTeamCard, { wwcdStripStyleFromColors } from "./WwcdStripTeamCard";
+import BroadcastWwcdStripCard from "./BroadcastWwcdStripCard";
 import { useGfxOverlayColors } from "./hooks/useGfxOverlayColors";
 
 export default function WwcFourAliveStripOverlay() {
@@ -12,6 +13,7 @@ export default function WwcFourAliveStripOverlay() {
   const [teams, setTeams] = useState([]);
   const { wwcdStripColors } = useGfxOverlayColors();
   const stripStyle = useMemo(() => wwcdStripStyleFromColors(wwcdStripColors), [wwcdStripColors]);
+  const StripCard = stripStyle.broadcastLayout ? BroadcastWwcdStripCard : WwcdStripTeamCard;
 
   useEffect(() => {
     const onTeams = (data) => setTeams(Array.isArray(data) ? data : []);
@@ -62,14 +64,14 @@ export default function WwcFourAliveStripOverlay() {
             maxWidth: "min(1680px, 96vw)",
             display: "flex",
             flexDirection: "row",
-            gap: 14,
+            gap: stripStyle.broadcastLayout ? 8 : 14,
             flexWrap: "nowrap",
             alignItems: "stretch",
             justifyContent: "center",
           }}
         >
           {stripTeams.map((team, i) => (
-            <WwcdStripTeamCard
+            <StripCard
               key={team.id ?? `${team.team}-${i}`}
               team={team}
               wwcdPct={percents[i] ?? 0}
@@ -79,9 +81,14 @@ export default function WwcFourAliveStripOverlay() {
               barsBg={stripStyle.barsBg}
               footerBg={stripStyle.footerBg}
               footerText={stripStyle.footerText}
+              dividerColor={stripStyle.dividerColor}
+              pctTextColor={stripStyle.pctTextColor}
               initialsColor={stripStyle.initialsColor}
               fontFamily={stripStyle.fontFamily}
               cardBoxShadow={stripStyle.cardBoxShadow}
+              cardWidth={stripStyle.cardWidth}
+              teamTagBg={stripStyle.teamTagBg}
+              teamTagText={stripStyle.teamTagText}
             />
           ))}
         </div>

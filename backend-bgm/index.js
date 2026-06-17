@@ -38,17 +38,34 @@ const io = new Server(server, {
   cors: { origin: true, methods: ["GET", "POST", "DELETE"] },
 });
 
+const LOGO_IMAGE_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp"];
+
+function logoExtFromMime(mime) {
+  const m = String(mime || "").toLowerCase();
+  if (m.includes("jpeg") || m.includes("jpg")) return ".jpg";
+  if (m.includes("png")) return ".png";
+  if (m.includes("webp")) return ".webp";
+  if (m.includes("gif")) return ".gif";
+  if (m.includes("svg")) return ".svg";
+  if (m.includes("bmp")) return ".bmp";
+  return ".png";
+}
+
 const logoUpload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, logosDir),
     filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname);
+      let ext = path.extname(file.originalname || "").toLowerCase();
+      if (!LOGO_IMAGE_EXTS.includes(ext)) ext = logoExtFromMime(file.mimetype);
       cb(null, `team-${req.params.id}-${Date.now()}${ext}`);
     },
   }),
+  limits: { fileSize: 8 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    const allowed = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"];
-    cb(null, allowed.includes(path.extname(file.originalname).toLowerCase()));
+    const ext = path.extname(file.originalname || "").toLowerCase();
+    const mimeOk = typeof file.mimetype === "string" && file.mimetype.startsWith("image/");
+    if (LOGO_IMAGE_EXTS.includes(ext) || mimeOk) return cb(null, true);
+    cb(new Error(`Only image files allowed (${ext || file.mimetype || "unknown"})`));
   },
 });
 
@@ -360,7 +377,7 @@ function sanitizeWwcdStripColors(raw) {
   const d = WWCD_STRIP_DEFAULT_COLORS_BACKEND;
   const hc = (v, fb) => normalizeSideOverlayHex(v, fb);
   if (!raw || typeof raw !== "object") return { ...d };
-  return {
+  const out = {
     footerBg: hc(raw.footerBg, d.footerBg),
     footerText: hc(raw.footerText, d.footerText),
     barFilled: hc(raw.barFilled, d.barFilled),
@@ -369,23 +386,51 @@ function sanitizeWwcdStripColors(raw) {
     logoBoxBg: hc(raw.logoBoxBg, d.logoBoxBg),
     initialsColor: hc(raw.initialsColor, d.initialsColor),
   };
+  const broadcastKeys = ["teamTagBg", "teamTagText", "dividerColor", "pctTextColor"];
+  for (const key of broadcastKeys) {
+    if (typeof raw[key] === "string") out[key] = hc(raw[key], out.footerBg);
+  }
+  if (raw.broadcastLayout) out.broadcastLayout = true;
+  if (typeof raw.fontFamily === "string" && raw.fontFamily.length <= 120) {
+    out.fontFamily = raw.fontFamily.trim();
+  }
+  return out;
 }
 
 function sanitizeEliminationBannerColors(raw) {
   const d = ELIMINATION_BANNER_DEFAULT_COLORS_BACKEND;
   const hc = (v, fb) => normalizeSideOverlayHex(v, fb);
   if (!raw || typeof raw !== "object") return { ...d };
-  return {
+  const out = {
     primary: hc(raw.primary, d.primary),
     accent: hc(raw.accent, d.accent),
     gold: hc(raw.gold, d.gold),
     secondary: hc(raw.secondary, d.secondary),
     textMuted: hc(raw.textMuted, d.textMuted),
   };
+  const broadcastKeys = [
+    "panelBg",
+    "rankText",
+    "statsBg",
+    "statsText",
+    "elimBg",
+    "elimText",
+    "nameTagBg",
+    "nameTagText",
+  ];
+  for (const key of broadcastKeys) {
+    if (typeof raw[key] === "string") out[key] = hc(raw[key], out.primary);
+  }
+  if (raw.broadcastLayout) out.broadcastLayout = true;
+  return out;
 }
 
 function sanitizeGfxColorMode(raw) {
   return raw === "custom" ? "custom" : "theme";
+}
+
+function isLegacyWwcdStripCustomServer(raw) {
+  return raw && typeof raw === "object" && !raw.broadcastLayout;
 }
 
 /** Coerce `#rgb` / `#rrggbbaa` / `#rrggbb` → `#rrggbb` (matches client clampHexColor) */
@@ -935,6 +980,14 @@ let overlayTheme = {
 };
 
 let activeThemeName = sanitizeActiveThemeServer(settings.activeTheme);
+if (
+  activeThemeName === "cleanBroadcast" &&
+  settings.wwcdStripColorMode === "custom" &&
+  isLegacyWwcdStripCustomServer(settings.wwcdStripColors)
+) {
+  settings.wwcdStripColorMode = "theme";
+  persistAppSettings();
+}
 
 let wwcdColors = {
   primary: "",
@@ -967,6 +1020,28 @@ function sanitizeThemeColorOverrides(input) {
     if (a) entry.alive = a;
     const r = cleanHexMap(patch.row);
     if (r) entry.row = r;
+    const b = cleanHexMap(patch.broadcast);
+    if (b) entry.broadcast = b;
+    if (patch.broadcast && typeof patch.broadcast === "object") {
+      const hr = Number(patch.broadcast.hotRank);
+      if (Number.isFinite(hr) && hr >= 1 && hr <= 32) {
+        entry.broadcast = { ...(entry.broadcast || {}), hotRank: Math.trunc(hr) };
+      }
+    }
+    if (patch.typography && typeof patch.typography === "object") {
+      const ty = {};
+      for (const key of ["fontFamily", "numbersFontFamily"]) {
+        const v = patch.typography[key];
+        if (typeof v === "string" && v.length <= 120 && /^[\w\s,'"-]+$/.test(v)) {
+          ty[key] = v.trim();
+        }
+      }
+      if (Object.keys(ty).length) entry.typography = ty;
+    }
+    const el = cleanHexMap(patch.elimination);
+    if (el) entry.elimination = el;
+    const ws = cleanHexMap(patch.wwcdStrip);
+    if (ws) entry.wwcdStrip = ws;
     if (Object.keys(entry).length) out[themeId] = entry;
   }
   return out;
@@ -2027,6 +2102,13 @@ app.post("/settings", (req, res) => {
   if (Object.prototype.hasOwnProperty.call(req.body, "activeTheme")) {
     settings.activeTheme = sanitizeActiveThemeServer(req.body.activeTheme);
     activeThemeName = settings.activeTheme;
+    if (
+      activeThemeName === "cleanBroadcast" &&
+      settings.wwcdStripColorMode === "custom" &&
+      isLegacyWwcdStripCustomServer(settings.wwcdStripColors)
+    ) {
+      settings.wwcdStripColorMode = "theme";
+    }
     io.emit("activeThemeChanged", activeThemeName);
   }
   persistAppSettings();
@@ -2314,18 +2396,28 @@ app.post("/overlay/wwcd-characters", (req, res) => {
   res.json({ ok: true, wwcdCharacterArts: arts });
 });
 
-app.post("/teams/:id/logo", logoUpload.single("logo"), (req, res) => {
-  const id = Number(req.params.id);
-  const idx = teams.findIndex((t) => t.id === id);
-  if (idx === -1) return res.status(404).json({ message: "not found" });
+app.post("/teams/:id/logo", (req, res) => {
+  logoUpload.single("logo")(req, res, (err) => {
+    if (err) {
+      console.error("team-logo:", err.message);
+      if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({ message: "Logo too large (max 8 MB)." });
+      }
+      return res.status(400).json({ message: err.message || "Logo upload failed." });
+    }
 
-  if (req.file) {
+    const id = Number(req.params.id);
+    const idx = teams.findIndex((t) => t.id === id);
+    if (idx === -1) return res.status(404).json({ message: "Team not found." });
+
+    if (!req.file) {
+      return res.status(400).json({ message: "No file received — use PNG, JPG, WebP, GIF, or SVG." });
+    }
+
     teams[idx].logo = `/uploads/logos/${req.file.filename}`;
     broadcast();
-    res.json({ logo: teams[idx].logo });
-  } else {
-    res.status(400).json({ message: "No file uploaded" });
-  }
+    res.json({ logo: teams[idx].logo, ok: true });
+  });
 });
 
 // ── Overlay Theme ──
@@ -2344,6 +2436,13 @@ app.post("/overlay/active-theme", (req, res) => {
   if (req.body.theme) {
     activeThemeName = sanitizeActiveThemeServer(req.body.theme);
     settings.activeTheme = activeThemeName;
+    if (
+      activeThemeName === "cleanBroadcast" &&
+      settings.wwcdStripColorMode === "custom" &&
+      isLegacyWwcdStripCustomServer(settings.wwcdStripColors)
+    ) {
+      settings.wwcdStripColorMode = "theme";
+    }
     persistAppSettings();
     io.emit("activeThemeChanged", activeThemeName);
     io.emit("settingsUpdated", settings);

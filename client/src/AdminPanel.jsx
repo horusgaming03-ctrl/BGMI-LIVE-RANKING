@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useState, useRef, useCallback } from "react";
-import { connectSocket, getApiBase, getOverlayPageOrigin, apiUrl } from "./apiOrigin";
+import { connectSocket, getApiBase, getOverlayPageOrigin, apiUrl, teamLogoUrl } from "./apiOrigin";
 import { wwcdPercentMapFromTeams } from "./wwcdModel";
 import { normalizeMatchMeta } from "./normalizeMatchMeta";
 import RondoKnockMatrix from "./rondo/RondoKnockMatrix";
@@ -20,6 +20,21 @@ import {
   eliminationBannerColorsFromTheme,
   settingsIncludeGfxColors,
 } from "./overlayGfxColors";
+import {
+  BROADCAST_ELIMINATION_PICKERS,
+  BROADCAST_ELIMINATION_DEFAULTS,
+  BROADCAST_ELIMINATION_COLOR_KEYS,
+  broadcastElimStyleFromTheme,
+  broadcastElimStyleToGfxDraft,
+  BROADCAST_WWCD_STRIP_PICKERS,
+  BROADCAST_WWCD_STRIP_COLOR_KEYS,
+  BROADCAST_WWCD_STRIP_DEFAULTS,
+  broadcastWwcdDraftFromTheme,
+  broadcastWwcdStripToGfxDraft,
+  isBroadcastGfxTheme,
+  isLegacyWwcdStripCustom,
+} from "./overlays/broadcastGfxUtils";
+import { getTheme } from "./overlays/themes";
 import OverlayGfxAdminPreview, { publishGfxPreviewDraft } from "./overlays/OverlayGfxAdminPreview";
 import ScheduleMatchSection from "./schedule-match/ScheduleMatchSection";
 import {
@@ -75,16 +90,300 @@ export default function AdminPanel() {
   const [elimBannerMode, setElimBannerMode] = useState(GFX_COLOR_MODE_THEME);
   const [elimBannerDraft, setElimBannerDraft] = useState(() => mergeEliminationBannerColors({}));
   const [gfxColorsApiReady, setGfxColorsApiReady] = useState(true);
+  /** Prevent settingsUpdated from overwriting in-progress WWCD / elimination color picks */
+  const wwcdStripDirtyRef = useRef(false);
+  const elimBannerDirtyRef = useRef(false);
   const { palette: annThemePalette, mergedTheme: gfxMergedTheme, themeName: gfxThemeName } = useLiveRankingThemePalette();
+  const gfxBroadcastElim = isBroadcastGfxTheme(gfxMergedTheme);
+  const elimColorPickers = useMemo(
+    () =>
+      gfxBroadcastElim
+        ? BROADCAST_ELIMINATION_PICKERS
+        : [
+            ["primary", "Primary"],
+            ["accent", "Accent"],
+            ["gold", "Gold / name"],
+            ["secondary", "Panels"],
+            ["textMuted", "Muted text"],
+          ],
+    [gfxBroadcastElim],
+  );
+  const wwcdColorPickers = useMemo(
+    () =>
+      gfxBroadcastElim
+        ? BROADCAST_WWCD_STRIP_PICKERS
+        : [
+            ["footerBg", "WWCD bar"],
+            ["footerText", "WWCD text"],
+            ["barFilled", "Alive bar"],
+            ["barDead", "Dead bar"],
+            ["barsBg", "Bars bg"],
+            ["logoBoxBg", "Logo pane"],
+            ["initialsColor", "Initials"],
+          ],
+    [gfxBroadcastElim],
+  );
+  const [broadcastElimDraft, setBroadcastElimDraft] = useState(() => ({ ...BROADCAST_ELIMINATION_DEFAULTS }));
+  const broadcastElimDraftRef = useRef(broadcastElimDraft);
+  broadcastElimDraftRef.current = broadcastElimDraft;
+  const broadcastElimAutosaveRef = useRef(null);
+  const broadcastElimDirtyRef = useRef(false);
+  const broadcastElimEditGenRef = useRef(0);
+
+  const broadcastElimDraftSig = useCallback((draft) => {
+    return BROADCAST_ELIMINATION_COLOR_KEYS.map((k) => draft?.[k] ?? "").join("|");
+  }, []);
 
   useEffect(() => {
+    if (!gfxBroadcastElim || broadcastElimDirtyRef.current) return;
+    const fromTheme = broadcastElimStyleFromTheme(gfxMergedTheme);
+    setBroadcastElimDraft((prev) =>
+      broadcastElimDraftSig(prev) === broadcastElimDraftSig(fromTheme) ? prev : fromTheme,
+    );
+  }, [gfxBroadcastElim, gfxThemeName, gfxMergedTheme, broadcastElimDraftSig]);
+
+  const publishBroadcastElimGfx = useCallback(
+    (styleDraft, mode = elimBannerMode) => {
+      publishGfxPreviewDraft({
+        wwcdStripColorMode: wwcdStripMode,
+        wwcdStripColors: wwcdStripDraft,
+        eliminationBannerColorMode: GFX_COLOR_MODE_CUSTOM,
+        eliminationBannerColors: broadcastElimStyleToGfxDraft(styleDraft),
+      });
+    },
+    [wwcdStripMode, wwcdStripDraft],
+  );
+
+  const saveBroadcastElimOverrides = useCallback(
+    async (styleDraft, successMsg, expectedGen) => {
+      try {
+        const patch = {};
+        for (const k of BROADCAST_ELIMINATION_COLOR_KEYS) {
+          if (styleDraft?.[k] != null) patch[k] = styleDraft[k];
+        }
+        const cur = await fetch(`${API}/settings`).then((r) => r.json());
+        const prevAll =
+          cur.themeColorOverrides && typeof cur.themeColorOverrides === "object" ? { ...cur.themeColorOverrides } : {};
+        const prevTheme =
+          prevAll[gfxThemeName] && typeof prevAll[gfxThemeName] === "object" ? { ...prevAll[gfxThemeName] } : {};
+        const nextAll = {
+          ...prevAll,
+          [gfxThemeName]: {
+            ...prevTheme,
+            elimination: { ...(prevTheme.elimination || {}), ...patch },
+          },
+        };
+        const res = await fetch(`${API}/settings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            themeColorOverrides: nextAll,
+            eliminationBannerColorMode: GFX_COLOR_MODE_THEME,
+          }),
+        });
+        if (res.ok) {
+          if (expectedGen != null && expectedGen !== broadcastElimEditGenRef.current) return true;
+          if (broadcastElimDraftSig(broadcastElimDraftRef.current) === broadcastElimDraftSig(styleDraft)) {
+            broadcastElimDirtyRef.current = false;
+            elimBannerDirtyRef.current = false;
+          }
+          setElimBannerMode(GFX_COLOR_MODE_THEME);
+          publishBroadcastElimGfx(broadcastElimDraftRef.current, GFX_COLOR_MODE_THEME);
+          if (successMsg) setMessage(successMsg);
+        }
+        return res.ok;
+      } catch {
+        return false;
+      }
+    },
+    [gfxThemeName, publishBroadcastElimGfx, broadcastElimDraftSig],
+  );
+
+  const saveBroadcastElimCustom = useCallback(
+    async (styleDraft, successMsg) => {
+      const merged = mergeEliminationBannerColors({
+        ...broadcastElimStyleToGfxDraft(styleDraft),
+        broadcastLayout: true,
+      });
+      const res = await fetch(`${API}/settings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eliminationBannerColorMode: GFX_COLOR_MODE_CUSTOM,
+          eliminationBannerColors: merged,
+        }),
+      });
+      if (res.ok) {
+        setElimBannerMode(GFX_COLOR_MODE_CUSTOM);
+        if (broadcastElimDraftSig(broadcastElimDraftRef.current) === broadcastElimDraftSig(styleDraft)) {
+          elimBannerDirtyRef.current = false;
+          broadcastElimDirtyRef.current = false;
+        }
+        setElimBannerDraft(merged);
+        publishBroadcastElimGfx(broadcastElimDraftRef.current, GFX_COLOR_MODE_CUSTOM);
+        if (successMsg) setMessage(successMsg);
+      }
+      return res.ok;
+    },
+    [publishBroadcastElimGfx, broadcastElimDraftSig],
+  );
+
+  const onBroadcastElimColorChange = useCallback(
+    (key, value) => {
+      const color = clampHexColor(value, BROADCAST_ELIMINATION_DEFAULTS[key] || "#888888");
+      broadcastElimEditGenRef.current += 1;
+      const editGen = broadcastElimEditGenRef.current;
+      broadcastElimDirtyRef.current = true;
+      elimBannerDirtyRef.current = true;
+
+      setBroadcastElimDraft((prev) => {
+        const next = { ...prev, [key]: color };
+        broadcastElimDraftRef.current = next;
+        publishBroadcastElimGfx(next, elimBannerMode);
+        return next;
+      });
+
+      if (elimBannerMode === GFX_COLOR_MODE_THEME) {
+        if (broadcastElimAutosaveRef.current) clearTimeout(broadcastElimAutosaveRef.current);
+        broadcastElimAutosaveRef.current = setTimeout(() => {
+          broadcastElimAutosaveRef.current = null;
+          if (broadcastElimEditGenRef.current !== editGen) return;
+          saveBroadcastElimOverrides(broadcastElimDraftRef.current, null, editGen);
+        }, 500);
+      }
+    },
+    [elimBannerMode, publishBroadcastElimGfx, saveBroadcastElimOverrides],
+  );
+
+  const [broadcastWwcdDraft, setBroadcastWwcdDraft] = useState(() => ({ ...BROADCAST_WWCD_STRIP_DEFAULTS }));
+  const broadcastWwcdDraftRef = useRef(broadcastWwcdDraft);
+  broadcastWwcdDraftRef.current = broadcastWwcdDraft;
+  const broadcastWwcdAutosaveRef = useRef(null);
+  const broadcastWwcdDirtyRef = useRef(false);
+  const broadcastWwcdEditGenRef = useRef(0);
+
+  const broadcastWwcdDraftSig = useCallback((draft) => {
+    return BROADCAST_WWCD_STRIP_COLOR_KEYS.map((k) => draft?.[k] ?? "").join("|");
+  }, []);
+
+  useEffect(() => {
+    if (!gfxBroadcastElim || broadcastWwcdDirtyRef.current) return;
+    const fromTheme = broadcastWwcdDraftFromTheme(gfxMergedTheme);
+    setBroadcastWwcdDraft((prev) =>
+      broadcastWwcdDraftSig(prev) === broadcastWwcdDraftSig(fromTheme) ? prev : fromTheme,
+    );
+  }, [gfxBroadcastElim, gfxThemeName, gfxMergedTheme, broadcastWwcdDraftSig]);
+
+  const publishBroadcastWwcdGfx = useCallback(
+    (styleDraft) => {
+      publishGfxPreviewDraft({
+        wwcdStripColorMode: GFX_COLOR_MODE_CUSTOM,
+        wwcdStripColors: broadcastWwcdStripToGfxDraft(styleDraft),
+        eliminationBannerColorMode: elimBannerMode,
+        eliminationBannerColors: broadcastElimStyleToGfxDraft(broadcastElimDraftRef.current),
+      });
+    },
+    [elimBannerMode],
+  );
+
+  const saveBroadcastWwcdOverrides = useCallback(
+    async (styleDraft, successMsg, expectedGen) => {
+      try {
+        const patch = {};
+        for (const k of BROADCAST_WWCD_STRIP_COLOR_KEYS) {
+          if (styleDraft?.[k] != null) patch[k] = styleDraft[k];
+        }
+        const cur = await fetch(`${API}/settings`).then((r) => r.json());
+        const prevAll =
+          cur.themeColorOverrides && typeof cur.themeColorOverrides === "object" ? { ...cur.themeColorOverrides } : {};
+        const prevTheme =
+          prevAll[gfxThemeName] && typeof prevAll[gfxThemeName] === "object" ? { ...prevAll[gfxThemeName] } : {};
+        const nextAll = {
+          ...prevAll,
+          [gfxThemeName]: {
+            ...prevTheme,
+            wwcdStrip: { ...(prevTheme.wwcdStrip || {}), ...patch },
+          },
+        };
+        const res = await fetch(`${API}/settings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            themeColorOverrides: nextAll,
+            wwcdStripColorMode: GFX_COLOR_MODE_THEME,
+          }),
+        });
+        if (res.ok) {
+          if (expectedGen != null && expectedGen !== broadcastWwcdEditGenRef.current) return true;
+          if (broadcastWwcdDraftSig(broadcastWwcdDraftRef.current) === broadcastWwcdDraftSig(styleDraft)) {
+            broadcastWwcdDirtyRef.current = false;
+            wwcdStripDirtyRef.current = false;
+          }
+          setWwcdStripMode(GFX_COLOR_MODE_THEME);
+          publishBroadcastWwcdGfx(broadcastWwcdDraftRef.current);
+          if (successMsg) setMessage(successMsg);
+        }
+        return res.ok;
+      } catch {
+        return false;
+      }
+    },
+    [gfxThemeName, publishBroadcastWwcdGfx, broadcastWwcdDraftSig],
+  );
+
+  const onBroadcastWwcdColorChange = useCallback(
+    (key, value) => {
+      const color = clampHexColor(value, BROADCAST_WWCD_STRIP_DEFAULTS[key] || "#ffffff");
+      broadcastWwcdEditGenRef.current += 1;
+      const editGen = broadcastWwcdEditGenRef.current;
+      broadcastWwcdDirtyRef.current = true;
+      wwcdStripDirtyRef.current = true;
+
+      setBroadcastWwcdDraft((prev) => {
+        const next = { ...prev, [key]: color };
+        broadcastWwcdDraftRef.current = next;
+        publishBroadcastWwcdGfx(next);
+        return next;
+      });
+
+      if (wwcdStripMode === GFX_COLOR_MODE_THEME) {
+        if (broadcastWwcdAutosaveRef.current) clearTimeout(broadcastWwcdAutosaveRef.current);
+        broadcastWwcdAutosaveRef.current = setTimeout(() => {
+          broadcastWwcdAutosaveRef.current = null;
+          if (broadcastWwcdEditGenRef.current !== editGen) return;
+          saveBroadcastWwcdOverrides(broadcastWwcdDraftRef.current, null, editGen);
+        }, 500);
+      }
+    },
+    [wwcdStripMode, publishBroadcastWwcdGfx, saveBroadcastWwcdOverrides],
+  );
+
+  useEffect(() => {
+    if (!gfxBroadcastElim || wwcdStripDirtyRef.current) return;
+    if (wwcdStripMode === GFX_COLOR_MODE_CUSTOM && isLegacyWwcdStripCustom(wwcdStripDraft)) {
+      const themed = wwcdStripColorsFromTheme(gfxMergedTheme);
+      const draft = broadcastWwcdDraftFromTheme(gfxMergedTheme);
+      setWwcdStripMode(GFX_COLOR_MODE_THEME);
+      setWwcdStripDraft(themed);
+      setBroadcastWwcdDraft(draft);
+      publishGfxPreviewDraft({
+        wwcdStripColorMode: GFX_COLOR_MODE_THEME,
+        wwcdStripColors: broadcastWwcdStripToGfxDraft(draft),
+        eliminationBannerColorMode: elimBannerMode,
+        eliminationBannerColors: elimBannerDraft,
+      });
+    }
+  }, [gfxBroadcastElim, gfxMergedTheme, wwcdStripMode, wwcdStripDraft, elimBannerMode, elimBannerDraft]);
+
+  useEffect(() => {
+    if (gfxBroadcastElim) return;
     publishGfxPreviewDraft({
       wwcdStripColorMode: wwcdStripMode,
       wwcdStripColors: wwcdStripDraft,
       eliminationBannerColorMode: elimBannerMode,
       eliminationBannerColors: elimBannerDraft,
     });
-  }, [wwcdStripMode, wwcdStripDraft, elimBannerMode, elimBannerDraft]);
+  }, [gfxBroadcastElim, wwcdStripMode, wwcdStripDraft, elimBannerMode, elimBannerDraft]);
   const [wwcdCharacterArts, setWwcdCharacterArts] = useState([null, null, null, null]);
   const [wwcdSlotSelected, setWwcdSlotSelected] = useState(0);
   const [wwcdUrlDraft, setWwcdUrlDraft] = useState("");
@@ -96,9 +395,6 @@ export default function AdminPanel() {
   const sidePrefsHydratedRef = useRef(false);
   const sideLastCanonRef = useRef("");
   const sideAutosaveTimerRef = useRef(null);
-  /** Prevent settingsUpdated from overwriting in-progress WWCD / elimination color picks */
-  const wwcdStripDirtyRef = useRef(false);
-  const elimBannerDirtyRef = useRef(false);
 
   const [screenshotPreviews, setScreenshotPreviews] = useState([]);
   const screenshotInputRef = useRef(null);
@@ -201,16 +497,21 @@ export default function AdminPanel() {
         setGoogleIntegration((prev) => ({ ...prev, ...data.googleIntegration }));
       }
       setGfxColorsApiReady(settingsIncludeGfxColors(data));
-      if (!wwcdStripDirtyRef.current) {
+      if (!wwcdStripDirtyRef.current && !broadcastWwcdDirtyRef.current) {
         setWwcdStripMode(inferWwcdStripColorMode(data?.wwcdStripColorMode, data?.wwcdStripColors));
       }
-      if (data?.wwcdStripColors != null && typeof data.wwcdStripColors === "object" && !wwcdStripDirtyRef.current) {
+      if (
+        data?.wwcdStripColors != null &&
+        typeof data.wwcdStripColors === "object" &&
+        !wwcdStripDirtyRef.current &&
+        !broadcastWwcdDirtyRef.current
+      ) {
         setWwcdStripDraft(mergeWwcdStripColors(data.wwcdStripColors));
       }
-      if (!elimBannerDirtyRef.current) {
+      if (!elimBannerDirtyRef.current && !broadcastElimDirtyRef.current) {
         setElimBannerMode(inferEliminationBannerColorMode(data?.eliminationBannerColorMode, data?.eliminationBannerColors));
       }
-      if (data?.eliminationBannerColors != null && typeof data.eliminationBannerColors === "object" && !elimBannerDirtyRef.current) {
+      if (data?.eliminationBannerColors != null && typeof data.eliminationBannerColors === "object" && !elimBannerDirtyRef.current && !broadcastElimDirtyRef.current) {
         setElimBannerDraft(mergeEliminationBannerColors(data.eliminationBannerColors));
       }
     };
@@ -956,9 +1257,39 @@ export default function AdminPanel() {
   const uploadLogo = async (teamId, file, opts = {}) => {
     const { quiet } = opts;
     const fd = new FormData();
-    fd.append("logo", file);
+    const safeName =
+      file.name && /\.\w+$/.test(file.name)
+        ? file.name
+        : file.type?.includes("png")
+          ? "logo.png"
+          : file.type?.includes("webp")
+            ? "logo.webp"
+            : file.type?.includes("gif")
+              ? "logo.gif"
+              : file.type?.includes("svg")
+                ? "logo.svg"
+                : "logo.jpg";
+    fd.append("logo", file, safeName);
     const res = await fetch(`${API}/teams/${teamId}/logo`, { method: "POST", body: fd });
-    if (!quiet) setMessage(res.ok ? "Logo uploaded!" : "Logo upload failed.");
+    let detail = res.ok ? "Logo uploaded!" : "Logo upload failed.";
+    if (!res.ok) {
+      try {
+        const err = await res.json();
+        if (err?.message) detail = err.message;
+      } catch (_) {
+        /* ignore */
+      }
+    } else {
+      try {
+        const data = await res.json();
+        if (data?.logo) {
+          setTeams((prev) => prev.map((t) => (t.id === teamId ? { ...t, logo: data.logo } : t)));
+        }
+      } catch (_) {
+        /* ignore */
+      }
+    }
+    if (!quiet) setMessage(detail);
     return res.ok;
   };
 
@@ -1259,7 +1590,7 @@ export default function AdminPanel() {
                 height: 32,
                 fontSize: 11,
                 borderRadius: 8,
-                ...(team.logo ? { backgroundImage: `url(${API}${team.logo})`, backgroundSize: "cover", color: "transparent" } : {}),
+                ...(team.logo ? { backgroundImage: `url(${teamLogoUrl(team.logo)})`, backgroundSize: "cover", color: "transparent" } : {}),
               }}
             >
               {team.logo ? "" : team.team.slice(0, 2)}
@@ -1504,7 +1835,7 @@ export default function AdminPanel() {
                   height: 30,
                   fontSize: 10,
                   borderRadius: 8,
-                  ...(t.logo ? { backgroundImage: `url(${API}${t.logo})`, backgroundSize: "cover", color: "transparent" } : {}),
+                  ...(t.logo ? { backgroundImage: `url(${teamLogoUrl(t.logo)})`, backgroundSize: "cover", color: "transparent" } : {}),
                 }}
               >
                 {!t.logo && t.team.slice(0, 2)}
@@ -1531,7 +1862,7 @@ export default function AdminPanel() {
                   height: 52,
                   ...(topRankedTeam.logo
                     ? {
-                        backgroundImage: `url(${API}${topRankedTeam.logo})`,
+                        backgroundImage: `url(${teamLogoUrl(topRankedTeam.logo)})`,
                         backgroundSize: "cover",
                         color: "transparent",
                       }
@@ -1591,7 +1922,7 @@ export default function AdminPanel() {
           }
         }
       `}</style>
-      <input type="file" ref={logoInputRef} style={{ display: "none" }} accept="image/*" onChange={handleLogoChange} />
+      <input type="file" ref={logoInputRef} style={{ display: "none" }} accept="image/png,image/jpeg,image/jpg,image/webp,image/gif,image/svg+xml,.png,.jpg,.jpeg,.webp,.gif,.svg" onChange={handleLogoChange} />
       <input type="file" ref={screenshotInputRef} style={{ display: "none" }} accept="image/*" multiple onChange={(e) => e.target.files.length > 0 && handleScreenshotUpload(e.target.files)} />
 
       <aside style={dash.sidebar} aria-label="Main navigation">
@@ -1960,7 +2291,7 @@ export default function AdminPanel() {
                                   ...styles.teamLogo,
                                   ...(team.logo
                                     ? {
-                                        backgroundImage: `url(${API}${team.logo})`,
+                                        backgroundImage: `url(${teamLogoUrl(team.logo)})`,
                                         backgroundSize: "cover",
                                         backgroundPosition: "center",
                                         color: "transparent",
@@ -2147,7 +2478,7 @@ export default function AdminPanel() {
                         ...ns.logoPreview,
                         ...(selectedTeam.logo
                           ? {
-                              backgroundImage: `url(${API}${selectedTeam.logo})`,
+                              backgroundImage: `url(${teamLogoUrl(selectedTeam.logo)})`,
                               backgroundSize: "cover",
                               backgroundPosition: "center",
                               color: "transparent",
@@ -3048,18 +3379,35 @@ export default function AdminPanel() {
                 wwcdStripDraft={wwcdStripDraft}
                 elimBannerMode={elimBannerMode}
                 elimBannerDraft={elimBannerDraft}
+                broadcastElimStyle={gfxBroadcastElim ? broadcastElimDraft : null}
+                broadcastWwcdStyle={gfxBroadcastElim ? broadcastWwcdDraft : null}
                 teams={teams}
                 matchMap={matchBoardMeta?.map}
               />
 
               <div style={{ marginBottom: 18 }}>
                 <div style={{ fontWeight: 800, fontSize: 12, color: "#A5F3FC", marginBottom: 10 }}>WWCD 4-squad strip · /overlay/wwcd-only</div>
+                {gfxBroadcastElim ? (
+                  <p style={{ fontSize: 10, color: "#64748b", margin: "0 0 10px", lineHeight: 1.45, maxWidth: 560 }}>
+                    Pick colors — preview and OBS update instantly. Use <strong style={{ color: "#94a3b8" }}>WWCD row bg</strong> for the bottom bar color (auto-saves ~0.5s in Theme default).
+                  </p>
+                ) : null}
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
                   <button
                     type="button"
                     onClick={async () => {
+                      if (broadcastWwcdAutosaveRef.current) {
+                        clearTimeout(broadcastWwcdAutosaveRef.current);
+                        broadcastWwcdAutosaveRef.current = null;
+                      }
                       setWwcdStripMode(GFX_COLOR_MODE_THEME);
                       wwcdStripDirtyRef.current = false;
+                      broadcastWwcdDirtyRef.current = false;
+                      if (gfxBroadcastElim) {
+                        const synced = broadcastWwcdDraftFromTheme(gfxMergedTheme);
+                        setBroadcastWwcdDraft(synced);
+                        publishBroadcastWwcdGfx(synced);
+                      }
                       const res = await fetch(`${API}/settings`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -3067,7 +3415,9 @@ export default function AdminPanel() {
                       });
                       publishGfxPreviewDraft({
                         wwcdStripColorMode: GFX_COLOR_MODE_THEME,
-                        wwcdStripColors: wwcdStripDraft,
+                        wwcdStripColors: gfxBroadcastElim
+                          ? broadcastWwcdStripToGfxDraft(broadcastWwcdDraftRef.current)
+                          : wwcdStripDraft,
                         eliminationBannerColorMode: elimBannerMode,
                         eliminationBannerColors: elimBannerDraft,
                       });
@@ -3089,13 +3439,23 @@ export default function AdminPanel() {
                   <button
                     type="button"
                     onClick={() => {
-                      const seeded = wwcdStripColorsFromTheme(gfxMergedTheme);
+                      const seeded = gfxBroadcastElim
+                        ? broadcastWwcdDraftFromTheme(gfxMergedTheme)
+                        : wwcdStripColorsFromTheme(gfxMergedTheme);
                       setWwcdStripMode(GFX_COLOR_MODE_CUSTOM);
                       wwcdStripDirtyRef.current = true;
-                      setWwcdStripDraft(seeded);
+                      broadcastWwcdDirtyRef.current = true;
+                      if (gfxBroadcastElim) {
+                        setBroadcastWwcdDraft(seeded);
+                        publishBroadcastWwcdGfx(seeded);
+                      } else {
+                        setWwcdStripDraft(seeded);
+                      }
                       publishGfxPreviewDraft({
                         wwcdStripColorMode: GFX_COLOR_MODE_CUSTOM,
-                        wwcdStripColors: seeded,
+                        wwcdStripColors: gfxBroadcastElim
+                          ? broadcastWwcdStripToGfxDraft(seeded)
+                          : seeded,
                         eliminationBannerColorMode: elimBannerMode,
                         eliminationBannerColors: elimBannerDraft,
                       });
@@ -3115,31 +3475,41 @@ export default function AdminPanel() {
                     Customize
                   </button>
                 </div>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12, opacity: wwcdStripMode === GFX_COLOR_MODE_CUSTOM ? 1 : 0.45, pointerEvents: wwcdStripMode === GFX_COLOR_MODE_CUSTOM ? "auto" : "none" }}>
-                  {[
-                    { key: "footerBg", label: "WWCD bar" },
-                    { key: "footerText", label: "WWCD text" },
-                    { key: "barFilled", label: "Alive bar" },
-                    { key: "barDead", label: "Dead bar" },
-                    { key: "barsBg", label: "Bars bg" },
-                    { key: "logoBoxBg", label: "Logo pane" },
-                    { key: "initialsColor", label: "Initials" },
-                  ].map(({ key, label }) => (
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    flexWrap: "wrap",
+                    marginBottom: 12,
+                    opacity: gfxBroadcastElim || wwcdStripMode === GFX_COLOR_MODE_CUSTOM ? 1 : 0.45,
+                    pointerEvents: gfxBroadcastElim || wwcdStripMode === GFX_COLOR_MODE_CUSTOM ? "auto" : "none",
+                  }}
+                >
+                  {wwcdColorPickers.map(([key, label]) => (
                     <label key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
                       <input
                         type="color"
-                        value={clampHexColor(wwcdStripDraft[key], WWCD_STRIP_DEFAULT_COLORS[key])}
+                        value={clampHexColor(
+                          gfxBroadcastElim ? broadcastWwcdDraft[key] : wwcdStripDraft[key],
+                          gfxBroadcastElim
+                            ? BROADCAST_WWCD_STRIP_DEFAULTS[key] || "#ffffff"
+                            : WWCD_STRIP_DEFAULT_COLORS[key] || "#ffffff",
+                        )}
                         onChange={(e) => {
+                          if (gfxBroadcastElim) {
+                            onBroadcastWwcdColorChange(key, e.target.value);
+                            return;
+                          }
                           wwcdStripDirtyRef.current = true;
                           if (wwcdStripMode !== GFX_COLOR_MODE_CUSTOM) setWwcdStripMode(GFX_COLOR_MODE_CUSTOM);
                           setWwcdStripDraft((d) => ({
                             ...d,
-                            [key]: clampHexColor(e.target.value, WWCD_STRIP_DEFAULT_COLORS[key]),
+                            [key]: clampHexColor(e.target.value, WWCD_STRIP_DEFAULT_COLORS[key] || "#ffffff"),
                           }));
                         }}
                         style={{ width: 42, height: 32, border: "none", borderRadius: 8, cursor: "pointer", background: "transparent" }}
                       />
-                      <span style={{ fontSize: 9, color: "#7a8799", fontWeight: 700 }}>{label}</span>
+                      <span style={{ fontSize: 9, color: "#7a8799", fontWeight: 700, textAlign: "center", maxWidth: 72 }}>{label}</span>
                     </label>
                   ))}
                 </div>
@@ -3147,6 +3517,39 @@ export default function AdminPanel() {
                   <button
                     type="button"
                     onClick={async () => {
+                      if (gfxBroadcastElim) {
+                        if (broadcastWwcdAutosaveRef.current) {
+                          clearTimeout(broadcastWwcdAutosaveRef.current);
+                          broadcastWwcdAutosaveRef.current = null;
+                        }
+                        if (wwcdStripMode === GFX_COLOR_MODE_CUSTOM) {
+                          const merged = broadcastWwcdStripToGfxDraft(broadcastWwcdDraft);
+                          const res = await fetch(`${API}/settings`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              wwcdStripColorMode: GFX_COLOR_MODE_CUSTOM,
+                              wwcdStripColors: merged,
+                            }),
+                          });
+                          if (res.ok) {
+                            broadcastWwcdDirtyRef.current = false;
+                            wwcdStripDirtyRef.current = false;
+                            setWwcdStripDraft(merged);
+                            publishBroadcastWwcdGfx(broadcastWwcdDraft);
+                            setMessage("WWCD strip custom colors saved — overlay updated.");
+                          } else {
+                            setMessage("Failed to save WWCD strip colors.");
+                          }
+                          return;
+                        }
+                        const ok = await saveBroadcastWwcdOverrides(
+                          broadcastWwcdDraft,
+                          "WWCD strip colors saved — overlay updated.",
+                        );
+                        if (!ok) setMessage("Failed to save WWCD strip colors.");
+                        return;
+                      }
                       if (wwcdStripMode !== GFX_COLOR_MODE_CUSTOM) {
                         setMessage("WWCD strip is on theme default — click Customize to save your own colors.");
                         return;
@@ -3210,8 +3613,47 @@ export default function AdminPanel() {
                   <button
                     type="button"
                     onClick={async () => {
+                      if (broadcastWwcdAutosaveRef.current) {
+                        clearTimeout(broadcastWwcdAutosaveRef.current);
+                        broadcastWwcdAutosaveRef.current = null;
+                      }
                       setWwcdStripMode(GFX_COLOR_MODE_THEME);
                       wwcdStripDirtyRef.current = false;
+                      broadcastWwcdDirtyRef.current = false;
+                      if (gfxBroadcastElim) {
+                        try {
+                          const cur = await fetch(`${API}/settings`).then((r) => r.json());
+                          const prevAll =
+                            cur.themeColorOverrides && typeof cur.themeColorOverrides === "object"
+                              ? { ...cur.themeColorOverrides }
+                              : {};
+                          const prevTheme =
+                            prevAll[gfxThemeName] && typeof prevAll[gfxThemeName] === "object"
+                              ? { ...prevAll[gfxThemeName] }
+                              : {};
+                          const { wwcdStrip: _drop, ...restTheme } = prevTheme;
+                          const nextAll = { ...prevAll, [gfxThemeName]: restTheme };
+                          const res = await fetch(`${API}/settings`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              themeColorOverrides: nextAll,
+                              wwcdStripColorMode: GFX_COLOR_MODE_THEME,
+                            }),
+                          });
+                          if (res.ok) {
+                            const fresh = broadcastWwcdDraftFromTheme({ ...getTheme(gfxThemeName), broadcastLayout: true });
+                            setBroadcastWwcdDraft(fresh);
+                            publishBroadcastWwcdGfx(fresh);
+                            setMessage(`WWCD strip reset — follows ${gfxThemeName} defaults.`);
+                          } else {
+                            setMessage("Failed to reset WWCD strip.");
+                          }
+                        } catch {
+                          setMessage("Failed to reset WWCD strip.");
+                        }
+                        return;
+                      }
                       const res = await fetch(`${API}/settings`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -3238,12 +3680,27 @@ export default function AdminPanel() {
 
               <div>
                 <div style={{ fontWeight: 800, fontSize: 12, color: "#FCA5A5", marginBottom: 10 }}>Elimination banner · /overlay/elimination</div>
+                {gfxBroadcastElim ? (
+                  <p style={{ fontSize: 10, color: "#64748b", margin: "0 0 10px", lineHeight: 1.45, maxWidth: 560 }}>
+                    Pick a color — preview and OBS update instantly.{" "}
+                    <strong style={{ color: "#94a3b8" }}>Theme default</strong> auto-saves to Clean Broadcast (~0.5s).{" "}
+                    <strong style={{ color: "#94a3b8" }}>Customize</strong> keeps a separate palette until you click Apply.
+                  </p>
+                ) : null}
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
                   <button
                     type="button"
                     onClick={async () => {
+                      if (broadcastElimAutosaveRef.current) {
+                        clearTimeout(broadcastElimAutosaveRef.current);
+                        broadcastElimAutosaveRef.current = null;
+                      }
+                      broadcastElimDirtyRef.current = false;
                       setElimBannerMode(GFX_COLOR_MODE_THEME);
                       elimBannerDirtyRef.current = false;
+                      const synced = broadcastElimStyleFromTheme(gfxMergedTheme);
+                      setBroadcastElimDraft(synced);
+                      publishBroadcastElimGfx(synced, GFX_COLOR_MODE_THEME);
                       const res = await fetch(`${API}/settings`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -3253,7 +3710,7 @@ export default function AdminPanel() {
                         wwcdStripColorMode: wwcdStripMode,
                         wwcdStripColors: wwcdStripDraft,
                         eliminationBannerColorMode: GFX_COLOR_MODE_THEME,
-                        eliminationBannerColors: elimBannerDraft,
+                        eliminationBannerColors: broadcastElimStyleToGfxDraft(synced),
                       });
                       setMessage(res.ok ? `Elimination banner uses live theme (${gfxThemeName}).` : "Failed to set elimination theme default.");
                     }}
@@ -3273,15 +3730,31 @@ export default function AdminPanel() {
                   <button
                     type="button"
                     onClick={() => {
-                      const seeded = eliminationBannerColorsFromTheme(gfxMergedTheme);
+                      const seeded = gfxBroadcastElim
+                        ? broadcastElimStyleFromTheme(gfxMergedTheme)
+                        : eliminationBannerColorsFromTheme(gfxMergedTheme);
+                      const nextDraft =
+                        gfxBroadcastElim
+                          ? seeded
+                          : seeded.broadcastStyle
+                            ? { ...seeded, ...seeded.broadcastStyle, broadcastLayout: true }
+                            : seeded;
                       setElimBannerMode(GFX_COLOR_MODE_CUSTOM);
                       elimBannerDirtyRef.current = true;
-                      setElimBannerDraft(seeded);
+                      broadcastElimDirtyRef.current = true;
+                      if (gfxBroadcastElim) {
+                        setBroadcastElimDraft(nextDraft);
+                        publishBroadcastElimGfx(nextDraft, GFX_COLOR_MODE_CUSTOM);
+                      } else {
+                        setElimBannerDraft(nextDraft);
+                      }
                       publishGfxPreviewDraft({
                         wwcdStripColorMode: wwcdStripMode,
                         wwcdStripColors: wwcdStripDraft,
                         eliminationBannerColorMode: GFX_COLOR_MODE_CUSTOM,
-                        eliminationBannerColors: seeded,
+                        eliminationBannerColors: gfxBroadcastElim
+                          ? broadcastElimStyleToGfxDraft(nextDraft)
+                          : seeded,
                       });
                       setMessage("Elimination banner — customize mode. Pick colors below, then Apply.");
                     }}
@@ -3299,29 +3772,44 @@ export default function AdminPanel() {
                     Customize
                   </button>
                 </div>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12, opacity: elimBannerMode === GFX_COLOR_MODE_CUSTOM ? 1 : 0.45, pointerEvents: elimBannerMode === GFX_COLOR_MODE_CUSTOM ? "auto" : "none" }}>
-                  {[
-                    { key: "primary", label: "Primary" },
-                    { key: "accent", label: "Accent" },
-                    { key: "gold", label: "Gold / name" },
-                    { key: "secondary", label: "Panels" },
-                    { key: "textMuted", label: "Muted text" },
-                  ].map(({ key, label }) => (
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    flexWrap: "wrap",
+                    marginBottom: 12,
+                    opacity: gfxBroadcastElim || elimBannerMode === GFX_COLOR_MODE_CUSTOM ? 1 : 0.45,
+                    pointerEvents: gfxBroadcastElim || elimBannerMode === GFX_COLOR_MODE_CUSTOM ? "auto" : "none",
+                  }}
+                >
+                  {elimColorPickers.map(([key, label]) => (
                     <label key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
                       <input
                         type="color"
-                        value={clampHexColor(elimBannerDraft[key], ELIMINATION_BANNER_DEFAULT_COLORS[key])}
+                        value={clampHexColor(
+                          gfxBroadcastElim
+                            ? broadcastElimDraft[key]
+                            : elimBannerDraft[key],
+                          gfxBroadcastElim
+                            ? BROADCAST_ELIMINATION_DEFAULTS[key]
+                            : ELIMINATION_BANNER_DEFAULT_COLORS[key],
+                        )}
                         onChange={(e) => {
+                          if (gfxBroadcastElim) {
+                            onBroadcastElimColorChange(key, e.target.value);
+                            return;
+                          }
                           elimBannerDirtyRef.current = true;
                           if (elimBannerMode !== GFX_COLOR_MODE_CUSTOM) setElimBannerMode(GFX_COLOR_MODE_CUSTOM);
+                          const fallback = ELIMINATION_BANNER_DEFAULT_COLORS[key];
                           setElimBannerDraft((d) => ({
                             ...d,
-                            [key]: clampHexColor(e.target.value, ELIMINATION_BANNER_DEFAULT_COLORS[key]),
+                            [key]: clampHexColor(e.target.value, fallback),
                           }));
                         }}
                         style={{ width: 42, height: 32, border: "none", borderRadius: 8, cursor: "pointer", background: "transparent" }}
                       />
-                      <span style={{ fontSize: 9, color: "#7a8799", fontWeight: 700 }}>{label}</span>
+                      <span style={{ fontSize: 9, color: "#7a8799", fontWeight: 700, textAlign: "center", maxWidth: 72 }}>{label}</span>
                     </label>
                   ))}
                 </div>
@@ -3329,11 +3817,34 @@ export default function AdminPanel() {
                   <button
                     type="button"
                     onClick={async () => {
+                      if (gfxBroadcastElim) {
+                        if (broadcastElimAutosaveRef.current) {
+                          clearTimeout(broadcastElimAutosaveRef.current);
+                          broadcastElimAutosaveRef.current = null;
+                        }
+                        if (elimBannerMode === GFX_COLOR_MODE_CUSTOM) {
+                          const ok = await saveBroadcastElimCustom(
+                            broadcastElimDraft,
+                            "Elimination banner custom colors saved — overlay updated.",
+                          );
+                          if (!ok) setMessage("Failed to save elimination colors.");
+                          return;
+                        }
+                        const ok = await saveBroadcastElimOverrides(
+                          broadcastElimDraft,
+                          "Elimination banner colors saved — overlay updated.",
+                        );
+                        if (!ok) setMessage("Failed to save elimination colors.");
+                        return;
+                      }
                       if (elimBannerMode !== GFX_COLOR_MODE_CUSTOM) {
                         setMessage("Elimination banner is on theme default — click Customize to save your own colors.");
                         return;
                       }
-                      const merged = mergeEliminationBannerColors(elimBannerDraft);
+                      const merged = mergeEliminationBannerColors({
+                        ...elimBannerDraft,
+                        ...(gfxBroadcastElim ? { broadcastLayout: true } : null),
+                      });
                       const res = await fetch(`${API}/settings`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -3364,6 +3875,47 @@ export default function AdminPanel() {
                   <button
                     type="button"
                     onClick={async () => {
+                      if (gfxBroadcastElim) {
+                        if (broadcastElimAutosaveRef.current) {
+                          clearTimeout(broadcastElimAutosaveRef.current);
+                          broadcastElimAutosaveRef.current = null;
+                        }
+                        broadcastElimDirtyRef.current = false;
+                        try {
+                          const cur = await fetch(`${API}/settings`).then((r) => r.json());
+                          const prevAll =
+                            cur.themeColorOverrides && typeof cur.themeColorOverrides === "object"
+                              ? { ...cur.themeColorOverrides }
+                              : {};
+                          const prevTheme =
+                            prevAll[gfxThemeName] && typeof prevAll[gfxThemeName] === "object"
+                              ? { ...prevAll[gfxThemeName] }
+                              : {};
+                          const { elimination: _drop, ...restTheme } = prevTheme;
+                          const nextAll = { ...prevAll, [gfxThemeName]: restTheme };
+                          const res = await fetch(`${API}/settings`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              themeColorOverrides: nextAll,
+                              eliminationBannerColorMode: GFX_COLOR_MODE_THEME,
+                            }),
+                          });
+                          if (res.ok) {
+                            broadcastElimDirtyRef.current = false;
+                            const fresh = broadcastElimStyleFromTheme({ ...getTheme(gfxThemeName), broadcastLayout: true });
+                            setBroadcastElimDraft(fresh);
+                            publishBroadcastElimGfx(fresh, GFX_COLOR_MODE_THEME);
+                            setElimBannerMode(GFX_COLOR_MODE_THEME);
+                            setMessage(`Elimination banner reset — follows ${gfxThemeName} defaults.`);
+                          } else {
+                            setMessage("Failed to reset elimination colors.");
+                          }
+                        } catch {
+                          setMessage("Failed to reset elimination colors.");
+                        }
+                        return;
+                      }
                       setElimBannerMode(GFX_COLOR_MODE_THEME);
                       elimBannerDirtyRef.current = false;
                       const res = await fetch(`${API}/settings`, {
@@ -4082,7 +4634,7 @@ export default function AdminPanel() {
                     <div key={i} style={{ ...ns.matchTableRow, gridTemplateColumns: "50px 1fr 80px 80px 80px 80px 80px" }}>
                       <div style={{ fontWeight: 900, fontSize: 18, color: i < 3 ? "#F1CF69" : "#ECF8FB" }}>{i + 1}</div>
                       <div style={{ fontWeight: 800, display: "flex", alignItems: "center", gap: 8 }}>
-                        {s.logo && <img src={`${API}${s.logo}`} alt="" style={{ width: 24, height: 24, borderRadius: 6, objectFit: "cover" }} />}
+                        {s.logo && <img src={teamLogoUrl(s.logo)} alt="" style={{ width: 24, height: 24, borderRadius: 6, objectFit: "cover" }} />}
                         {s.team}
                       </div>
                       <div>{s.matchesPlayed}</div>
@@ -4468,7 +5020,7 @@ function TeamRegisterSection({ teams, API, onMessage }) {
                   ...(regLogo
                     ? { backgroundImage: `url(${URL.createObjectURL(regLogo)})`, backgroundSize: "cover", backgroundPosition: "center", color: "transparent" }
                     : selectedRegId && teams.find((t) => t.id === selectedRegId)?.logo
-                      ? { backgroundImage: `url(${API}${teams.find((t) => t.id === selectedRegId).logo})`, backgroundSize: "cover", backgroundPosition: "center", color: "transparent" }
+                      ? { backgroundImage: `url(${teamLogoUrl(teams.find((t) => t.id === selectedRegId).logo)})`, backgroundSize: "cover", backgroundPosition: "center", color: "transparent" }
                       : {}
                   ),
                 }}
@@ -4509,7 +5061,7 @@ function TeamRegisterSection({ teams, API, onMessage }) {
                       ...(isSelected ? { border: "1px solid rgba(65,232,184,.35)", background: "rgba(65,232,184,.06)" } : {}),
                     }}
                   >
-                    <div style={{ ...styles.teamLogo, width: 32, height: 32, fontSize: 10, borderRadius: 8, ...(t.logo ? { backgroundImage: `url(${API}${t.logo})`, backgroundSize: "cover", color: "transparent" } : {}) }}>
+                    <div style={{ ...styles.teamLogo, width: 32, height: 32, fontSize: 10, borderRadius: 8, ...(t.logo ? { backgroundImage: `url(${teamLogoUrl(t.logo)})`, backgroundSize: "cover", color: "transparent" } : {}) }}>
                       {t.logo ? "" : t.team.slice(0, 2)}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -4534,7 +5086,7 @@ function TeamRegisterSection({ teams, API, onMessage }) {
                   {isViewing && (
                     <div style={ns.regDetailCard}>
                       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
-                        <div style={{ ...styles.teamLogo, width: 52, height: 52, fontSize: 16, borderRadius: 12, ...(t.logo ? { backgroundImage: `url(${API}${t.logo})`, backgroundSize: "cover", color: "transparent" } : {}) }}>
+                        <div style={{ ...styles.teamLogo, width: 52, height: 52, fontSize: 16, borderRadius: 12, ...(t.logo ? { backgroundImage: `url(${teamLogoUrl(t.logo)})`, backgroundSize: "cover", color: "transparent" } : {}) }}>
                           {t.logo ? "" : t.team.slice(0, 2)}
                         </div>
                         <div>

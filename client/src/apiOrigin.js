@@ -35,6 +35,16 @@ export function apiUrl(path) {
   return `${getApiBase()}${p}`;
 }
 
+/** Team logo path or URL → fetchable src for <img> / CSS url(). */
+export function teamLogoUrl(logoPath) {
+  if (logoPath == null || logoPath === "") return "";
+  const s = String(logoPath).trim();
+  if (/^https?:\/\//i.test(s)) return s;
+  if (s.startsWith("/api/")) return s;
+  const p = s.startsWith("/") ? s : `/${s}`;
+  return apiUrl(p);
+}
+
 /**
  * Origin for OBS URLs and Preview — same base as clipboard.
  * Uses VITE_PUBLIC_UI_ORIGIN when set (tunnel / alternate UI host).

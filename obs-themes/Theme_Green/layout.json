@@ -1,0 +1,55 @@
+{
+  "id": "Theme_Green",
+  "name": "Forest Arena",
+  "description": "Tactical military broadcast — left sidebar ranking, finish-focused stats.",
+  "version": "1.0.0",
+  "fields": {
+    "rank": true,
+    "teamName": true,
+    "teamLogo": true,
+    "totalPoints": false,
+    "finishPoints": true,
+    "placementPoints": false,
+    "alivePlayers": true,
+    "eliminatorName": true
+  },
+  "modules": {
+    "live-ranking": { "enabled": true, "maxRows": 16, "title": "Live Ranking" },
+    "eliminated": { "enabled": true, "durationMs": 6500 },
+    "top-four": { "enabled": true },
+    "recall": { "enabled": true },
+    "mvp": { "enabled": true },
+    "match-winner": { "enabled": true },
+    "kill-feed": { "enabled": true, "maxItems": 4 },
+    "team-spotlight": { "enabled": true },
+    "final-results": { "enabled": true, "maxRows": 16, "title": "Overall Standings" }
+  },
+  "pngSlots": {
+    "liveRanking": {
+      "assetKey": "liveRanking",
+      "frame": { "x": 2, "y": 6, "w": 34, "h": 88 },
+      "fit": "cover",
+      "mask": "rounded",
+      "shadow": true
+    },
+    "teamLogo": {
+      "assetKey": "teamLogo",
+      "frame": { "x": 38, "y": 82, "w": 8, "h": 12 },
+      "fit": "contain",
+      "glow": true,
+      "glowColor": "rgba(80,200,120,0.5)"
+    }
+  },
+  "assets": {
+    "background": "assets/bg-main.svg",
+    "patterns": {
+      "liveRanking": "live-ranking",
+      "teamLogo": "team-logo",
+      "mvp": "mvp",
+      "character": "character"
+    }
+  },
+  "typography": {
+    "fontFamily": "\"Rajdhani\", \"Segoe UI\", sans-serif"
+  }
+}

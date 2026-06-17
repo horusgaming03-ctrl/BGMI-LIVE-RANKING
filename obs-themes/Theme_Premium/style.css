@@ -1,0 +1,203 @@
+/* Theme_Premium — PMGC cinematic gold glass panel */
+
+.theme-premium {
+  --gold: #d4af37;
+  --gold-light: #f0d878;
+  --text: #f5f0e6;
+  --muted: rgba(220, 210, 180, 0.55);
+  --glass: rgba(10, 10, 14, 0.62);
+}
+
+.theme-premium .obs-mod-live-ranking .obs-content {
+  position: absolute;
+  right: 3%;
+  top: 10%;
+  width: 36%;
+  height: 80%;
+  padding: 1.4em 1.2em;
+  background: var(--glass);
+  backdrop-filter: blur(14px) saturate(1.2);
+  border: 1px solid rgba(212, 175, 55, 0.28);
+  border-radius: 8px;
+  box-shadow: 0 1.5em 4em rgba(0, 0, 0, 0.55);
+}
+
+.theme-premium .obs-panel-head {
+  text-align: center;
+  margin-bottom: 1em;
+  padding-bottom: 0.8em;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+}
+
+.theme-premium .obs-panel-title {
+  font-family: "Cinzel", serif;
+  font-size: 1.5em;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--gold);
+  text-transform: uppercase;
+}
+
+.theme-premium .obs-match-badge {
+  font-family: "Inter", sans-serif;
+  font-size: 0.72em;
+  color: var(--muted);
+  justify-content: center;
+  margin-bottom: 0.4em;
+}
+
+.theme-premium .obs-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18em;
+}
+
+.theme-premium .obs-row {
+  grid-template-columns: 2.8em 2.4em 1fr 2.8em 2.8em 3.2em 4em !important;
+  padding: 0.42em 0.6em;
+  border-radius: 4px;
+  font-family: "Inter", sans-serif;
+  font-size: clamp(0.7rem, 0.9vw, 0.88rem);
+  color: var(--text);
+  transition: background 0.25s ease;
+}
+
+.theme-premium .obs-row:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.theme-premium .obs-row.is-gold-leader {
+  background: linear-gradient(90deg, rgba(212, 175, 55, 0.18), transparent);
+  border-left: 2px solid var(--gold);
+}
+
+.theme-premium .obs-cell-rank {
+  font-family: "Cinzel", serif;
+  color: var(--gold-light);
+  font-weight: 600;
+}
+
+.theme-premium .obs-mod-eliminated {
+  align-items: center;
+  justify-content: center;
+}
+
+.theme-premium .obs-elim-card {
+  text-align: center;
+  padding: 2.5em 4em;
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  border-radius: 6px;
+}
+
+.theme-premium .obs-elim-title {
+  font-family: "Cinzel", serif;
+  font-size: 2.4em;
+  color: var(--text);
+  letter-spacing: 0.06em;
+}
+
+.theme-premium .obs-mod-top-four .obs-top4-grid {
+  position: absolute;
+  bottom: 8%;
+  left: 5%;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5em;
+  width: 48%;
+}
+
+.theme-premium .obs-top4-card {
+  padding: 1.2em;
+  background: var(--glass);
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  border-radius: 6px;
+  color: var(--text);
+  text-align: center;
+  backdrop-filter: blur(8px);
+}
+
+.theme-premium .obs-top4-name {
+  font-family: "Cinzel", serif;
+  font-size: 0.9em;
+  margin-top: 0.5em;
+  color: var(--gold-light);
+}
+
+.theme-premium .obs-mod-winner .obs-winner-burst {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: radial-gradient(circle, rgba(212, 175, 55, 0.15), transparent 60%);
+}
+
+.theme-premium .obs-winner-label {
+  font-family: "Cinzel", serif;
+  letter-spacing: 0.4em;
+  color: var(--gold);
+  font-size: 1.4em;
+}
+
+.theme-premium .obs-winner-team {
+  font-family: "Cinzel", serif;
+  font-size: 3.8em;
+  color: var(--text);
+  text-shadow: 0 0 2em rgba(212, 175, 55, 0.35);
+}
+
+.theme-premium .obs-mod-mvp .obs-mvp-panel {
+  position: absolute;
+  bottom: 10%;
+  left: 8%;
+  padding: 1.5em 2em;
+  background: var(--glass);
+  border: 1px solid var(--gold);
+  border-radius: 6px;
+  color: var(--text);
+}
+
+.theme-premium .obs-mvp-tag {
+  font-family: "Cinzel", serif;
+  color: var(--gold);
+  letter-spacing: 0.2em;
+}
+
+.theme-premium .obs-mod-recall .obs-recall-popup {
+  position: absolute;
+  top: 22%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1.2em 2.5em;
+  background: var(--glass);
+  border: 1px solid var(--gold);
+  border-radius: 6px;
+  color: var(--text);
+}
+
+.theme-premium .obs-mod-spotlight .obs-spotlight-card {
+  position: absolute;
+  top: 35%;
+  left: 15%;
+  padding: 2em;
+  background: var(--glass);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  border-radius: 8px;
+  text-align: center;
+  color: var(--text);
+}
+
+.theme-premium .obs-mod-final .obs-content {
+  position: absolute;
+  right: 3%;
+  top: 10%;
+  width: 38%;
+  height: 80%;
+  padding: 1.4em;
+  background: var(--glass);
+  backdrop-filter: blur(14px);
+  border-radius: 8px;
+  border: 1px solid rgba(212, 175, 55, 0.28);
+}

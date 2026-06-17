@@ -1,0 +1,144 @@
+/* OBS overlay stage — transparent canvas, GPU-friendly defaults */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.obs-stage {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: transparent;
+}
+
+.obs-module {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+
+.obs-bg-layer {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  z-index: 0;
+}
+
+.obs-content {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.obs-png-frame {
+  position: absolute;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.obs-png-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: var(--png-fit, contain);
+  object-position: center;
+  filter: var(--png-filter, none);
+  transform: translateZ(0);
+}
+
+.obs-png-frame.mask-rounded { border-radius: 12px; }
+.obs-png-frame.mask-circle { border-radius: 50%; }
+.obs-png-frame.mask-hex {
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+}
+
+.obs-row {
+  display: grid;
+  align-items: center;
+  gap: 0.4em;
+  transform: translateZ(0);
+  will-change: transform, opacity;
+}
+
+.obs-row.is-new { animation: obsSlideIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.obs-row.is-rank-up { animation: obsRankPulse 0.6s ease both; }
+.obs-row.is-eliminated { animation: obsElimFlash 0.7s ease both; }
+
+.obs-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.obs-cell.hidden-field { display: none !important; }
+
+.obs-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.45));
+}
+
+.obs-alive-dots {
+  display: inline-flex;
+  gap: 0.18em;
+  align-items: center;
+}
+
+.obs-alive-dot {
+  width: 0.55em;
+  height: 0.55em;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.25;
+  transform: translateZ(0);
+}
+
+.obs-alive-dot.on { opacity: 1; box-shadow: 0 0 0.5em currentColor; }
+
+.obs-match-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.obs-status-live::before {
+  content: "";
+  width: 0.55em;
+  height: 0.55em;
+  border-radius: 50%;
+  background: #ff3b3b;
+  box-shadow: 0 0 0.6em #ff3b3b;
+  animation: obsGlowPulse 1.4s ease-in-out infinite;
+}
+
+.obs-debug-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px);
+  background-size: 5% 5%;
+  pointer-events: none;
+  z-index: 99;
+}

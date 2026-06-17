@@ -23,15 +23,27 @@
         "primary": "#ffffff",
         "secondary": "#ffffff",
         "gold": "#000000",
-        "textMuted": "#ffffff"
+        "textMuted": "#ffffff",
+        "text": "#ffffff"
       },
       "alive": {
         "color": "#ffffff",
         "deadColor": "#ffffff"
       },
       "row": {
-        "bgA": "#0060e6",
-        "bgB": "#0e53b4"
+        "bgA": "#3c6aaa",
+        "bgB": "#236ed7"
+      },
+      "broadcast": {
+        "headerText": "#ffffff",
+        "headerBg": "#ea1010",
+        "leftRowColor": "#ffffff",
+        "statsBg": "#050a0b",
+        "knockedColor": "#f50505"
+      },
+      "typography": {
+        "fontFamily": "'Teko', sans-serif",
+        "numbersFontFamily": "'Teko', sans-serif"
       }
     },
     "minimal": {
@@ -39,8 +51,9 @@
         "primary": "#ffffff",
         "secondary": "#fffafa",
         "accent": "#f2f2f2",
-        "textMuted": "#fff0f0",
-        "gold": "#000000"
+        "textMuted": "#ffffff",
+        "gold": "#000000",
+        "text": "#ffffff"
       },
       "alive": {
         "color": "#e6e6e6"
@@ -48,6 +61,10 @@
       "row": {
         "bgA": "#e00000",
         "bgB": "#931b1b"
+      },
+      "typography": {
+        "fontFamily": "'Oswald', sans-serif",
+        "numbersFontFamily": "'Oswald', sans-serif"
       }
     },
     "esports": {
@@ -136,7 +153,7 @@
     "logoBoxBg": "#ffffff",
     "initialsColor": "#000000"
   },
-  "eliminationBannerColorMode": "custom",
+  "eliminationBannerColorMode": "theme",
   "eliminationBannerColors": {
     "primary": "#0060e6",
     "accent": "#0060e6",

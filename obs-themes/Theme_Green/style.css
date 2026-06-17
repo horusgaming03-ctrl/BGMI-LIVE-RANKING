@@ -1,0 +1,200 @@
+/* Theme_Green — tactical left-sidebar military broadcast */
+
+.theme-green {
+  --accent: #3ecf6a;
+  --accent-dim: rgba(62, 207, 106, 0.25);
+  --text: #e8f5ea;
+  --muted: rgba(200, 230, 205, 0.65);
+  --panel-bg: rgba(6, 22, 10, 0.88);
+  --row-border: rgba(62, 207, 106, 0.12);
+}
+
+.theme-green .obs-mod-live-ranking .obs-content {
+  position: absolute;
+  left: 2.5%;
+  top: 8%;
+  width: 32%;
+  height: 84%;
+  background: var(--panel-bg);
+  border-left: 4px solid var(--accent);
+  padding: 1.2em 1em;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 0 3em rgba(0, 0, 0, 0.55);
+}
+
+.theme-green .obs-panel-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  margin-bottom: 0.8em;
+  padding-bottom: 0.6em;
+  border-bottom: 1px solid var(--row-border);
+}
+
+.theme-green .obs-panel-title {
+  font-size: 1.35em;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.theme-green .obs-match-badge {
+  font-size: 0.75em;
+  color: var(--muted);
+}
+
+.theme-green .obs-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28em;
+  overflow: hidden;
+}
+
+.theme-green .obs-row {
+  grid-template-columns: 2.5em 2.2em 1fr 3em 4.5em !important;
+  padding: 0.35em 0.5em;
+  background: linear-gradient(90deg, var(--accent-dim), transparent 70%);
+  border-bottom: 1px solid var(--row-border);
+  font-size: clamp(0.72rem, 1.05vw, 1rem);
+  color: var(--text);
+}
+
+.theme-green .obs-cell-rank {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.theme-green .obs-cell-fp::before {
+  content: "K ";
+  font-size: 0.7em;
+  color: var(--muted);
+}
+
+.theme-green .obs-cell-alive { color: var(--accent); }
+
+.theme-green .obs-mod-eliminated {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 8%;
+}
+
+.theme-green .obs-elim-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6em;
+  padding: 1.2em 2.5em;
+  background: rgba(6, 22, 10, 0.92);
+  border: 2px solid var(--accent);
+  clip-path: polygon(8% 0, 100% 0, 92% 100%, 0 100%);
+}
+
+.theme-green .obs-elim-title {
+  font-size: 2em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.theme-green .obs-elim-meta { color: var(--muted); font-size: 0.95em; }
+
+.theme-green .obs-mod-top-four .obs-top4-grid {
+  position: absolute;
+  bottom: 6%;
+  right: 4%;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1em;
+  width: 42%;
+}
+
+.theme-green .obs-top4-card {
+  background: var(--panel-bg);
+  border: 1px solid var(--accent-dim);
+  padding: 0.8em;
+  text-align: center;
+  color: var(--text);
+}
+
+.theme-green .obs-top4-name {
+  font-weight: 600;
+  font-size: 0.85em;
+  margin: 0.4em 0;
+}
+
+.theme-green .obs-mod-recall .obs-recall-popup {
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1em 2em;
+  background: rgba(6, 22, 10, 0.95);
+  border: 2px solid var(--accent);
+  color: var(--text);
+  text-align: center;
+}
+
+.theme-green .obs-recall-label {
+  display: block;
+  font-size: 0.75em;
+  letter-spacing: 0.2em;
+  color: var(--accent);
+}
+
+.theme-green .obs-mod-kill-feed .obs-kill-list {
+  position: absolute;
+  top: 12%;
+  right: 3%;
+  width: 22%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+}
+
+.theme-green .obs-kill-item {
+  padding: 0.45em 0.7em;
+  background: rgba(0, 0, 0, 0.55);
+  border-left: 3px solid var(--accent);
+  color: var(--text);
+  font-size: 0.85em;
+}
+
+.theme-green .obs-mod-winner .obs-winner-burst {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle, rgba(62, 207, 106, 0.2), transparent 65%);
+}
+
+.theme-green .obs-winner-label {
+  font-size: 1.2em;
+  letter-spacing: 0.3em;
+  color: var(--accent);
+}
+
+.theme-green .obs-winner-team {
+  font-size: 3.5em;
+  font-weight: 700;
+  color: var(--text);
+  text-transform: uppercase;
+}
+
+.theme-green .obs-mod-final .obs-content {
+  position: absolute;
+  left: 2.5%;
+  top: 8%;
+  width: 38%;
+  height: 84%;
+  background: var(--panel-bg);
+  padding: 1.2em;
+  border-left: 4px solid var(--accent);
+}
+
+.theme-green .obs-cell-pp,
+.theme-green .obs-cell-tp { display: none !important; }

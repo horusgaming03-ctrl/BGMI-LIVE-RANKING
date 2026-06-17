@@ -44,7 +44,11 @@ export function useGfxOverlayColors() {
   useEffect(() => {
     const applySettings = (s) => {
       setGfxSettings(gfxFromSettings(s));
-      setDraft(null);
+      setDraft((prev) => {
+        if (!prev?.ts) return null;
+        if (Date.now() - prev.ts < 2500) return prev;
+        return null;
+      });
     };
     const onGfxDraft = (payload) => {
       if (!payload || typeof payload !== "object") return;

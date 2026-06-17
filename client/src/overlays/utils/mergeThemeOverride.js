@@ -9,12 +9,28 @@ export function mergeThemeOverride(base, patch) {
     patch.alive && typeof patch.alive === "object" ? { ...base.alive, ...patch.alive } : base.alive;
   const row =
     patch.row && typeof patch.row === "object" ? { ...base.row, ...patch.row } : base.row;
+  const broadcast =
+    patch.broadcast && typeof patch.broadcast === "object"
+      ? { ...(base.broadcast || {}), ...patch.broadcast }
+      : base.broadcast;
+  const elimination =
+    patch.elimination && typeof patch.elimination === "object"
+      ? { ...(base.elimination || {}), ...patch.elimination }
+      : base.elimination;
+  const wwcdStrip =
+    patch.wwcdStrip && typeof patch.wwcdStrip === "object"
+      ? { ...(base.wwcdStrip || {}), ...patch.wwcdStrip }
+      : base.wwcdStrip;
+  const typography =
+    patch.typography && typeof patch.typography === "object"
+      ? { ...(base.typography || {}), ...patch.typography }
+      : base.typography;
 
   const paletteTouched =
     patch.colors && typeof patch.colors === "object" && Object.keys(patch.colors).length > 0;
 
   let gradients = base.gradients;
-  if (paletteTouched && base.gradients && typeof base.gradients === "object") {
+  if (paletteTouched && base.gradients && typeof base.gradients === "object" && !base.broadcastLayout) {
     const c = colors;
     gradients = { ...base.gradients };
     const accent = c.accent;
@@ -36,6 +52,10 @@ export function mergeThemeOverride(base, patch) {
     colors,
     alive,
     row,
+    broadcast,
+    elimination,
+    wwcdStrip,
+    typography,
     gradients,
   };
 }

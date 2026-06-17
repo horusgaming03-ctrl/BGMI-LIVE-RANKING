@@ -1,0 +1,53 @@
+@keyframes obsFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes obsSlideIn {
+  from { opacity: 0; transform: translateX(-1.2em) scale(0.98); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes obsSlideUp {
+  from { opacity: 0; transform: translateY(1.5em); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes obsScaleIn {
+  from { opacity: 0; transform: scale(0.88); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes obsGlowPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(1.15); }
+}
+
+@keyframes obsRankPulse {
+  0% { transform: scale(1); filter: brightness(1); }
+  40% { transform: scale(1.03); filter: brightness(1.35); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
+@keyframes obsElimFlash {
+  0% { opacity: 1; filter: saturate(1); }
+  35% { opacity: 0.35; filter: saturate(0) brightness(1.8); }
+  100% { opacity: 1; filter: saturate(0.6); }
+}
+
+@keyframes obsWinnerBurst {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes obsRecallPop {
+  0% { transform: translateY(2em) scale(0.9); opacity: 0; }
+  70% { transform: translateY(-0.2em) scale(1.02); opacity: 1; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.obs-anim-fade { animation: obsFadeIn 0.4s ease both; }
+.obs-anim-slide { animation: obsSlideIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.obs-anim-scale { animation: obsScaleIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.obs-anim-glow { animation: obsGlowPulse 1.6s ease-in-out infinite; }

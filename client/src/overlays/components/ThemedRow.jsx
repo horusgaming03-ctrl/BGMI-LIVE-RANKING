@@ -21,6 +21,7 @@ function ThemedRow({
 }) {
   const cols = columns || "52px 92px 38px 52px 46px";
   const t = theme.typography;
+  const numbersFont = t.numbersFontFamily || t.fontFamily;
   const r = theme.row;
   const status = String(team.status || "alive").toLowerCase();
   const alive = team.alivePlayers ?? (status === "alive" ? 4 : 0);
@@ -49,6 +50,7 @@ function ThemedRow({
           fontWeight: 700,
           textAlign: "center",
           fontStyle: "italic",
+          fontFamily: numbersFont,
         }}
       >
         #{index + 1}
@@ -102,9 +104,10 @@ function ThemedRow({
       <div
         style={{
           textAlign: "center",
-          color: (team.finishes ?? 0) > 0 ? theme.colors.gold : theme.colors.textMuted,
+          color: theme.colors.text,
           fontSize: t.numberSize,
           fontWeight: 700,
+          fontFamily: numbersFont,
         }}
       >
         {team.finishes ?? 0}
@@ -117,6 +120,7 @@ function ThemedRow({
             color: theme.colors.text,
             fontSize: t.numberSize,
             fontWeight: 700,
+            fontFamily: numbersFont,
           }}
         >
           {team.points ?? 0}

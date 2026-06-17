@@ -4,6 +4,7 @@ import { ThemeProvider, useTheme } from "./ThemeContext";
 import useAnimation from "./animations/useAnimation";
 import keyframes from "./animations/keyframes";
 import ThemedBoard from "./components/ThemedBoard";
+import BroadcastRankingBoard, { themeToBroadcastCssVars } from "./components/BroadcastRankingBoard";
 import ThemedWWCD from "./components/ThemedWWCD";
 import ThemeSwitcher from "./components/ThemeSwitcher";
 import BackgroundEffects from "./effects/BackgroundEffects";
@@ -16,6 +17,7 @@ import { mergeThemeOverride } from "./utils/mergeThemeOverride";
 import { overlayPathMatches } from "./utils/overlayPrefsMatch";
 import { buildOverlayStreamRankingOrder } from "../teamDisplayOrder";
 import { normalizeMatchMeta } from "../normalizeMatchMeta";
+import { useOverlayTeams } from "./hooks/useSocketTeams";
 
 function OverlayInner({ cumulativeOverall = false }) {
   const location = useLocation();
@@ -83,7 +85,7 @@ function OverlayInner({ cumulativeOverall = false }) {
     };
   }, [theme, urlTick, matchBoardSavedPrefs]);
 
-  const [teams, setTeams] = useState([]);
+  const teams = useOverlayTeams();
   const [tournamentStats, setTournamentStats] = useState([]);
   const [matchMeta, setMatchMeta] = useState(() => ({
     number: 1,
@@ -112,6 +114,12 @@ function OverlayInner({ cumulativeOverall = false }) {
     const onTour = (data) => setTournamentStats(Array.isArray(data) ? data : []);
     socket.on("tournamentUpdated", onTour);
     socket.emit("requestTournament");
+    fetch(`${API}/tournament/overall`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (Array.isArray(d)) setTournamentStats(d);
+      })
+      .catch(() => {});
     return () => socket.off("tournamentUpdated", onTour);
   }, []);
 
@@ -122,12 +130,17 @@ function OverlayInner({ cumulativeOverall = false }) {
     };
     socket.on("matchUpdated", onMatch);
     socket.emit("requestMatch");
+    fetch(`${API}/match/current`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const meta = normalizeMatchMeta(d);
+        if (meta) setMatchMeta(meta);
+      })
+      .catch(() => {});
     return () => socket.off("matchUpdated", onMatch);
   }, []);
 
   useEffect(() => {
-    const onTeams = (data) => setTeams(Array.isArray(data) ? data : []);
-
     const onChicken = (data) => {
       setWinner(data);
       setShowWWCD(true);
@@ -149,13 +162,10 @@ function OverlayInner({ cumulativeOverall = false }) {
       setTimeout(() => setShowWWCD(false), config.wwcd?.duration || 8000);
     };
 
-    socket.on("teamsUpdated", onTeams);
     socket.on("chickenDinner", onChicken);
     socket.on("overlayCommand", onCommand);
-    socket.emit("requestTeams");
 
     return () => {
-      socket.off("teamsUpdated", onTeams);
       socket.off("chickenDinner", onChicken);
       socket.off("overlayCommand", onCommand);
     };
@@ -215,6 +225,9 @@ function OverlayInner({ cumulativeOverall = false }) {
     return sortLiveOrder(merged);
   }, [teams, tournamentStats, cumulativeOverall, sortLiveOrder, matchMeta.status]);
 
+  const broadcastCssVars = useMemo(() => themeToBroadcastCssVars(theme), [theme]);
+  const useBroadcastLayout = Boolean(theme.broadcastLayout);
+
   return (
     <div
       style={{
@@ -228,7 +241,7 @@ function OverlayInner({ cumulativeOverall = false }) {
         position: "relative",
       }}
     >
-      <BackgroundEffects theme={theme} enabled={config.enableBackgroundEffects} />
+      {!useBroadcastLayout ? <BackgroundEffects theme={theme} enabled={config.enableBackgroundEffects} /> : null}
 
       {showWWCD && winner && (
         <ThemedWWCD
@@ -240,19 +253,30 @@ function OverlayInner({ cumulativeOverall = false }) {
         />
       )}
 
-      <ThemedBoard
-        teams={boardTeams}
-        theme={theme}
-        anim={anim}
-        config={config}
-        finishPointsRankingOnly={finishPointsRankingOnly}
-        rondoRecallColumn={rondoRecallColumn}
-        aliveStyle={aliveDisplay.style}
-        aliveLayout={aliveDisplay.layout}
-        aliveCustomAlive={aliveDisplay.customAlive}
-        aliveCustomDead={aliveDisplay.customDead}
-      />
-      <ThemeSwitcher />
+      {useBroadcastLayout ? (
+        <BroadcastRankingBoard
+          teams={boardTeams}
+          finishPointsRankingOnly={finishPointsRankingOnly}
+          cssVars={broadcastCssVars}
+          align="center"
+          showRecall={rondoRecallColumn}
+          hotRank={theme.broadcast?.hotRank}
+        />
+      ) : (
+        <ThemedBoard
+          teams={boardTeams}
+          theme={theme}
+          anim={anim}
+          config={config}
+          finishPointsRankingOnly={finishPointsRankingOnly}
+          rondoRecallColumn={rondoRecallColumn}
+          aliveStyle={aliveDisplay.style}
+          aliveLayout={aliveDisplay.layout}
+          aliveCustomAlive={aliveDisplay.customAlive}
+          aliveCustomDead={aliveDisplay.customDead}
+        />
+      )}
+      {!useBroadcastLayout ? <ThemeSwitcher /> : null}
 
       <style>{`
         * { margin: 0; padding: 0; box-sizing: border-box; }
