@@ -143,7 +143,7 @@
     "showSparkle": true,
     "bannerScale": 1
   },
-  "wwcdStripColorMode": "custom",
+  "wwcdStripColorMode": "theme",
   "wwcdStripColors": {
     "footerBg": "#0060e6",
     "footerText": "#e8eaed",
