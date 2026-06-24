@@ -65,4 +65,17 @@ export const cyberpunk = {
   topLine: {
     height: 3,
   },
+  elimination: {
+    layout: "minimalBroadcast",
+    animation: "slideLeft",
+    leftPanelBg: "linear-gradient(145deg, #533483 0%, #e94560 100%)",
+    rankBadgeText: "#fcee09",
+    logoRingColor: "#fcee09",
+    rankText: "#1a1a2e",
+    elimBg: "linear-gradient(90deg, #e94560 0%, #533483 100%)",
+    elimText: "#ffffff",
+    dividerColor: "rgba(252,238,9,.35)",
+    accentLine: "#fcee09",
+    fontFamily: "'Rajdhani', 'Inter', sans-serif",
+  },
 };

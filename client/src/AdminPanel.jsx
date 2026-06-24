@@ -19,6 +19,7 @@ import {
   wwcdStripColorsFromTheme,
   eliminationBannerColorsFromTheme,
   settingsIncludeGfxColors,
+  resolveEliminationBannerColors,
 } from "./overlayGfxColors";
 import {
   BROADCAST_ELIMINATION_PICKERS,
@@ -34,7 +35,26 @@ import {
   isBroadcastGfxTheme,
   isLegacyWwcdStripCustom,
 } from "./overlays/broadcastGfxUtils";
+import {
+  MINIMAL_WWCD_STRIP_PICKERS,
+  MINIMAL_WWCD_STRIP_COLOR_KEYS,
+  MINIMAL_WWCD_STRIP_DEFAULTS,
+  minimalWwcdPickerColor,
+  isMinimalBroadcastTheme,
+} from "./overlays/minimalGfxUtils";
 import { getTheme } from "./overlays/themes";
+import {
+  ELIMINATION_BANNER_LAYOUTS,
+  eliminationPickersForLayout,
+  resolveEliminationBannerLayout,
+  defaultEliminationForLayout,
+  elimStyleDraftFromTheme,
+  layoutElimPatchFromDraft,
+  layoutElimDefaultForKey,
+  eliminationPickerKeysForLayout,
+  elimLayoutUsesDedicatedPickers,
+  elimPickerResolvedColor,
+} from "./overlays/eliminationBannerRegistry";
 import OverlayGfxAdminPreview, { publishGfxPreviewDraft } from "./overlays/OverlayGfxAdminPreview";
 import ScheduleMatchSection from "./schedule-match/ScheduleMatchSection";
 import {
@@ -93,36 +113,55 @@ export default function AdminPanel() {
   /** Prevent settingsUpdated from overwriting in-progress WWCD / elimination color picks */
   const wwcdStripDirtyRef = useRef(false);
   const elimBannerDirtyRef = useRef(false);
+  const layoutElimDirtyRef = useRef(false);
+  const layoutElimAutosaveRef = useRef(null);
+  const layoutElimEditGenRef = useRef(0);
   const { palette: annThemePalette, mergedTheme: gfxMergedTheme, themeName: gfxThemeName } = useLiveRankingThemePalette();
   const gfxBroadcastElim = isBroadcastGfxTheme(gfxMergedTheme);
-  const elimColorPickers = useMemo(
-    () =>
-      gfxBroadcastElim
-        ? BROADCAST_ELIMINATION_PICKERS
-        : [
-            ["primary", "Primary"],
-            ["accent", "Accent"],
-            ["gold", "Gold / name"],
-            ["secondary", "Panels"],
-            ["textMuted", "Muted text"],
-          ],
-    [gfxBroadcastElim],
-  );
+  const gfxMinimalBroadcast = isMinimalBroadcastTheme(gfxMergedTheme);
+  const [activeElimLayout, setActiveElimLayout] = useState("classic");
+  const [layoutElimDraft, setLayoutElimDraft] = useState(() => ({}));
+  const layoutElimDraftRef = useRef(layoutElimDraft);
+  layoutElimDraftRef.current = layoutElimDraft;
+  useEffect(() => {
+    setActiveElimLayout(resolveEliminationBannerLayout(gfxMergedTheme));
+  }, [gfxMergedTheme]);
+  const elimPickersEnabled =
+    gfxBroadcastElim || elimBannerMode === GFX_COLOR_MODE_CUSTOM || elimLayoutUsesDedicatedPickers(activeElimLayout);
+  const elimColorPickers = useMemo(() => {
+    const layoutPickers = eliminationPickersForLayout(activeElimLayout);
+    if (layoutPickers && layoutPickers.length) return layoutPickers;
+    return gfxBroadcastElim
+      ? BROADCAST_ELIMINATION_PICKERS
+      : [
+          ["primary", "Primary"],
+          ["accent", "Accent"],
+          ["gold", "Gold / name"],
+          ["secondary", "Panels"],
+          ["textMuted", "Muted text"],
+        ];
+  }, [activeElimLayout, gfxBroadcastElim]);
   const wwcdColorPickers = useMemo(
     () =>
-      gfxBroadcastElim
-        ? BROADCAST_WWCD_STRIP_PICKERS
-        : [
-            ["footerBg", "WWCD bar"],
-            ["footerText", "WWCD text"],
-            ["barFilled", "Alive bar"],
-            ["barDead", "Dead bar"],
-            ["barsBg", "Bars bg"],
-            ["logoBoxBg", "Logo pane"],
-            ["initialsColor", "Initials"],
-          ],
-    [gfxBroadcastElim],
+      gfxMinimalBroadcast
+        ? MINIMAL_WWCD_STRIP_PICKERS
+        : gfxBroadcastElim
+          ? BROADCAST_WWCD_STRIP_PICKERS
+          : [
+              ["footerBg", "WWCD bar"],
+              ["footerText", "WWCD text"],
+              ["barFilled", "Alive bar"],
+              ["barDead", "Dead bar"],
+              ["barsBg", "Bars bg"],
+              ["logoBoxBg", "Logo pane"],
+              ["initialsColor", "Initials"],
+            ],
+    [gfxBroadcastElim, gfxMinimalBroadcast],
   );
+  const wwcdPickerDefaults = gfxMinimalBroadcast
+    ? MINIMAL_WWCD_STRIP_DEFAULTS
+    : BROADCAST_WWCD_STRIP_DEFAULTS;
+  const wwcdPickerKeys = gfxMinimalBroadcast ? MINIMAL_WWCD_STRIP_COLOR_KEYS : BROADCAST_WWCD_STRIP_COLOR_KEYS;
   const [broadcastElimDraft, setBroadcastElimDraft] = useState(() => ({ ...BROADCAST_ELIMINATION_DEFAULTS }));
   const broadcastElimDraftRef = useRef(broadcastElimDraft);
   broadcastElimDraftRef.current = broadcastElimDraft;
@@ -134,13 +173,214 @@ export default function AdminPanel() {
     return BROADCAST_ELIMINATION_COLOR_KEYS.map((k) => draft?.[k] ?? "").join("|");
   }, []);
 
+  const layoutElimDraftSig = useCallback(
+    (draft) => eliminationPickerKeysForLayout(activeElimLayout).map((k) => draft?.[k] ?? "").join("|"),
+    [activeElimLayout],
+  );
+
+  useEffect(() => {
+    if (!elimLayoutUsesDedicatedPickers(activeElimLayout) || layoutElimDirtyRef.current) return;
+    const fromTheme = elimStyleDraftFromTheme(gfxMergedTheme);
+    setLayoutElimDraft((prev) => (layoutElimDraftSig(prev) === layoutElimDraftSig(fromTheme) ? prev : fromTheme));
+  }, [gfxMergedTheme, gfxThemeName, activeElimLayout, layoutElimDraftSig]);
+
   useEffect(() => {
     if (!gfxBroadcastElim || broadcastElimDirtyRef.current) return;
     const fromTheme = broadcastElimStyleFromTheme(gfxMergedTheme);
     setBroadcastElimDraft((prev) =>
       broadcastElimDraftSig(prev) === broadcastElimDraftSig(fromTheme) ? prev : fromTheme,
     );
-  }, [gfxBroadcastElim, gfxThemeName, gfxMergedTheme, broadcastElimDraftSig]);
+    if (elimLayoutUsesDedicatedPickers(activeElimLayout) && !layoutElimDirtyRef.current) {
+      const layoutFromTheme = elimStyleDraftFromTheme(gfxMergedTheme);
+      setLayoutElimDraft((prev) =>
+        layoutElimDraftSig(prev) === layoutElimDraftSig(layoutFromTheme) ? prev : layoutFromTheme,
+      );
+    }
+  }, [gfxBroadcastElim, gfxThemeName, gfxMergedTheme, broadcastElimDraftSig, activeElimLayout, layoutElimDraftSig]);
+
+  const saveElimBannerLayout = useCallback(
+    async (layoutId) => {
+      try {
+        const cur = await fetch(`${API}/settings`).then((r) => r.json());
+        const prevLayouts =
+          cur.eliminationBannerLayouts && typeof cur.eliminationBannerLayouts === "object"
+            ? { ...cur.eliminationBannerLayouts }
+            : {};
+        const prevAll =
+          cur.themeColorOverrides && typeof cur.themeColorOverrides === "object" ? { ...cur.themeColorOverrides } : {};
+        const prevTheme =
+          prevAll[gfxThemeName] && typeof prevAll[gfxThemeName] === "object" ? { ...prevAll[gfxThemeName] } : {};
+        const nextElimDefaults = defaultEliminationForLayout(layoutId);
+        const res = await fetch(`${API}/settings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            eliminationBannerLayouts: {
+              ...prevLayouts,
+              [gfxThemeName]: layoutId,
+            },
+            themeColorOverrides: {
+              ...prevAll,
+              [gfxThemeName]: {
+                ...prevTheme,
+                elimination: nextElimDefaults,
+              },
+            },
+            eliminationBannerColorMode: GFX_COLOR_MODE_THEME,
+          }),
+        });
+        if (res.ok) {
+          setActiveElimLayout(layoutId);
+          layoutElimDirtyRef.current = false;
+          broadcastElimDirtyRef.current = false;
+          const previewTheme = {
+            ...gfxMergedTheme,
+            elimination: {
+              ...(gfxMergedTheme?.elimination || {}),
+              ...nextElimDefaults,
+              bannerLayout: layoutId,
+              layout: layoutId,
+            },
+          };
+          const seeded = elimStyleDraftFromTheme(previewTheme);
+          setLayoutElimDraft(seeded);
+          layoutElimDraftRef.current = seeded;
+          if (gfxBroadcastElim || layoutId === "broadcast" || layoutId === "minimalBroadcast") {
+            setBroadcastElimDraft(seeded);
+            broadcastElimDraftRef.current = seeded;
+          }
+          const gfxColors = resolveEliminationBannerColors(
+            elimBannerMode,
+            elimBannerMode === GFX_COLOR_MODE_CUSTOM
+              ? mergeEliminationBannerColors({ ...elimBannerDraft, ...layoutElimPatchFromDraft(seeded, layoutId) })
+              : layoutElimPatchFromDraft(seeded, layoutId),
+            previewTheme,
+          );
+          publishGfxPreviewDraft({
+            wwcdStripColorMode: wwcdStripMode,
+            wwcdStripColors: wwcdStripDraft,
+            eliminationBannerColorMode: elimBannerMode,
+            eliminationBannerColors: gfxColors,
+          });
+          const label = ELIMINATION_BANNER_LAYOUTS.find((o) => o.id === layoutId)?.label || layoutId;
+          setMessage(`Elimination banner style: ${label}. Colors updated for this layout.`);
+          return true;
+        }
+      } catch {
+        // fall through
+      }
+      setMessage("Failed to save elimination banner style.");
+      return false;
+    },
+    [gfxThemeName, gfxMergedTheme, elimBannerMode, elimBannerDraft, wwcdStripMode, wwcdStripDraft],
+  );
+
+  const publishLayoutElimGfx = useCallback(
+    (styleDraft, mode = elimBannerMode) => {
+      const previewTheme = {
+        ...gfxMergedTheme,
+        elimination: {
+          ...(gfxMergedTheme?.elimination || {}),
+          ...layoutElimPatchFromDraft(styleDraft, activeElimLayout),
+          bannerLayout: activeElimLayout,
+          layout: activeElimLayout,
+        },
+      };
+      const gfxColors = resolveEliminationBannerColors(
+        mode === GFX_COLOR_MODE_THEME ? GFX_COLOR_MODE_CUSTOM : mode,
+        { ...styleDraft, ...layoutElimPatchFromDraft(styleDraft, activeElimLayout) },
+        previewTheme,
+      );
+      publishGfxPreviewDraft({
+        wwcdStripColorMode: wwcdStripMode,
+        wwcdStripColors: wwcdStripDraft,
+        eliminationBannerColorMode: mode,
+        eliminationBannerColors: gfxColors,
+      });
+    },
+    [activeElimLayout, gfxMergedTheme, elimBannerMode, wwcdStripMode, wwcdStripDraft],
+  );
+
+  const saveLayoutElimOverrides = useCallback(
+    async (styleDraft, successMsg, expectedGen) => {
+      try {
+        const patch = layoutElimPatchFromDraft(styleDraft, activeElimLayout);
+        const cur = await fetch(`${API}/settings`).then((r) => r.json());
+        const prevAll =
+          cur.themeColorOverrides && typeof cur.themeColorOverrides === "object" ? { ...cur.themeColorOverrides } : {};
+        const prevTheme =
+          prevAll[gfxThemeName] && typeof prevAll[gfxThemeName] === "object" ? { ...prevAll[gfxThemeName] } : {};
+        const nextAll = {
+          ...prevAll,
+          [gfxThemeName]: {
+            ...prevTheme,
+            elimination: {
+              ...(prevTheme.elimination || {}),
+              ...patch,
+              bannerLayout: activeElimLayout,
+              layout: activeElimLayout,
+            },
+          },
+        };
+        const res = await fetch(`${API}/settings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            themeColorOverrides: nextAll,
+            eliminationBannerColorMode: GFX_COLOR_MODE_THEME,
+          }),
+        });
+        if (res.ok) {
+          if (expectedGen != null && expectedGen !== layoutElimEditGenRef.current) return true;
+          if (layoutElimDraftSig(layoutElimDraftRef.current) === layoutElimDraftSig(styleDraft)) {
+            layoutElimDirtyRef.current = false;
+            elimBannerDirtyRef.current = false;
+            broadcastElimDirtyRef.current = false;
+          }
+          setElimBannerMode(GFX_COLOR_MODE_THEME);
+          publishLayoutElimGfx(layoutElimDraftRef.current, GFX_COLOR_MODE_THEME);
+          if (successMsg) setMessage(successMsg);
+        }
+        return res.ok;
+      } catch {
+        return false;
+      }
+    },
+    [activeElimLayout, gfxThemeName, publishLayoutElimGfx, layoutElimDraftSig],
+  );
+
+  const onLayoutElimColorChange = useCallback(
+    (key, value) => {
+      const fallback = layoutElimDefaultForKey(activeElimLayout, key);
+      const color = clampHexColor(value, fallback);
+      layoutElimEditGenRef.current += 1;
+      const editGen = layoutElimEditGenRef.current;
+      layoutElimDirtyRef.current = true;
+      elimBannerDirtyRef.current = true;
+      broadcastElimDirtyRef.current = true;
+
+      setLayoutElimDraft((prev) => {
+        const next = { ...prev, [key]: color };
+        layoutElimDraftRef.current = next;
+        if (gfxBroadcastElim || activeElimLayout === "broadcast" || activeElimLayout === "minimalBroadcast") {
+          broadcastElimDraftRef.current = next;
+          setBroadcastElimDraft(next);
+        }
+        publishLayoutElimGfx(next, elimBannerMode);
+        return next;
+      });
+
+      if (elimBannerMode === GFX_COLOR_MODE_THEME) {
+        if (layoutElimAutosaveRef.current) clearTimeout(layoutElimAutosaveRef.current);
+        layoutElimAutosaveRef.current = setTimeout(() => {
+          layoutElimAutosaveRef.current = null;
+          if (layoutElimEditGenRef.current !== editGen) return;
+          saveLayoutElimOverrides(layoutElimDraftRef.current, null, editGen);
+        }, 500);
+      }
+    },
+    [activeElimLayout, elimBannerMode, gfxBroadcastElim, publishLayoutElimGfx, saveLayoutElimOverrides],
+  );
 
   const publishBroadcastElimGfx = useCallback(
     (styleDraft, mode = elimBannerMode) => {
@@ -262,9 +502,10 @@ export default function AdminPanel() {
   const broadcastWwcdDirtyRef = useRef(false);
   const broadcastWwcdEditGenRef = useRef(0);
 
-  const broadcastWwcdDraftSig = useCallback((draft) => {
-    return BROADCAST_WWCD_STRIP_COLOR_KEYS.map((k) => draft?.[k] ?? "").join("|");
-  }, []);
+  const broadcastWwcdDraftSig = useCallback(
+    (draft) => wwcdPickerKeys.map((k) => draft?.[k] ?? "").join("|"),
+    [wwcdPickerKeys],
+  );
 
   useEffect(() => {
     if (!gfxBroadcastElim || broadcastWwcdDirtyRef.current) return;
@@ -278,19 +519,19 @@ export default function AdminPanel() {
     (styleDraft) => {
       publishGfxPreviewDraft({
         wwcdStripColorMode: GFX_COLOR_MODE_CUSTOM,
-        wwcdStripColors: broadcastWwcdStripToGfxDraft(styleDraft),
+        wwcdStripColors: broadcastWwcdStripToGfxDraft(styleDraft, gfxMergedTheme),
         eliminationBannerColorMode: elimBannerMode,
         eliminationBannerColors: broadcastElimStyleToGfxDraft(broadcastElimDraftRef.current),
       });
     },
-    [elimBannerMode],
+    [elimBannerMode, gfxMergedTheme],
   );
 
   const saveBroadcastWwcdOverrides = useCallback(
     async (styleDraft, successMsg, expectedGen) => {
       try {
         const patch = {};
-        for (const k of BROADCAST_WWCD_STRIP_COLOR_KEYS) {
+        for (const k of wwcdPickerKeys) {
           if (styleDraft?.[k] != null) patch[k] = styleDraft[k];
         }
         const cur = await fetch(`${API}/settings`).then((r) => r.json());
@@ -328,12 +569,12 @@ export default function AdminPanel() {
         return false;
       }
     },
-    [gfxThemeName, publishBroadcastWwcdGfx, broadcastWwcdDraftSig],
+    [gfxThemeName, publishBroadcastWwcdGfx, broadcastWwcdDraftSig, wwcdPickerKeys],
   );
 
   const onBroadcastWwcdColorChange = useCallback(
     (key, value) => {
-      const color = clampHexColor(value, BROADCAST_WWCD_STRIP_DEFAULTS[key] || "#ffffff");
+      const color = clampHexColor(value, wwcdPickerDefaults[key] || "#ffffff");
       broadcastWwcdEditGenRef.current += 1;
       const editGen = broadcastWwcdEditGenRef.current;
       broadcastWwcdDirtyRef.current = true;
@@ -341,6 +582,17 @@ export default function AdminPanel() {
 
       setBroadcastWwcdDraft((prev) => {
         const next = { ...prev, [key]: color };
+        if (gfxMinimalBroadcast && key === "teamTagBg") {
+          const header = gfxMergedTheme?.broadcast?.headerBg;
+          const curPanel = prev.panelBg ?? gfxMergedTheme?.wwcdStrip?.panelBg;
+          if (
+            !curPanel ||
+            String(curPanel).toLowerCase() === String(header || "").toLowerCase() ||
+            String(curPanel).toLowerCase() === String(prev.teamTagBg || "").toLowerCase()
+          ) {
+            next.panelBg = color;
+          }
+        }
         broadcastWwcdDraftRef.current = next;
         publishBroadcastWwcdGfx(next);
         return next;
@@ -355,7 +607,7 @@ export default function AdminPanel() {
         }, 500);
       }
     },
-    [wwcdStripMode, publishBroadcastWwcdGfx, saveBroadcastWwcdOverrides],
+    [wwcdStripMode, publishBroadcastWwcdGfx, saveBroadcastWwcdOverrides, wwcdPickerDefaults, gfxMinimalBroadcast, gfxMergedTheme],
   );
 
   useEffect(() => {
@@ -368,7 +620,7 @@ export default function AdminPanel() {
       setBroadcastWwcdDraft(draft);
       publishGfxPreviewDraft({
         wwcdStripColorMode: GFX_COLOR_MODE_THEME,
-        wwcdStripColors: broadcastWwcdStripToGfxDraft(draft),
+        wwcdStripColors: broadcastWwcdStripToGfxDraft(draft, gfxMergedTheme),
         eliminationBannerColorMode: elimBannerMode,
         eliminationBannerColors: elimBannerDraft,
       });
@@ -377,13 +629,37 @@ export default function AdminPanel() {
 
   useEffect(() => {
     if (gfxBroadcastElim) return;
+    const previewTheme = {
+      ...gfxMergedTheme,
+      elimination: {
+        ...(gfxMergedTheme?.elimination || {}),
+        bannerLayout: activeElimLayout,
+        layout: activeElimLayout,
+      },
+    };
+    const elimColors = elimLayoutUsesDedicatedPickers(activeElimLayout)
+      ? resolveEliminationBannerColors(
+          GFX_COLOR_MODE_CUSTOM,
+          { ...layoutElimDraft, ...layoutElimPatchFromDraft(layoutElimDraft, activeElimLayout) },
+          previewTheme,
+        )
+      : resolveEliminationBannerColors(elimBannerMode, elimBannerDraft, previewTheme);
     publishGfxPreviewDraft({
       wwcdStripColorMode: wwcdStripMode,
       wwcdStripColors: wwcdStripDraft,
       eliminationBannerColorMode: elimBannerMode,
-      eliminationBannerColors: elimBannerDraft,
+      eliminationBannerColors: elimColors,
     });
-  }, [gfxBroadcastElim, wwcdStripMode, wwcdStripDraft, elimBannerMode, elimBannerDraft]);
+  }, [
+    gfxBroadcastElim,
+    wwcdStripMode,
+    wwcdStripDraft,
+    elimBannerMode,
+    elimBannerDraft,
+    layoutElimDraft,
+    activeElimLayout,
+    gfxMergedTheme,
+  ]);
   const [wwcdCharacterArts, setWwcdCharacterArts] = useState([null, null, null, null]);
   const [wwcdSlotSelected, setWwcdSlotSelected] = useState(0);
   const [wwcdUrlDraft, setWwcdUrlDraft] = useState("");
@@ -511,8 +787,16 @@ export default function AdminPanel() {
       if (!elimBannerDirtyRef.current && !broadcastElimDirtyRef.current) {
         setElimBannerMode(inferEliminationBannerColorMode(data?.eliminationBannerColorMode, data?.eliminationBannerColors));
       }
-      if (data?.eliminationBannerColors != null && typeof data.eliminationBannerColors === "object" && !elimBannerDirtyRef.current && !broadcastElimDirtyRef.current) {
-        setElimBannerDraft(mergeEliminationBannerColors(data.eliminationBannerColors));
+      if (data?.eliminationBannerColors != null && typeof data.eliminationBannerColors === "object" && !elimBannerDirtyRef.current && !broadcastElimDirtyRef.current && !layoutElimDirtyRef.current) {
+        const merged = mergeEliminationBannerColors(data.eliminationBannerColors);
+        setElimBannerDraft(merged);
+        const layout = resolveEliminationBannerLayout(gfxMergedTheme);
+        if (elimLayoutUsesDedicatedPickers(layout)) {
+          setLayoutElimDraft({
+            ...elimStyleDraftFromTheme(gfxMergedTheme),
+            ...layoutElimPatchFromDraft(merged, layout),
+          });
+        }
       }
     };
     const onChicken = (data) => {
@@ -3379,8 +3663,15 @@ export default function AdminPanel() {
                 wwcdStripDraft={wwcdStripDraft}
                 elimBannerMode={elimBannerMode}
                 elimBannerDraft={elimBannerDraft}
-                broadcastElimStyle={gfxBroadcastElim ? broadcastElimDraft : null}
+                broadcastElimStyle={
+                  elimLayoutUsesDedicatedPickers(activeElimLayout)
+                    ? layoutElimDraft
+                    : gfxBroadcastElim
+                      ? broadcastElimDraft
+                      : null
+                }
                 broadcastWwcdStyle={gfxBroadcastElim ? broadcastWwcdDraft : null}
+                elimLayoutOverride={activeElimLayout}
                 teams={teams}
                 matchMap={matchBoardMeta?.map}
               />
@@ -3416,7 +3707,7 @@ export default function AdminPanel() {
                       publishGfxPreviewDraft({
                         wwcdStripColorMode: GFX_COLOR_MODE_THEME,
                         wwcdStripColors: gfxBroadcastElim
-                          ? broadcastWwcdStripToGfxDraft(broadcastWwcdDraftRef.current)
+                          ? broadcastWwcdStripToGfxDraft(broadcastWwcdDraftRef.current, gfxMergedTheme)
                           : wwcdStripDraft,
                         eliminationBannerColorMode: elimBannerMode,
                         eliminationBannerColors: elimBannerDraft,
@@ -3454,7 +3745,7 @@ export default function AdminPanel() {
                       publishGfxPreviewDraft({
                         wwcdStripColorMode: GFX_COLOR_MODE_CUSTOM,
                         wwcdStripColors: gfxBroadcastElim
-                          ? broadcastWwcdStripToGfxDraft(seeded)
+                          ? broadcastWwcdStripToGfxDraft(seeded, gfxMergedTheme)
                           : seeded,
                         eliminationBannerColorMode: elimBannerMode,
                         eliminationBannerColors: elimBannerDraft,
@@ -3490,9 +3781,13 @@ export default function AdminPanel() {
                       <input
                         type="color"
                         value={clampHexColor(
-                          gfxBroadcastElim ? broadcastWwcdDraft[key] : wwcdStripDraft[key],
                           gfxBroadcastElim
-                            ? BROADCAST_WWCD_STRIP_DEFAULTS[key] || "#ffffff"
+                            ? gfxMinimalBroadcast
+                              ? minimalWwcdPickerColor(gfxMergedTheme, key, broadcastWwcdDraft)
+                              : broadcastWwcdDraft[key]
+                            : wwcdStripDraft[key],
+                          gfxBroadcastElim
+                            ? wwcdPickerDefaults[key] || "#ffffff"
                             : WWCD_STRIP_DEFAULT_COLORS[key] || "#ffffff",
                         )}
                         onChange={(e) => {
@@ -3523,7 +3818,7 @@ export default function AdminPanel() {
                           broadcastWwcdAutosaveRef.current = null;
                         }
                         if (wwcdStripMode === GFX_COLOR_MODE_CUSTOM) {
-                          const merged = broadcastWwcdStripToGfxDraft(broadcastWwcdDraft);
+                          const merged = broadcastWwcdStripToGfxDraft(broadcastWwcdDraft, gfxMergedTheme);
                           const res = await fetch(`${API}/settings`, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
@@ -3680,13 +3975,18 @@ export default function AdminPanel() {
 
               <div>
                 <div style={{ fontWeight: 800, fontSize: 12, color: "#FCA5A5", marginBottom: 10 }}>Elimination banner · /overlay/elimination</div>
-                {gfxBroadcastElim ? (
-                  <p style={{ fontSize: 10, color: "#64748b", margin: "0 0 10px", lineHeight: 1.45, maxWidth: 560 }}>
-                    Pick a color — preview and OBS update instantly.{" "}
-                    <strong style={{ color: "#94a3b8" }}>Theme default</strong> auto-saves to Clean Broadcast (~0.5s).{" "}
-                    <strong style={{ color: "#94a3b8" }}>Customize</strong> keeps a separate palette until you click Apply.
-                  </p>
-                ) : null}
+                <p style={{ fontSize: 10, color: "#64748b", margin: "0 0 10px", lineHeight: 1.45, maxWidth: 720 }}>
+                  Pick a <strong style={{ color: "#94a3b8" }}>banner style</strong> below — color pickers update to match that layout.
+                  {gfxBroadcastElim || elimLayoutUsesDedicatedPickers(activeElimLayout) ? (
+                    <>
+                      {" "}Changes preview instantly; <strong style={{ color: "#94a3b8" }}>Theme default</strong> auto-saves (~0.5s).
+                    </>
+                  ) : (
+                    <>
+                      {" "}Click <strong style={{ color: "#94a3b8" }}>Customize</strong> for classic esports colors, or choose a banner style above for layout-specific pickers.
+                    </>
+                  )}
+                </p>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
                   <button
                     type="button"
@@ -3772,14 +4072,46 @@ export default function AdminPanel() {
                     Customize
                   </button>
                 </div>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: "#fca5a5", marginBottom: 8, letterSpacing: "0.12em" }}>
+                    BANNER STYLE
+                  </div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+                    {ELIMINATION_BANNER_LAYOUTS.map((opt) => {
+                      const active = activeElimLayout === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => saveElimBannerLayout(opt.id)}
+                          style={{
+                            padding: "7px 12px",
+                            background: active ? "rgba(248,113,113,.18)" : "rgba(255,255,255,.06)",
+                            color: active ? "#fca5a5" : "#94a3b8",
+                            border: active ? "1px solid rgba(248,113,113,.4)" : "1px solid rgba(255,255,255,.12)",
+                            borderRadius: 8,
+                            fontSize: 11,
+                            fontWeight: 800,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#64748b" }}>
+                    Active style: <strong style={{ color: "#e2e8f0" }}>{ELIMINATION_BANNER_LAYOUTS.find((o) => o.id === activeElimLayout)?.label || activeElimLayout}</strong>
+                  </div>
+                </div>
                 <div
                   style={{
                     display: "flex",
                     gap: 10,
                     flexWrap: "wrap",
                     marginBottom: 12,
-                    opacity: gfxBroadcastElim || elimBannerMode === GFX_COLOR_MODE_CUSTOM ? 1 : 0.45,
-                    pointerEvents: gfxBroadcastElim || elimBannerMode === GFX_COLOR_MODE_CUSTOM ? "auto" : "none",
+                    opacity: elimPickersEnabled ? 1 : 0.45,
+                    pointerEvents: elimPickersEnabled ? "auto" : "none",
                   }}
                 >
                   {elimColorPickers.map(([key, label]) => (
@@ -3787,14 +4119,27 @@ export default function AdminPanel() {
                       <input
                         type="color"
                         value={clampHexColor(
-                          gfxBroadcastElim
-                            ? broadcastElimDraft[key]
-                            : elimBannerDraft[key],
-                          gfxBroadcastElim
-                            ? BROADCAST_ELIMINATION_DEFAULTS[key]
-                            : ELIMINATION_BANNER_DEFAULT_COLORS[key],
+                          elimLayoutUsesDedicatedPickers(activeElimLayout)
+                            ? elimPickerResolvedColor(
+                                gfxMergedTheme,
+                                activeElimLayout,
+                                key,
+                                layoutElimDraft,
+                              )
+                            : gfxBroadcastElim
+                              ? broadcastElimDraft[key]
+                              : elimBannerDraft[key],
+                          elimLayoutUsesDedicatedPickers(activeElimLayout)
+                            ? layoutElimDefaultForKey(activeElimLayout, key)
+                            : gfxBroadcastElim
+                              ? BROADCAST_ELIMINATION_DEFAULTS[key]
+                              : ELIMINATION_BANNER_DEFAULT_COLORS[key],
                         )}
                         onChange={(e) => {
+                          if (elimLayoutUsesDedicatedPickers(activeElimLayout)) {
+                            onLayoutElimColorChange(key, e.target.value);
+                            return;
+                          }
                           if (gfxBroadcastElim) {
                             onBroadcastElimColorChange(key, e.target.value);
                             return;
@@ -3817,6 +4162,48 @@ export default function AdminPanel() {
                   <button
                     type="button"
                     onClick={async () => {
+                      if (elimLayoutUsesDedicatedPickers(activeElimLayout)) {
+                        if (layoutElimAutosaveRef.current) {
+                          clearTimeout(layoutElimAutosaveRef.current);
+                          layoutElimAutosaveRef.current = null;
+                        }
+                        if (elimBannerMode === GFX_COLOR_MODE_CUSTOM) {
+                          const merged = mergeEliminationBannerColors({
+                            ...layoutElimPatchFromDraft(layoutElimDraft, activeElimLayout),
+                            broadcastLayout:
+                              activeElimLayout === "broadcast" || activeElimLayout === "minimalBroadcast",
+                            minimalBroadcastLayout: activeElimLayout === "minimalBroadcast",
+                            neonLayout: activeElimLayout === "neonPanel",
+                            cyberpunkLayout: activeElimLayout === "stacked",
+                          });
+                          const res = await fetch(`${API}/settings`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              eliminationBannerColorMode: GFX_COLOR_MODE_CUSTOM,
+                              eliminationBannerColors: merged,
+                            }),
+                          });
+                          if (res.ok) {
+                            layoutElimDirtyRef.current = false;
+                            elimBannerDirtyRef.current = false;
+                            broadcastElimDirtyRef.current = false;
+                            setElimBannerMode(GFX_COLOR_MODE_CUSTOM);
+                            setElimBannerDraft(merged);
+                            publishLayoutElimGfx(layoutElimDraft, GFX_COLOR_MODE_CUSTOM);
+                            setMessage("Elimination banner custom colors saved — overlay updated.");
+                          } else {
+                            setMessage("Failed to save elimination colors.");
+                          }
+                          return;
+                        }
+                        const ok = await saveLayoutElimOverrides(
+                          layoutElimDraft,
+                          "Elimination banner colors saved — overlay updated.",
+                        );
+                        if (!ok) setMessage("Failed to save elimination colors.");
+                        return;
+                      }
                       if (gfxBroadcastElim) {
                         if (broadcastElimAutosaveRef.current) {
                           clearTimeout(broadcastElimAutosaveRef.current);

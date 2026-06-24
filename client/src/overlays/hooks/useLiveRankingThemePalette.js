@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { getTheme, getThemeNames } from "../themes";
 import { mergeThemeOverride } from "../utils/mergeThemeOverride";
-import socket, { API } from "../socket";
+import { isValidEliminationBannerLayout } from "../eliminationBannerRegistry";
+import socket, { API, apiUrl } from "../socket";
 
 /** Fallback when theme not loaded yet — matches premiumGold-style defaults */
 export const DEFAULT_ANNOUNCEMENT_PALETTE = {
@@ -65,9 +66,18 @@ export function announcementPaletteFromTheme(theme) {
  * Same active theme + color overrides as /overlay/themed (live ranking).
  * Announcements & admin preview update when Theme Preview colors or Admin active theme change.
  */
+function themeFromUrl() {
+  if (typeof window === "undefined") return null;
+  const t = new URLSearchParams(window.location.search).get("theme");
+  if (typeof t === "string" && getThemeNames().includes(t)) return t;
+  return null;
+}
+
 export function useLiveRankingThemePalette() {
   const [themeName, setThemeName] = useState("esports");
   const [themeColorOverrides, setThemeColorOverrides] = useState({});
+  const [eliminationBannerLayouts, setEliminationBannerLayouts] = useState({});
+  const urlTheme = useMemo(() => themeFromUrl(), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,13 +87,16 @@ export function useLiveRankingThemePalette() {
       if (s.themeColorOverrides && typeof s.themeColorOverrides === "object") {
         setThemeColorOverrides(s.themeColorOverrides);
       }
+      if (s.eliminationBannerLayouts && typeof s.eliminationBannerLayouts === "object") {
+        setEliminationBannerLayouts(s.eliminationBannerLayouts);
+      }
       const t = s.activeTheme;
       if (typeof t === "string" && getThemeNames().includes(t)) {
         setThemeName(t);
       }
     };
 
-    fetch(`${API}/settings`)
+    fetch(apiUrl("/settings"), { cache: "no-store" })
       .then((r) => r.json())
       .then((s) => {
         if (!cancelled) applySettings(s);
@@ -116,14 +129,30 @@ export function useLiveRankingThemePalette() {
     };
   }, []);
 
-  const mergedTheme = useMemo(
-    () => mergeThemeOverride(getTheme(themeName), themeColorOverrides[themeName] || {}),
-    [themeName, themeColorOverrides],
-  );
+  const effectiveThemeName = urlTheme || themeName;
+
+  const mergedTheme = useMemo(() => {
+    let merged = mergeThemeOverride(
+      getTheme(effectiveThemeName),
+      themeColorOverrides[effectiveThemeName] || {},
+    );
+    const savedLayout = eliminationBannerLayouts[effectiveThemeName];
+    if (savedLayout && isValidEliminationBannerLayout(savedLayout)) {
+      merged = {
+        ...merged,
+        elimination: {
+          ...(merged.elimination || {}),
+          bannerLayout: savedLayout,
+          layout: savedLayout,
+        },
+      };
+    }
+    return merged;
+  }, [effectiveThemeName, themeColorOverrides, eliminationBannerLayouts]);
 
   const palette = useMemo(() => announcementPaletteFromTheme(mergedTheme), [mergedTheme]);
 
-  return { palette, themeName, mergedTheme };
+  return { palette, themeName: effectiveThemeName, mergedTheme };
 }
 
 /** Admin Live announcements preview — same palette as OBS overlay */

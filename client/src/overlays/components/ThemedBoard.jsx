@@ -11,7 +11,7 @@ function themedBoardColumns({ compactMode, finishPointsRankingOnly, rondoRecallC
     return compactMode ? "44px 96px 40px 76px" : "52px 108px 48px 88px";
   }
   if (rondoRecallColumn) {
-    return compactMode ? "44px 80px 32px 44px 52px 56px" : "52px 92px 38px 52px 58px 62px";
+    return compactMode ? "44px 80px 32px 44px 52px 64px" : "52px 92px 38px 52px 58px 70px";
   }
   return compactMode ? "44px 80px 32px 44px 56px" : "52px 92px 38px 52px 62px";
 }
@@ -28,7 +28,7 @@ function ThemedBoard({
   aliveCustomAlive = null,
   aliveCustomDead = null,
 }) {
-  const boardWidth = (config?.board?.width || 320) + 14 + (rondoRecallColumn ? 58 : 0);
+  const boardWidth = (config?.board?.width || 320) + 14 + (rondoRecallColumn ? 66 : 0);
   const columns = themedBoardColumns({
     compactMode: config?.compactMode,
     finishPointsRankingOnly,

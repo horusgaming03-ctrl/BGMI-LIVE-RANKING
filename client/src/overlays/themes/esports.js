@@ -65,4 +65,22 @@ export const esports = {
   topLine: {
     height: 3,
   },
+  /** Tournament GFX board (reference LIVE RANKING layout) */
+  esportsTournamentGfx: true,
+  esportsRanking: {
+    panelBg: "#0c0c10",
+    panelGlow: "rgba(230,57,70,.45)",
+    rowBg: "#141418",
+    rowBorder: "rgba(230,57,70,.55)",
+    rankGold: "#f0a030",
+    rankSilver: "#b8bcc6",
+    aliveColor: "#5ec8f2",
+    knockedColor: "#ff3344",
+    damagedColor: "#3a3a44",
+    headerLive: "#ffffff",
+    headerRank: "#ff3344",
+    footerTag: "#ff3344",
+    fontFamily: "'Rajdhani', 'Inter', sans-serif",
+    titleFont: "'Bebas Neue', Impact, sans-serif",
+  },
 };

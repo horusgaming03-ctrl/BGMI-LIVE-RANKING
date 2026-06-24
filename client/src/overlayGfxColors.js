@@ -1,5 +1,23 @@
 import { clampHexColor } from "./sideOverlayPrefs";
-import { broadcastElimStyleFromTheme, broadcastElimStyleFromPatch, broadcastWwcdStripColorsResolved, isLegacyWwcdStripCustom, isBroadcastGfxTheme, BROADCAST_ELIMINATION_COLOR_KEYS, BROADCAST_ELIMINATION_DEFAULTS, BROADCAST_WWCD_STRIP_COLOR_KEYS } from "./overlays/broadcastGfxUtils";
+import { isBroadcastGfxTheme, broadcastElimStyleFromTheme, broadcastElimStyleFromPatch, broadcastWwcdStripColorsResolved, isLegacyWwcdStripCustom, BROADCAST_ELIMINATION_COLOR_KEYS, BROADCAST_ELIMINATION_DEFAULTS, BROADCAST_WWCD_STRIP_COLOR_KEYS } from "./overlays/broadcastGfxUtils";
+import {
+  resolveEliminationBannerLayout,
+  eliminationBannerStyleFromTheme,
+  layoutElimPatchFromDraft,
+  eliminationPickerKeysForLayout,
+} from "./overlays/eliminationBannerRegistry";
+import { NEON_ELIMINATION_PICKERS } from "./overlays/neonElimUtils";
+import { CYBERPUNK_ELIMINATION_PICKERS } from "./overlays/cyberpunkElimUtils";
+import { MINIMAL_ELIMINATION_PICKERS, MINIMAL_WWCD_STRIP_COLOR_KEYS } from "./overlays/minimalGfxUtils";
+
+const LAYOUT_ELIM_COLOR_KEYS = Object.freeze([
+  ...new Set([
+    ...BROADCAST_ELIMINATION_COLOR_KEYS,
+    ...MINIMAL_ELIMINATION_PICKERS.map(([key]) => key),
+    ...NEON_ELIMINATION_PICKERS.map(([key]) => key),
+    ...CYBERPUNK_ELIMINATION_PICKERS.map(([key]) => key),
+  ]),
+]);
 
 export const GFX_COLOR_MODE_THEME = "theme";
 export const GFX_COLOR_MODE_CUSTOM = "custom";
@@ -58,6 +76,12 @@ export function mergeWwcdStripColors(patch) {
       out[k] = clampHexColor(patch[k], out.teamTagBg || out.footerBg || "#ffffff");
     }
   }
+  for (const k of MINIMAL_WWCD_STRIP_COLOR_KEYS) {
+    if (patch[k] != null && typeof patch[k] === "string" && /^#[0-9A-Fa-f]{3,8}$/.test(patch[k].trim())) {
+      out[k] = clampHexColor(patch[k], out[k] || "#1c1c1c");
+    }
+  }
+  if (patch.minimalBroadcastLayout) out.minimalBroadcastLayout = true;
   if (out.broadcastLayout || BROADCAST_WWCD_STRIP_COLOR_KEYS.some((k) => patch[k] != null)) {
     out.broadcastLayout = true;
   }
@@ -76,6 +100,17 @@ export function mergeEliminationBannerColors(patch) {
     if (patch[k] != null) {
       out[k] = clampHexColor(patch[k], BROADCAST_ELIMINATION_DEFAULTS[k]);
     }
+  }
+  for (const k of LAYOUT_ELIM_COLOR_KEYS) {
+    if (patch[k] != null && typeof patch[k] === "string" && /^#[0-9A-Fa-f]{3,8}$/.test(patch[k].trim())) {
+      out[k] = clampHexColor(patch[k], out[k] || "#888888");
+    }
+  }
+  if (patch.neonLayout) out.neonLayout = true;
+  if (patch.cyberpunkLayout) out.cyberpunkLayout = true;
+  if (patch.minimalBroadcastLayout) out.minimalBroadcastLayout = true;
+  if (patch.animation != null) {
+    out.animation = typeof patch.animation === "string" ? patch.animation.trim() : patch.animation;
   }
   return out;
 }
@@ -164,8 +199,58 @@ export function wwcdStripColorsFromTheme(theme) {
 
 /** Derive elimination banner palette from active live-ranking theme */
 export function eliminationBannerColorsFromTheme(theme) {
-  if (isBroadcastGfxTheme(theme)) {
-    const b = broadcastElimStyleFromTheme(theme);
+  const layout = resolveEliminationBannerLayout(theme);
+  const styles = eliminationBannerStyleFromTheme(theme);
+
+  if (layout === "neonPanel") {
+    const n = styles.neonStyle;
+    return {
+      ...clampEliminationBannerColors({
+        primary: n.rankPanelBg,
+        accent: n.borderColor,
+        gold: n.statNumColor,
+        secondary: n.statsBg,
+        textMuted: n.titleText,
+      }),
+      neonLayout: true,
+      neonStyle: n,
+    };
+  }
+
+  if (layout === "minimalBroadcast") {
+    const b = styles.broadcastStyle;
+    return {
+      ...clampEliminationBannerColors({
+        primary: b.elimBg,
+        accent: b.logoRingColor,
+        gold: b.leftPanelBg,
+        secondary: b.rankBadgeText,
+        textMuted: b.elimText,
+      }),
+      broadcastLayout: true,
+      minimalBroadcastLayout: true,
+      animation: b.animation,
+      broadcastStyle: b,
+    };
+  }
+
+  if (layout === "stacked") {
+    const cp = styles.cyberpunkStyle;
+    return {
+      ...clampEliminationBannerColors({
+        primary: cp.statsBg?.includes?.("gradient") ? theme?.colors?.accent || "#e94560" : cp.statsBg,
+        accent: theme?.colors?.accent || "#e94560",
+        gold: cp.rankText,
+        secondary: cp.logoPanelBg,
+        textMuted: cp.titleText,
+      }),
+      cyberpunkLayout: true,
+      cyberpunkStyle: cp,
+    };
+  }
+
+  if (layout === "broadcast") {
+    const b = styles.broadcastStyle;
     return {
       ...clampEliminationBannerColors({
         primary: b.elimBg,
@@ -190,6 +275,39 @@ export function eliminationBannerColorsFromTheme(theme) {
   });
 }
 
+/** True when saved custom palette is a deliberate full layout override (not stale partial saves). */
+export function isLayoutAwareElimCustom(customColors, theme) {
+  if (!customColors || typeof customColors !== "object") return false;
+  const layout = resolveEliminationBannerLayout(theme);
+  if (layout === "classic") {
+    return isClassicElimCustom(customColors);
+  }
+
+  const countFilled = (keys) => keys.filter((k) => customColors[k] != null).length;
+
+  if (layout === "broadcast") {
+    return countFilled(BROADCAST_ELIMINATION_COLOR_KEYS) >= 3;
+  }
+  if (layout === "minimalBroadcast") {
+    return countFilled(MINIMAL_ELIMINATION_PICKERS.map(([k]) => k)) >= 3;
+  }
+  if (layout === "neonPanel") {
+    return countFilled(NEON_ELIMINATION_PICKERS.map(([k]) => k)) >= 3;
+  }
+  if (layout === "stacked") {
+    return countFilled(CYBERPUNK_ELIMINATION_PICKERS.map(([k]) => k)) >= 3;
+  }
+  return false;
+}
+
+function isClassicElimCustom(customColors) {
+  const merged = mergeEliminationBannerColors(customColors);
+  return (
+    stableCanonEliminationBannerColors(merged) !==
+    stableCanonEliminationBannerColors(ELIMINATION_BANNER_DEFAULT_COLORS)
+  );
+}
+
 export function resolveWwcdStripColors(mode, customColors, theme) {
   if (isBroadcastGfxTheme(theme)) {
     const useCustom =
@@ -208,32 +326,79 @@ export function resolveWwcdStripColors(mode, customColors, theme) {
 }
 
 export function resolveEliminationBannerColors(mode, customColors, theme) {
-  if (isBroadcastGfxTheme(theme)) {
-    const base = broadcastElimStyleFromTheme(theme);
-    if (normalizeGfxColorMode(mode) === GFX_COLOR_MODE_CUSTOM) {
-      const merged = mergeEliminationBannerColors(customColors);
-      const broadcastStyle = broadcastElimStyleFromPatch(base, merged);
+  const layout = resolveEliminationBannerLayout(theme);
+  const useCustom =
+    normalizeGfxColorMode(mode) === GFX_COLOR_MODE_CUSTOM &&
+    customColors &&
+    typeof customColors === "object" &&
+    (layout === "classic" ? isClassicElimCustom(customColors) : isLayoutAwareElimCustom(customColors, theme));
+
+  if (useCustom) {
+    const baseStyles = eliminationBannerStyleFromTheme(theme);
+
+    if (layout === "classic") {
+      return { ...mergeEliminationBannerColors(customColors) };
+    }
+
+    if (layout === "neonPanel") {
+      const layoutPatch = layoutElimPatchFromDraft(customColors, layout);
+      const neonStyle = { ...baseStyles.neonStyle, ...layoutPatch };
       return {
-        ...merged,
+        ...clampEliminationBannerColors({
+          primary: neonStyle.rankPanelBg,
+          accent: neonStyle.borderColor,
+          gold: neonStyle.statNumColor,
+          secondary: neonStyle.statsBg,
+          textMuted: neonStyle.titleText,
+        }),
+        neonLayout: true,
+        neonStyle,
+      };
+    }
+
+    if (layout === "minimalBroadcast") {
+      const layoutPatch = layoutElimPatchFromDraft(customColors, layout);
+      const broadcastStyle = broadcastElimStyleFromPatch(baseStyles.broadcastStyle, {
+        ...layoutPatch,
+        minimalBroadcastLayout: true,
+        broadcastLayout: true,
+      });
+      return {
+        broadcastLayout: true,
+        minimalBroadcastLayout: true,
+        animation: broadcastStyle.animation,
+        broadcastStyle,
+      };
+    }
+
+    if (layout === "stacked") {
+      const layoutPatch = layoutElimPatchFromDraft(customColors, layout);
+      const cyberpunkStyle = { ...baseStyles.cyberpunkStyle, ...layoutPatch };
+      return {
+        ...clampEliminationBannerColors({
+          primary: cyberpunkStyle.statsBg,
+          accent: theme?.colors?.accent || "#e94560",
+          gold: cyberpunkStyle.rankText,
+          secondary: cyberpunkStyle.logoPanelBg,
+          textMuted: cyberpunkStyle.titleText,
+        }),
+        cyberpunkLayout: true,
+        cyberpunkStyle,
+      };
+    }
+
+    if (layout === "broadcast") {
+      const layoutPatch = layoutElimPatchFromDraft(customColors, layout);
+      const broadcastStyle = broadcastElimStyleFromPatch(baseStyles.broadcastStyle, {
+        ...layoutPatch,
+        broadcastLayout: true,
+      });
+      return {
         broadcastLayout: true,
         broadcastStyle,
       };
     }
-    return {
-      ...clampEliminationBannerColors({
-        primary: base.elimBg,
-        accent: base.panelBg,
-        gold: base.nameTagBg,
-        secondary: base.panelBg,
-        textMuted: base.statsText,
-      }),
-      broadcastLayout: true,
-      broadcastStyle: base,
-    };
   }
 
-  if (normalizeGfxColorMode(mode) === GFX_COLOR_MODE_CUSTOM) {
-    return mergeEliminationBannerColors(customColors);
-  }
   return eliminationBannerColorsFromTheme(theme);
 }

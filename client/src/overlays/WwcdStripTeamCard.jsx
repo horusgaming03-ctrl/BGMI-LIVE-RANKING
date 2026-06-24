@@ -128,6 +128,24 @@ export default function WwcdStripTeamCard({
 
 export function wwcdStripStyleFromColors(stripColors) {
   const c = stripColors;
+  if (c.minimalBroadcastLayout) {
+    return {
+      minimalBroadcastLayout: true,
+      broadcastLayout: true,
+      teamTagBg: c.teamTagBg,
+      teamTagText: c.teamTagText || "#ffffff",
+      panelBg: c.panelBg,
+      accentLine: c.accentLine || "#00c8c8",
+      footerBg: c.footerBg || "#111111",
+      footerText: c.footerText || "#ffcc00",
+      dividerColor: c.dividerColor || c.accentLine || "#00c8c8",
+      pctTextColor: c.pctTextColor || "#ffffff",
+      barFilled: c.barFilled ?? c.barGreen,
+      barDead: c.barDead,
+      fontFamily: c.fontFamily || "'Roboto Condensed', 'Arial Narrow', sans-serif",
+      cardWidth: c.cardWidth || 220,
+    };
+  }
   if (c.broadcastLayout) {
     return {
       broadcastLayout: true,

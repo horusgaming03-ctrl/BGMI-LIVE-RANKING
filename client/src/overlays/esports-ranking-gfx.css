@@ -1,0 +1,178 @@
+.lr-esports-root {
+  --lr-es-panel: #0c0c10;
+  --lr-es-glow: rgba(230, 57, 70, 0.45);
+  --lr-es-row: #141418;
+  --lr-es-border: rgba(230, 57, 70, 0.55);
+  --lr-es-gold: #f0a030;
+  --lr-es-silver: #b8bcc6;
+  --lr-es-text: #ffffff;
+  --lr-es-alive: #5ec8f2;
+  --lr-es-knocked: #ff3344;
+  --lr-es-damaged: #3a3a44;
+  --lr-es-red: #ff3344;
+  --lr-es-font: "Rajdhani", "Inter", sans-serif;
+  --lr-es-title: "Bebas Neue", Impact, sans-serif;
+  position: relative;
+  width: 380px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  font-family: var(--lr-es-font);
+  color: var(--lr-es-text);
+}
+
+.lr-esports-header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0 4px 10px;
+  margin-bottom: 6px;
+}
+
+.lr-esports-title {
+  text-align: center;
+  font-family: var(--lr-es-title);
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  font-style: italic;
+  text-transform: uppercase;
+}
+
+.lr-esports-title-live {
+  color: var(--lr-es-text);
+}
+
+.lr-esports-title-rank {
+  color: var(--lr-es-red);
+}
+
+.lr-esports-cols {
+  display: grid;
+  grid-template-columns: 42px 1fr 72px 44px 48px;
+  gap: 4px;
+  padding: 0 14px 6px 8px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.75);
+  text-transform: uppercase;
+}
+
+.lr-esports-cols span:nth-child(3),
+.lr-esports-cols span:nth-child(4),
+.lr-esports-cols span:nth-child(5) {
+  text-align: center;
+}
+
+.lr-esports-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  overflow: visible;
+  padding-bottom: 4px;
+}
+
+.lr-esports-row {
+  display: grid;
+  grid-template-columns: 42px 1fr 72px 44px 48px;
+  gap: 4px;
+  align-items: center;
+  min-height: 38px;
+  padding: 4px 14px 4px 8px;
+  background: var(--lr-es-row);
+  border: 1px solid var(--lr-es-border);
+  clip-path: polygon(10px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+  box-shadow: 0 0 10px rgba(230, 57, 70, 0.12);
+  position: relative;
+  flex-shrink: 0;
+}
+
+.lr-esports-row--gold::before,
+.lr-esports-row--silver::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+}
+
+.lr-esports-row--gold::before {
+  background: linear-gradient(180deg, #ffd56a, var(--lr-es-gold));
+}
+
+.lr-esports-row--silver::before {
+  background: linear-gradient(180deg, #e8ebf0, var(--lr-es-silver));
+}
+
+.lr-esports-rank {
+  font-size: 17px;
+  font-weight: 900;
+  font-style: italic;
+  text-align: center;
+  color: var(--lr-es-text);
+}
+
+.lr-esports-team {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lr-esports-logo {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: #1a1a22;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.lr-esports-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lr-esports-logo-fallback {
+  font-size: 9px;
+  font-weight: 900;
+  color: var(--lr-es-gold);
+}
+
+.lr-esports-name {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lr-esports-alive {
+  display: flex;
+  justify-content: center;
+  gap: 3px;
+}
+
+.lr-esports-silhouette {
+  width: 10px;
+  height: 14px;
+  opacity: 0.95;
+}
+
+.lr-esports-stat {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 800;
+  font-style: italic;
+  min-width: 0;
+  padding-right: 2px;
+}

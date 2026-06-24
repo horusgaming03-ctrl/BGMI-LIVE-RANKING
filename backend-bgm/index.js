@@ -386,7 +386,7 @@ function sanitizeWwcdStripColors(raw) {
     logoBoxBg: hc(raw.logoBoxBg, d.logoBoxBg),
     initialsColor: hc(raw.initialsColor, d.initialsColor),
   };
-  const broadcastKeys = ["teamTagBg", "teamTagText", "dividerColor", "pctTextColor"];
+  const broadcastKeys = ["teamTagBg", "teamTagText", "dividerColor", "pctTextColor", "panelBg", "accentLine"];
   for (const key of broadcastKeys) {
     if (typeof raw[key] === "string") out[key] = hc(raw[key], out.footerBg);
   }
@@ -400,6 +400,7 @@ function sanitizeWwcdStripColors(raw) {
 function sanitizeEliminationBannerColors(raw) {
   const d = ELIMINATION_BANNER_DEFAULT_COLORS_BACKEND;
   const hc = (v, fb) => normalizeSideOverlayHex(v, fb);
+  const VALID_ELIM_ANIMATIONS = new Set(["slideLeft", "slideUp", "popIn", "fadeZoom", "combatDrop"]);
   if (!raw || typeof raw !== "object") return { ...d };
   const out = {
     primary: hc(raw.primary, d.primary),
@@ -417,11 +418,29 @@ function sanitizeEliminationBannerColors(raw) {
     "elimText",
     "nameTagBg",
     "nameTagText",
+    "leftPanelBg",
+    "rankBadgeText",
+    "logoRingColor",
+    "dividerColor",
+    "rankPanelBg",
+    "titleBg",
+    "titleText",
+    "statNumColor",
+    "statLabelColor",
+    "borderColor",
+    "logoPanelBg",
+    "logoBorder",
+    "teamText",
+    "killIconColor",
   ];
   for (const key of broadcastKeys) {
     if (typeof raw[key] === "string") out[key] = hc(raw[key], out.primary);
   }
   if (raw.broadcastLayout) out.broadcastLayout = true;
+  if (raw.minimalBroadcastLayout) out.minimalBroadcastLayout = true;
+  if (typeof raw.animation === "string" && VALID_ELIM_ANIMATIONS.has(raw.animation)) {
+    out.animation = raw.animation;
+  }
   return out;
 }
 
@@ -511,6 +530,8 @@ let settings = {
   /** Match board /overlay/themed alive icons — separate so broadcast-engine saves don't wipe them */
   themedOverlayPrefs: null,
   themeColorOverrides: {},
+  /** Per-theme elimination banner layout for `/overlay/elimination` (independent of board theme). */
+  eliminationBannerLayouts: {},
   /** Custom full-bleed PNG for `/overlay/themed/overall` points table */
   overallStandingsBg: null,
   /** One PNG for three isolated OBS URLs: /overlay/obs-slot/(eliminations|top-four|live-ranking) — no transform, same file. */
@@ -857,7 +878,13 @@ function loadPersistedSettings() {
       settings.engineOverlayPrefs = raw.engineOverlayPrefs;
     }
     if (raw.themeColorOverrides && typeof raw.themeColorOverrides === "object" && !Array.isArray(raw.themeColorOverrides)) {
-      settings.themeColorOverrides = raw.themeColorOverrides;
+      settings.themeColorOverrides = sanitizeThemeColorOverrides(raw.themeColorOverrides);
+      settings.eliminationBannerLayouts = {
+        ...sanitizeEliminationBannerLayouts(raw.eliminationBannerLayouts),
+        ...eliminationBannerLayoutsFromOverrides(settings.themeColorOverrides),
+      };
+    } else if (raw.eliminationBannerLayouts && typeof raw.eliminationBannerLayouts === "object") {
+      settings.eliminationBannerLayouts = sanitizeEliminationBannerLayouts(raw.eliminationBannerLayouts);
     }
     if (raw.themedOverlayPrefs && typeof raw.themedOverlayPrefs === "object") {
       settings.themedOverlayPrefs = sanitizeThemedOverlayPrefs(raw.themedOverlayPrefs);
@@ -940,6 +967,7 @@ function persistAppSettings() {
           engineOverlayPrefs: settings.engineOverlayPrefs,
           themedOverlayPrefs: settings.themedOverlayPrefs,
           themeColorOverrides: settings.themeColorOverrides,
+          eliminationBannerLayouts: settings.eliminationBannerLayouts,
           overallStandingsBg: settings.overallStandingsBg,
           obsSharedTriplePng: settings.obsSharedTriplePng,
           obsSharedTripleColumns: settings.obsSharedTripleColumns,
@@ -996,9 +1024,37 @@ let wwcdColors = {
   bg: "",
 };
 
+function sanitizeEliminationBannerLayouts(input) {
+  const VALID = new Set(["neonPanel", "stacked", "minimalBroadcast", "broadcast", "classic"]);
+  const safeThemeId = (k) => typeof k === "string" && /^[a-zA-Z][a-zA-Z0-9_]{0,39}$/.test(k);
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+  const out = {};
+  for (const [themeId, layout] of Object.entries(input)) {
+    if (!safeThemeId(themeId)) continue;
+    if (typeof layout === "string" && VALID.has(layout)) out[themeId] = layout;
+  }
+  return out;
+}
+
+function eliminationBannerLayoutsFromOverrides(overrides) {
+  const VALID = new Set(["neonPanel", "stacked", "minimalBroadcast", "broadcast", "classic"]);
+  if (!overrides || typeof overrides !== "object" || Array.isArray(overrides)) return {};
+  const out = {};
+  for (const [themeId, patch] of Object.entries(overrides)) {
+    if (!patch || typeof patch !== "object") continue;
+    const el = patch.elimination;
+    if (!el || typeof el !== "object") continue;
+    const layout = el.bannerLayout || el.layout;
+    if (typeof layout === "string" && VALID.has(layout)) out[themeId] = layout;
+  }
+  return out;
+}
+
 // ── Helpers ──
 function sanitizeThemeColorOverrides(input) {
   const hex = /^#[0-9A-Fa-f]{3,8}$/;
+  const VALID_ELIM_ANIMATIONS = new Set(["slideLeft", "slideUp", "popIn", "fadeZoom", "combatDrop"]);
+  const VALID_ELIM_BANNER_LAYOUTS = new Set(["neonPanel", "stacked", "minimalBroadcast", "broadcast", "classic"]);
   const safeThemeId = (k) => typeof k === "string" && /^[a-zA-Z][a-zA-Z0-9_]{0,39}$/.test(k);
   const cleanHexMap = (o) => {
     if (!o || typeof o !== "object") return undefined;
@@ -1040,6 +1096,20 @@ function sanitizeThemeColorOverrides(input) {
     }
     const el = cleanHexMap(patch.elimination);
     if (el) entry.elimination = el;
+    if (patch.elimination && typeof patch.elimination === "object") {
+      const anim = patch.elimination.animation;
+      if (typeof anim === "string" && VALID_ELIM_ANIMATIONS.has(anim)) {
+        entry.elimination = { ...(entry.elimination || {}), animation: anim };
+      }
+      const bannerLayout = patch.elimination.bannerLayout;
+      if (typeof bannerLayout === "string" && VALID_ELIM_BANNER_LAYOUTS.has(bannerLayout)) {
+        entry.elimination = { ...(entry.elimination || {}), bannerLayout };
+      }
+      const layout = patch.elimination.layout;
+      if (typeof layout === "string" && VALID_ELIM_BANNER_LAYOUTS.has(layout)) {
+        entry.elimination = { ...(entry.elimination || {}), layout };
+      }
+    }
     const ws = cleanHexMap(patch.wwcdStrip);
     if (ws) entry.wwcdStrip = ws;
     if (Object.keys(entry).length) out[themeId] = entry;
@@ -1982,7 +2052,10 @@ app.post("/matches/:id/restore", (req, res) => {
 
 // ── Settings ──
 
-app.get("/settings", (_req, res) => res.json(settings));
+app.get("/settings", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.json(settings);
+});
 
 app.post("/settings", (req, res) => {
   if (req.body.autoCalculate !== undefined) {
@@ -2024,8 +2097,21 @@ app.post("/settings", (req, res) => {
     const raw = req.body.themeColorOverrides;
     if (raw === null) {
       settings.themeColorOverrides = {};
+      settings.eliminationBannerLayouts = {};
     } else if (raw && typeof raw === "object" && !Array.isArray(raw)) {
       settings.themeColorOverrides = sanitizeThemeColorOverrides(raw);
+      settings.eliminationBannerLayouts = {
+        ...(settings.eliminationBannerLayouts || {}),
+        ...eliminationBannerLayoutsFromOverrides(settings.themeColorOverrides),
+      };
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(req.body, "eliminationBannerLayouts")) {
+    const raw = req.body.eliminationBannerLayouts;
+    if (raw === null) {
+      settings.eliminationBannerLayouts = {};
+    } else if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      settings.eliminationBannerLayouts = sanitizeEliminationBannerLayouts(raw);
     }
   }
   if (Object.prototype.hasOwnProperty.call(req.body, "overallStandingsBg")) {

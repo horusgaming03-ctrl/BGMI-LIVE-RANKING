@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { stripTeamsFromAlive, wwcdPercentsForStripTeams } from "../wwcdModel";
 import WwcdStripTeamCard, { wwcdStripStyleFromColors } from "./WwcdStripTeamCard";
 import BroadcastWwcdStripCard from "./BroadcastWwcdStripCard";
+import MinimalBroadcastWwcdStripCard from "./components/MinimalBroadcastWwcdStripCard";
 
 /**
  * WWCD 4-squad strip — shown when 1–4 non-eliminated squads remain.
@@ -14,10 +15,16 @@ export default function WwcdFourAliveStrip({ teams, stripColors, position = "cen
   }, [teams]);
 
   const stripStyle = useMemo(() => wwcdStripStyleFromColors(stripColors || {}), [stripColors]);
-  const StripCard = stripStyle.broadcastLayout ? BroadcastWwcdStripCard : WwcdStripTeamCard;
+  const StripCard = stripStyle.minimalBroadcastLayout
+    ? MinimalBroadcastWwcdStripCard
+    : stripStyle.broadcastLayout
+      ? BroadcastWwcdStripCard
+      : WwcdStripTeamCard;
   const percents = useMemo(() => wwcdPercentsForStripTeams(stripTeams), [stripTeams]);
 
   if (!stripTeams) return null;
+
+  const cardGap = stripStyle.minimalBroadcastLayout ? 12 : stripStyle.broadcastLayout ? 8 : 14;
 
   return (
     <div
@@ -31,7 +38,7 @@ export default function WwcdFourAliveStrip({ teams, stripColors, position = "cen
         maxWidth: "min(1680px, 96vw)",
         display: "flex",
         flexDirection: "row",
-        gap: stripStyle.broadcastLayout ? 8 : 14,
+        gap: cardGap,
         flexWrap: "nowrap",
         alignItems: "stretch",
         justifyContent: "center",
@@ -56,6 +63,9 @@ export default function WwcdFourAliveStrip({ teams, stripColors, position = "cen
           cardWidth={stripStyle.cardWidth}
           teamTagBg={stripStyle.teamTagBg}
           teamTagText={stripStyle.teamTagText}
+          panelBg={stripStyle.panelBg}
+          accentLine={stripStyle.accentLine}
+          barFilled={stripStyle.barFilled}
         />
       ))}
     </div>

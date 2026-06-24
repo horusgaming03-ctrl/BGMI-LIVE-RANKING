@@ -557,11 +557,11 @@ function AliveIndicator({
 
   if (styleId === "bolt") {
     const boltSz = tightCluster
-      ? Math.max(14, Math.round(size * 1.25 + 8))
-      : Math.max(18, Math.round(size * 1.85 + 10));
+      ? Math.max(18, Math.round(size * 1.45 + 10))
+      : Math.max(22, Math.round(size * 2.1 + 12));
     const boltTuck = tightCluster
-      ? -Math.max(8, Math.round(boltSz * 0.42))
-      : -Math.max(2, Math.round(boltSz * 0.12));
+      ? -Math.max(3, Math.round(boltSz * 0.18))
+      : -Math.max(1, Math.round(boltSz * 0.06));
     const usedFade = tightCluster ? 0.22 : 0.28;
     const usedFill = tightCluster ? deadColor : deadColor;
     return (
@@ -570,10 +570,11 @@ function AliveIndicator({
           display: "flex",
           flexDirection: "row",
           gap: 0,
+          justifyContent: "center",
           justifySelf: "center",
           alignItems: "center",
-          marginLeft: tightCluster ? "auto" : Math.max(6, Math.round(boltSz * 0.24)),
-          marginRight: tightCluster ? Math.max(4, Math.round(boltSz * 0.18)) : 0,
+          marginLeft: tightCluster ? 0 : Math.max(6, Math.round(boltSz * 0.24)),
+          marginRight: 0,
         }}
       >
         {[0, 1, 2, 3].map((i) => {

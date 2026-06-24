@@ -1,0 +1,575 @@
+/* Minimal broadcast — tournament elimination card + WWCD strip */
+
+.lr-min-elim-root {
+  text-transform: uppercase;
+  width: max-content;
+  max-width: 100%;
+}
+
+.lr-min-elim-card {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+/* Left — rank badge + circular logo */
+.lr-min-elim-left-panel {
+  position: relative;
+  width: 112px;
+  height: 112px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+}
+
+.lr-min-elim-rank-badge {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  opacity: 0.9;
+}
+
+.lr-min-elim-logo-ring {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: 4px solid var(--lr-min-elim-ring, #00c8c8);
+  background: rgba(255, 255, 255, 0.92);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+}
+
+.lr-min-elim-logo-img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+}
+
+.lr-min-elim-logo-fallback {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Right — ELIMS + ELIMINATED */
+.lr-min-elim-right-panel {
+  position: relative;
+  width: 196px;
+  height: 112px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 16px 12px;
+  border-radius: 0 14px 0 0;
+  overflow: hidden;
+}
+
+.lr-min-elim-flourish {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 44px;
+  height: 28px;
+  pointer-events: none;
+}
+
+.lr-min-elim-stats {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  line-height: 1;
+  margin-top: 4px;
+}
+
+.lr-min-elim-stat-num {
+  font-size: 44px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 0.9;
+}
+
+.lr-min-elim-stat-label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  opacity: 0.95;
+  padding-bottom: 4px;
+}
+
+.lr-min-elim-divider {
+  width: 78%;
+  height: 1px;
+  background: var(--lr-min-elim-divider, rgba(255, 255, 255, 0.35));
+  margin: 8px 0 7px;
+  flex-shrink: 0;
+}
+
+.lr-min-elim-status {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  line-height: 1;
+}
+
+.lr-min-elim-notch {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  pointer-events: none;
+}
+
+/* ── Elimination banner animations ── */
+@keyframes lrMinElimSlideLeftIn {
+  0% {
+    transform: translateX(-115%);
+    opacity: 0;
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes lrMinElimSlideLeftOut {
+  0% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(115%);
+    opacity: 0;
+  }
+}
+
+@keyframes lrMinElimSlideUpIn {
+  0% {
+    transform: translateY(72px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes lrMinElimSlideUpOut {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(48px);
+    opacity: 0;
+  }
+}
+
+@keyframes lrMinElimPopIn {
+  0% {
+    transform: scale(0.55);
+    opacity: 0;
+  }
+  65% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes lrMinElimPopOut {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.82);
+    opacity: 0;
+  }
+}
+
+@keyframes lrMinElimFadeZoomIn {
+  0% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes lrMinElimFadeZoomOut {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.08);
+    opacity: 0;
+  }
+}
+
+.lr-min-elim-anim-slideLeft-enter {
+  animation: lrMinElimSlideLeftIn 0.58s cubic-bezier(0.22, 0.68, 0.31, 1.2) forwards;
+}
+
+.lr-min-elim-anim-slideLeft-exit {
+  animation: lrMinElimSlideLeftOut 0.48s cubic-bezier(0.55, 0.06, 0.68, 0.19) forwards;
+}
+
+.lr-min-elim-anim-slideUp-enter {
+  animation: lrMinElimSlideUpIn 0.52s cubic-bezier(0.22, 0.68, 0.31, 1.15) forwards;
+}
+
+.lr-min-elim-anim-slideUp-exit {
+  animation: lrMinElimSlideUpOut 0.45s cubic-bezier(0.55, 0.06, 0.68, 0.19) forwards;
+}
+
+.lr-min-elim-anim-popIn-enter {
+  animation: lrMinElimPopIn 0.55s cubic-bezier(0.22, 0.68, 0.31, 1.25) forwards;
+}
+
+.lr-min-elim-anim-popIn-exit {
+  animation: lrMinElimPopOut 0.42s cubic-bezier(0.55, 0.06, 0.68, 0.19) forwards;
+}
+
+.lr-min-elim-anim-fadeZoom-enter {
+  animation: lrMinElimFadeZoomIn 0.5s cubic-bezier(0.22, 0.68, 0.31, 1.1) forwards;
+}
+
+.lr-min-elim-anim-fadeZoom-exit {
+  animation: lrMinElimFadeZoomOut 0.45s cubic-bezier(0.55, 0.06, 0.68, 0.19) forwards;
+}
+
+/* ── Combat Drop Banner ── */
+.lr-min-elim-combat-drop {
+  overflow: visible;
+}
+
+.lr-min-elim-combat-fx {
+  position: absolute;
+  left: 50%;
+  top: 56px;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.lr-min-elim-crate {
+  position: absolute;
+  left: -26px;
+  top: -28px;
+  width: 52px;
+  height: 56px;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45));
+}
+
+.lr-min-elim-crate-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.lr-min-elim-shockwave {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 80px;
+  height: 80px;
+  margin: -40px 0 0 -40px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 210, 120, 0.75);
+  box-shadow:
+    0 0 18px rgba(255, 180, 60, 0.35),
+    inset 0 0 12px rgba(255, 220, 140, 0.15);
+  opacity: 0;
+}
+
+.lr-min-elim-dust {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+}
+
+.lr-min-elim-dust-puff {
+  position: absolute;
+  width: 34px;
+  height: 14px;
+  margin: -7px 0 0 -17px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(190, 165, 120, 0.75) 0%, rgba(140, 115, 80, 0.35) 45%, transparent 72%);
+  opacity: 0;
+}
+
+.lr-min-elim-dust-puff--0 { --lr-dust-angle: -90deg; --lr-dust-dist: 52px; }
+.lr-min-elim-dust-puff--1 { --lr-dust-angle: -55deg; --lr-dust-dist: 46px; }
+.lr-min-elim-dust-puff--2 { --lr-dust-angle: -20deg; --lr-dust-dist: 50px; }
+.lr-min-elim-dust-puff--3 { --lr-dust-angle: 15deg; --lr-dust-dist: 48px; }
+.lr-min-elim-dust-puff--4 { --lr-dust-angle: 50deg; --lr-dust-dist: 46px; }
+.lr-min-elim-dust-puff--5 { --lr-dust-angle: 85deg; --lr-dust-dist: 52px; }
+.lr-min-elim-dust-puff--6 { --lr-dust-angle: 130deg; --lr-dust-dist: 44px; }
+.lr-min-elim-dust-puff--7 { --lr-dust-angle: 200deg; --lr-dust-dist: 48px; }
+
+@keyframes lrMinElimCombatCrateDrop {
+  0% {
+    transform: translateY(-220px) rotate(-12deg);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  36% {
+    transform: translateY(0) rotate(4deg);
+    opacity: 1;
+  }
+  40% {
+    transform: translateY(6px) rotate(0deg) scale(0.92, 0.78);
+    opacity: 1;
+  }
+  52% {
+    transform: translateY(10px) scale(0.35, 0.2);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(10px) scale(0);
+    opacity: 0;
+  }
+}
+
+@keyframes lrMinElimCombatBannerUnfold {
+  0%,
+  38% {
+    transform: scaleX(0.06) scaleY(0.12);
+    opacity: 0;
+  }
+  42% {
+    transform: scaleX(0.14) scaleY(0.22);
+    opacity: 0.35;
+  }
+  58% {
+    transform: scaleX(1.05) scaleY(1.03);
+    opacity: 1;
+  }
+  100% {
+    transform: scaleX(1) scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes lrMinElimCombatShockwave {
+  0%,
+  38% {
+    transform: scale(0.15);
+    opacity: 0;
+  }
+  40% {
+    transform: scale(0.4);
+    opacity: 0.9;
+  }
+  72% {
+    transform: scale(2.6);
+    opacity: 0.28;
+  }
+  100% {
+    transform: scale(3.4);
+    opacity: 0;
+  }
+}
+
+@keyframes lrMinElimCombatDust {
+  0%,
+  38% {
+    opacity: 0;
+    transform: rotate(var(--lr-dust-angle, 0deg)) translateX(0) scale(0.2);
+  }
+  42% {
+    opacity: 0.95;
+    transform: rotate(var(--lr-dust-angle, 0deg)) translateX(8px) scale(0.85);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--lr-dust-angle, 0deg)) translateX(var(--lr-dust-dist, 48px)) scale(1.6);
+  }
+}
+
+@keyframes lrMinElimCombatImpactShake {
+  0%,
+  36% {
+    transform: translateX(0);
+  }
+  38% {
+    transform: translateX(-4px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  42% {
+    transform: translateX(-3px);
+  }
+  44% {
+    transform: translateX(2px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes lrMinElimCombatExit {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  25% {
+    transform: scale(1.02, 0.94);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.88, 0.08);
+    opacity: 0;
+  }
+}
+
+@keyframes lrMinElimCombatFxExit {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.lr-min-elim-anim-combatDrop-enter {
+  animation: lrMinElimCombatImpactShake 1.08s ease-out forwards;
+}
+
+.lr-min-elim-anim-combatDrop-enter .lr-min-elim-crate {
+  animation: lrMinElimCombatCrateDrop 1.08s cubic-bezier(0.55, 0.08, 0.68, 0.92) forwards;
+}
+
+.lr-min-elim-anim-combatDrop-enter .lr-min-elim-card {
+  animation: lrMinElimCombatBannerUnfold 1.08s cubic-bezier(0.22, 0.68, 0.31, 1.18) forwards;
+  transform-origin: center center;
+}
+
+.lr-min-elim-anim-combatDrop-enter .lr-min-elim-shockwave {
+  animation: lrMinElimCombatShockwave 1.08s ease-out forwards;
+}
+
+.lr-min-elim-anim-combatDrop-enter .lr-min-elim-dust-puff {
+  animation: lrMinElimCombatDust 1.08s ease-out forwards;
+}
+
+.lr-min-elim-anim-combatDrop-exit {
+  animation: lrMinElimCombatExit 0.5s cubic-bezier(0.55, 0.06, 0.68, 0.19) forwards;
+  transform-origin: center bottom;
+}
+
+.lr-min-elim-anim-combatDrop-exit .lr-min-elim-combat-fx {
+  animation: lrMinElimCombatFxExit 0.35s ease-out forwards;
+}
+
+/* WWCD strip card */
+.lr-min-wwcd-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  text-transform: uppercase;
+}
+
+.lr-min-wwcd-accent {
+  height: 2px;
+  flex-shrink: 0;
+}
+
+.lr-min-wwcd-team {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px 9px;
+  min-height: 52px;
+}
+
+.lr-min-wwcd-logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.lr-min-wwcd-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.1;
+}
+
+.lr-min-wwcd-bars {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.lr-min-wwcd-bar {
+  width: 10px;
+  height: 24px;
+  border-radius: 0;
+  border: 1px solid #000000;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.lr-min-wwcd-divider {
+  height: 2px;
+  flex-shrink: 0;
+}
+
+.lr-min-wwcd-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 9px;
+  min-height: 34px;
+}
+
+.lr-min-wwcd-label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
+}
+
+.lr-min-wwcd-pct {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}

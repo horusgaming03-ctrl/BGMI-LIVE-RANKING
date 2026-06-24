@@ -65,4 +65,20 @@ export const neon = {
   topLine: {
     height: 3,
   },
+  elimination: {
+    layout: "neonPanel",
+    rankPanelBg: "#1a3fd4",
+    rankText: "#ffe600",
+    titleBg: "#e8ecf4",
+    titleText: "#1e2235",
+    statsBg: "#1e2235",
+    statsText: "#ffffff",
+    statNumColor: "#ffe600",
+    statLabelColor: "#ffffff",
+    logoFallbackBg: "#2a3048",
+    logoFallbackText: "#ffffff",
+    borderColor: "#00f0ff",
+    fontFamily: "'Rajdhani', 'Inter', sans-serif",
+    glow: "0 0 20px rgba(0,240,255,.35), 0 0 36px rgba(255,0,229,.15)",
+  },
 };

@@ -1,0 +1,137 @@
+/* Neon — rank panel + ELIMINATED / logo + TOTAL ELIMS */
+
+.lr-neon-elim-root {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  text-transform: uppercase;
+  width: max-content;
+  max-width: 100%;
+}
+
+.lr-neon-elim-rank-panel {
+  width: 96px;
+  min-height: 120px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  padding: 8px 6px;
+}
+
+.lr-neon-elim-rank-num {
+  font-size: 52px;
+  font-weight: 800;
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.lr-neon-elim-right {
+  display: flex;
+  flex-direction: column;
+  min-width: 320px;
+}
+
+.lr-neon-elim-title {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.lr-neon-elim-stats {
+  flex: 1;
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 18px 10px 14px;
+}
+
+.lr-neon-elim-logo-wrap {
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+}
+
+.lr-neon-elim-logo-img {
+  width: 68px;
+  height: 68px;
+  object-fit: contain;
+}
+
+.lr-neon-elim-logo-fallback {
+  width: 68px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.lr-neon-elim-finishes {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  min-width: 88px;
+}
+
+.lr-neon-elim-stat-num {
+  font-size: 44px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 0.95;
+}
+
+.lr-neon-elim-stat-label {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  line-height: 1.1;
+  text-align: center;
+}
+
+@keyframes lrNeonElimSlideIn {
+  0% {
+    transform: translateX(-115%);
+    opacity: 0;
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes lrNeonElimSlideOut {
+  0% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(115%);
+    opacity: 0;
+  }
+}
+
+.lr-neon-elim-anim-enter {
+  animation: lrNeonElimSlideIn 0.58s cubic-bezier(0.22, 0.68, 0.31, 1.2) forwards;
+}
+
+.lr-neon-elim-anim-exit {
+  animation: lrNeonElimSlideOut 0.48s cubic-bezier(0.55, 0.06, 0.68, 0.19) forwards;
+}

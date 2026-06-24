@@ -16,13 +16,100 @@ import {
   listThemePreviewPremiumPackOptions,
 } from "./themePreviewPremiumAnimations";
 import BroadcastRankingBoard, { themeToBroadcastCssVars } from "./components/BroadcastRankingBoard";
+import MinimalBroadcastRankingBoard, {
+  minimalThemeToCssVars,
+} from "./components/MinimalBroadcastRankingBoard";
+import MinimalBroadcastWwcdStripCard from "./components/MinimalBroadcastWwcdStripCard";
+import EliminationBannerRouter from "./components/EliminationBannerRouter";
+import EsportsRankingBoard from "./components/EsportsRankingBoard";
+import { isEsportsTournamentGfxTheme } from "./esportsGfxUtils";
 import { BMPS_PREVIEW_TEAMS, LIVE_RANKING_FONT_OPTIONS } from "./broadcastBmpsUtils";
-import { BROADCAST_ELIMINATION_PICKERS, BROADCAST_WWCD_STRIP_PICKERS, BROADCAST_WWCD_STRIP_DEFAULTS, broadcastElimStyleFromTheme, broadcastElimStyleToGfxDraft, broadcastWwcdDraftFromTheme, broadcastWwcdStripStyleFromTheme, broadcastWwcdStripToGfxDraft } from "./broadcastGfxUtils";
-import BroadcastEliminationBanner from "./components/BroadcastEliminationBanner";
+import { BROADCAST_WWCD_STRIP_PICKERS, BROADCAST_WWCD_STRIP_DEFAULTS, broadcastElimStyleFromTheme, broadcastElimStyleToGfxDraft, broadcastWwcdDraftFromTheme, broadcastWwcdStripStyleFromTheme, broadcastWwcdStripColorsResolved } from "./broadcastGfxUtils";
+import { MINIMAL_WWCD_STRIP_PICKERS, minimalWwcdPickerColor } from "./minimalGfxUtils";
+import {
+  DEFAULT_MINIMAL_ELIM_ANIMATION,
+} from "./minimalElimAnimations";
 import BroadcastWwcdStripCard from "./BroadcastWwcdStripCard";
+import {
+  ELIMINATION_BANNER_LAYOUTS,
+  resolveEliminationBannerLayout,
+  mergeEliminationForBannerLayout,
+  eliminationPickersForLayout,
+  isClassicElimBannerLayout,
+  elimLayoutUsesDedicatedPickers,
+  elimPickerResolvedColor,
+} from "./eliminationBannerRegistry";
 import { publishGfxPreviewDraft } from "./OverlayGfxAdminPreview";
-import { GFX_COLOR_MODE_CUSTOM } from "../overlayGfxColors";
+import { GFX_COLOR_MODE_CUSTOM, GFX_COLOR_MODE_THEME, resolveEliminationBannerColors, eliminationBannerColorsFromTheme } from "../overlayGfxColors";
 import { wwcdPercentsForStripTeams } from "../wwcdModel";
+
+const MINIMAL_BROADCAST_COLOR_DEFAULTS = {
+  panelBgTop: "#1c1c1c",
+  panelBgBottom: "#0a0a0a",
+  headerBg: "#085858",
+  headerText: "#ffffff",
+  textColor: "#ffffff",
+  textDim: "#8a8a8a",
+  rankTabBg: "#525252",
+  rankNumColor: "#ffffff",
+  statusAlive: "#00c8c8",
+  knockedColor: "#ffcc00",
+  eliminatedColor: "#e63946",
+  eliminatedBarDim: "#4a4a4a",
+  rowDividerBg: "#000000",
+  legendBg: "#111111",
+  legendText: "#ffffff",
+  recallOn: "#c45912",
+  recallOff: "#555555",
+};
+
+const MINIMAL_BROADCAST_COLOR_SECTIONS = [
+  {
+    title: "Header",
+    keys: [
+      ["headerBg", "Header bg"],
+      ["headerText", "Header text"],
+    ],
+  },
+  {
+    title: "Team & stats text",
+    keys: [
+      ["textColor", "Active text"],
+      ["textDim", "Eliminated text"],
+    ],
+  },
+  {
+    title: "Rank tab",
+    keys: [
+      ["rankTabBg", "Rank tab"],
+      ["rankNumColor", "Rank number"],
+    ],
+  },
+  {
+    title: "Alive bars",
+    keys: [
+      ["statusAlive", "Alive"],
+      ["knockedColor", "Knocked"],
+      ["eliminatedColor", "Eliminated"],
+      ["eliminatedBarDim", "Eliminated (dim row)"],
+    ],
+  },
+  {
+    title: "Panel & rows",
+    keys: [
+      ["panelBgTop", "Panel top"],
+      ["panelBgBottom", "Panel bottom"],
+      ["rowDividerBg", "Row gap"],
+    ],
+  },
+  {
+    title: "Legend",
+    keys: [
+      ["legendBg", "Legend bg"],
+      ["legendText", "Legend text"],
+    ],
+  },
+];
 
 const SAMPLE_TEAMS = [
   { id: 1, team: "SOUL", finishes: 4, points: 42, logo: null, alivePlayers: 4, status: "alive" },
@@ -40,7 +127,17 @@ function pruneColorOverrideDraft(d, broadcastLayout = false) {
     if (d.row && typeof d.row === "object" && Object.keys(d.row).length) out.row = d.row;
   }
   if (d.broadcast && typeof d.broadcast === "object" && Object.keys(d.broadcast).length) out.broadcast = d.broadcast;
-  if (d.elimination && typeof d.elimination === "object" && Object.keys(d.elimination).length) out.elimination = d.elimination;
+  if (d.elimination && typeof d.elimination === "object" && Object.keys(d.elimination).length) {
+    const el = {};
+    for (const [k, v] of Object.entries(d.elimination)) {
+      if (["bannerLayout", "layout", "animation"].includes(k) && typeof v === "string" && v.length <= 48) {
+        el[k] = v;
+      } else if (typeof v === "string" && /^#[0-9A-Fa-f]{3,8}$/.test(v.trim())) {
+        el[k] = v.trim();
+      }
+    }
+    if (Object.keys(el).length) out.elimination = el;
+  }
   if (d.wwcdStrip && typeof d.wwcdStrip === "object" && Object.keys(d.wwcdStrip).length) out.wwcdStrip = d.wwcdStrip;
   if (d.typography && typeof d.typography === "object" && Object.keys(d.typography).length) out.typography = d.typography;
   return out;
@@ -62,6 +159,7 @@ export default function ThemePreview() {
   const [themeColorOverridesServer, setThemeColorOverridesServer] = useState({});
   const [colorDraft, setColorDraft] = useState({});
   const [colorSaveMsg, setColorSaveMsg] = useState("");
+  const [elimBannerPreviewKey, setElimBannerPreviewKey] = useState(0);
   /** First successful server theme (HTTP or socket) seeds the preview selection once */
   const previewBootstrappedRef = useRef(false);
   const colorHydrateKeyRef = useRef("");
@@ -80,9 +178,15 @@ export default function ThemePreview() {
   const baseTheme = useMemo(() => getTheme(selected), [selected]);
   const theme = useMemo(() => mergeThemeOverride(baseTheme, colorDraft), [baseTheme, colorDraft]);
   const isBmpsBoard = Boolean(theme.broadcastLayout);
+  const isMinimalBroadcast = theme.broadcastVariant === "minimal";
   const teamFont = theme.typography?.fontFamily;
   const numbersFont = theme.typography?.numbersFontFamily || teamFont;
   const broadcastCssVars = useMemo(() => themeToBroadcastCssVars(theme), [theme]);
+  const minimalCssVars = useMemo(() => minimalThemeToCssVars(theme), [theme]);
+  const activeElimLayout = useMemo(() => resolveEliminationBannerLayout(theme), [theme]);
+  const activeElimPickers = useMemo(() => eliminationPickersForLayout(activeElimLayout), [activeElimLayout]);
+  const elimGfxColors = useMemo(() => eliminationBannerColorsFromTheme(theme), [theme]);
+  const elimPreviewKey = `${elimBannerPreviewKey}-${activeElimLayout}-${colorDraft.elimination?.animation ?? baseTheme.elimination?.animation ?? DEFAULT_MINIMAL_ELIM_ANIMATION}`;
 
   const previewConfig = useMemo(() => {
     const base = { ...overlayConfig };
@@ -263,10 +367,17 @@ export default function ThemePreview() {
         const prevThemePatch =
           prev[selected] && typeof prev[selected] === "object" ? { ...prev[selected] } : {};
         const next = { ...prev, [selected]: { ...prevThemePatch, ...cleaned } };
+        const payload = { themeColorOverrides: next };
+        if (cleaned.elimination && Object.keys(cleaned.elimination).some((k) => !["bannerLayout", "layout", "animation"].includes(k))) {
+          payload.eliminationBannerColorMode = GFX_COLOR_MODE_THEME;
+        }
+        if (cleaned.wwcdStrip && Object.keys(cleaned.wwcdStrip).length > 0) {
+          payload.wwcdStripColorMode = GFX_COLOR_MODE_THEME;
+        }
         const res = await fetch(`${API}/settings`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ themeColorOverrides: next }),
+          body: JSON.stringify(payload),
         });
         if (res.ok) {
           const data = await res.json();
@@ -275,6 +386,10 @@ export default function ThemePreview() {
             setThemeColorOverridesServer(data.themeColorOverrides);
           }
           colorAutoLastSigRef.current = sig;
+          publishGfxPreviewDraft({
+            wwcdStripColorMode: GFX_COLOR_MODE_THEME,
+            eliminationBannerColorMode: GFX_COLOR_MODE_THEME,
+          });
           setColorSaveMsg("Synced — live ranking, elimination & announcements updated.");
           setTimeout(() => setColorSaveMsg(""), 2200);
         }
@@ -288,27 +403,38 @@ export default function ThemePreview() {
   }, [colorDraft, selected, isBmpsBoard]);
 
   useEffect(() => {
-    if (!isBmpsBoard || !colorDraft.elimination || typeof colorDraft.elimination !== "object") return;
+    if (!colorDraft.elimination || typeof colorDraft.elimination !== "object") return;
     if (Object.keys(colorDraft.elimination).length === 0) return;
-    const style = broadcastElimStyleFromTheme(theme);
-    publishGfxPreviewDraft({
-      eliminationBannerColorMode: GFX_COLOR_MODE_CUSTOM,
-      eliminationBannerColors: broadcastElimStyleToGfxDraft(style),
-    });
+    if (isBmpsBoard) {
+      const style = broadcastElimStyleFromTheme(theme);
+      publishGfxPreviewDraft({
+        eliminationBannerColorMode: GFX_COLOR_MODE_CUSTOM,
+        eliminationBannerColors: broadcastElimStyleToGfxDraft(style),
+      });
+      return;
+    }
+    const layout = resolveEliminationBannerLayout(theme);
+    if (elimLayoutUsesDedicatedPickers(layout)) {
+      publishGfxPreviewDraft({
+        eliminationBannerColorMode: GFX_COLOR_MODE_CUSTOM,
+        eliminationBannerColors: resolveEliminationBannerColors(
+          GFX_COLOR_MODE_CUSTOM,
+          colorDraft.elimination,
+          theme,
+        ),
+      });
+    }
   }, [isBmpsBoard, theme, colorDraft.elimination]);
 
   useEffect(() => {
-    if (!isBmpsBoard || !colorDraft.wwcdStrip || typeof colorDraft.wwcdStrip !== "object") return;
+    if (!colorDraft.wwcdStrip || typeof colorDraft.wwcdStrip !== "object") return;
     if (Object.keys(colorDraft.wwcdStrip).length === 0) return;
-    const style = broadcastWwcdStripToGfxDraft({
-      ...broadcastWwcdDraftFromTheme(theme),
-      ...colorDraft.wwcdStrip,
-    });
+    const colors = broadcastWwcdStripColorsResolved(theme, colorDraft.wwcdStrip);
     publishGfxPreviewDraft({
       wwcdStripColorMode: GFX_COLOR_MODE_CUSTOM,
-      wwcdStripColors: style,
+      wwcdStripColors: colors,
     });
-  }, [isBmpsBoard, theme, colorDraft.wwcdStrip]);
+  }, [theme, colorDraft.wwcdStrip]);
 
   const buildThemedSearch = useCallback(() => {
     const p = new URLSearchParams();
@@ -405,33 +531,61 @@ export default function ThemePreview() {
     }
   };
 
-  const saveThemeColors = async () => {
-    try {
-      const cur = await fetch(`${API}/settings`).then((r) => r.json());
-      const prev = cur.themeColorOverrides && typeof cur.themeColorOverrides === "object" ? { ...cur.themeColorOverrides } : {};
-      const cleaned = pruneColorOverrideDraft(colorDraft);
-      const next = { ...prev };
-      if (Object.keys(cleaned).length === 0) delete next[selected];
-      else next[selected] = cleaned;
-      const res = await fetch(`${API}/settings`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ themeColorOverrides: next }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        colorDraftDirtyRef.current = false;
-        if (data?.themeColorOverrides && typeof data.themeColorOverrides === "object") {
-          setThemeColorOverridesServer(data.themeColorOverrides);
+  const persistThemeColorDraft = useCallback(
+    async (draft, msg = "Synced — live ranking, elimination & announcements updated.") => {
+      const cleaned = pruneColorOverrideDraft(draft, isBmpsBoard);
+      if (Object.keys(cleaned).length === 0) return false;
+      try {
+        const cur = await fetch(`${API}/settings`, { cache: "no-store" }).then((r) => r.json());
+        const prev = cur.themeColorOverrides && typeof cur.themeColorOverrides === "object" ? { ...cur.themeColorOverrides } : {};
+        const prevThemePatch =
+          prev[selected] && typeof prev[selected] === "object" ? { ...prev[selected] } : {};
+        const next = { ...prev, [selected]: { ...prevThemePatch, ...cleaned } };
+        const layout = cleaned.elimination?.bannerLayout || cleaned.elimination?.layout;
+        const payload = { themeColorOverrides: next };
+        if (layout) {
+          const prevLayouts =
+            cur.eliminationBannerLayouts && typeof cur.eliminationBannerLayouts === "object"
+              ? { ...cur.eliminationBannerLayouts }
+              : {};
+          payload.eliminationBannerLayouts = { ...prevLayouts, [selected]: layout };
         }
-        colorAutoLastSigRef.current = `${selected}|${JSON.stringify(cleaned)}`;
-        setColorSaveMsg("Colors saved — live ranking, elimination & announcements update via socket.");
-        setTimeout(() => setColorSaveMsg(""), 4000);
-      } else setColorSaveMsg("Save failed.");
-    } catch (err) {
-      console.error(err);
-      setColorSaveMsg("Save failed — is the API running?");
-    }
+        if (cleaned.elimination && Object.keys(cleaned.elimination).some((k) => !["bannerLayout", "layout", "animation"].includes(k))) {
+          payload.eliminationBannerColorMode = GFX_COLOR_MODE_THEME;
+        }
+        if (cleaned.wwcdStrip && Object.keys(cleaned.wwcdStrip).length > 0) {
+          payload.wwcdStripColorMode = GFX_COLOR_MODE_THEME;
+        }
+        const res = await fetch(`${API}/settings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          colorDraftDirtyRef.current = false;
+          if (data?.themeColorOverrides && typeof data.themeColorOverrides === "object") {
+            setThemeColorOverridesServer(data.themeColorOverrides);
+          }
+          colorAutoLastSigRef.current = `${selected}|${JSON.stringify(cleaned)}`;
+          setColorSaveMsg(msg);
+          setTimeout(() => setColorSaveMsg(""), 2200);
+          return true;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+      return false;
+    },
+    [selected, isBmpsBoard],
+  );
+
+  const saveThemeColors = async () => {
+    const ok = await persistThemeColorDraft(
+      colorDraft,
+      "Colors saved — live ranking, elimination & announcements update via socket.",
+    );
+    if (!ok) setColorSaveMsg("Save failed — is the API running?");
   };
 
   const resetThemeColors = async () => {
@@ -677,7 +831,99 @@ export default function ThemePreview() {
               </button>
             </div>
             <div style={{ marginBottom: 12 }}>
-              {isBmpsBoard ? (
+              {isBmpsBoard && isMinimalBroadcast ? (
+                <>
+                  <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 6 }}>
+                    MAP LAYOUT (BMPS PREVIEW)
+                  </label>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+                    {[
+                      { id: "standard", label: "Erangel / Miramar" },
+                      { id: "rondo", label: "Rondo (Recall)" },
+                    ].map((x) => (
+                      <button
+                        key={x.id}
+                        type="button"
+                        onClick={() => setPreviewMapMode(x.id)}
+                        style={{
+                          padding: "8px 14px",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          borderRadius: 8,
+                          border: previewMapMode === x.id ? "2px solid #41E8B8" : "1px solid rgba(255,255,255,.12)",
+                          background: previewMapMode === x.id ? "rgba(65,232,184,.12)" : "rgba(255,255,255,.04)",
+                          color: previewMapMode === x.id ? "#6FF3CB" : "#999",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {x.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div
+                    style={{
+                      width: previewMapMode === "rondo" ? 312 : 268,
+                      position: "relative",
+                      minHeight: 200,
+                      background: "transparent",
+                    }}
+                  >
+                    <MinimalBroadcastRankingBoard
+                      teams={BMPS_PREVIEW_TEAMS}
+                      cssVars={minimalCssVars}
+                      align="center"
+                      previewMode
+                      showRecall={previewMapMode === "rondo"}
+                    />
+                  </div>
+                  <div style={{ marginTop: 18 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>Elimination banner preview</div>
+                    {isClassicElimBannerLayout(theme) ? (
+                      <p style={{ fontSize: 10, color: "#64748b", lineHeight: 1.45, maxWidth: 360 }}>
+                        Classic esports banner — uses <strong style={{ color: "#94a3b8" }}>Palette</strong> colors on the live overlay.
+                      </p>
+                    ) : (
+                      <EliminationBannerRouter
+                        theme={theme}
+                        gfxColors={elimGfxColors}
+                        banner={{ team: "SAMPLE TEAM", rank: 11, finishes: 1, logo: null }}
+                        scale={0.72}
+                        origin="top left"
+                        previewKey={elimPreviewKey}
+                      />
+                    )}
+                  </div>
+                  <div style={{ marginTop: 18 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>WWCD 4-squad strip preview</div>
+                    <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                      {(() => {
+                        const sample = BMPS_PREVIEW_TEAMS.slice(0, 4);
+                        const ws = broadcastWwcdStripStyleFromTheme(theme);
+                        const pcts = wwcdPercentsForStripTeams(sample);
+                        return sample.map((t, i) => (
+                          <MinimalBroadcastWwcdStripCard
+                            key={t.id}
+                            team={t}
+                            wwcdPct={pcts[i] ?? 0}
+                            teamTagBg={ws.teamTagBg}
+                            teamTagText={ws.teamTagText}
+                            panelBg={ws.panelBg}
+                            accentLine={ws.accentLine}
+                            barFilled={ws.barFilled}
+                            barDead={ws.barDead}
+                            footerBg={ws.footerBg}
+                            footerText={ws.footerText}
+                            dividerColor={ws.dividerColor}
+                            pctTextColor={ws.pctTextColor}
+                            fontFamily={ws.fontFamily}
+                            cardWidth={ws.cardWidth}
+                          />
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                </>
+              ) : isBmpsBoard ? (
                 <>
                   <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 6 }}>
                     MAP LAYOUT (BMPS PREVIEW)
@@ -728,12 +974,20 @@ export default function ThemePreview() {
                   </p>
                   <div style={{ marginTop: 18 }}>
                     <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>Elimination banner preview</div>
-                    <BroadcastEliminationBanner
-                      banner={{ team: "SAMPLE", rank: 8, finishes: 3, logo: null }}
-                      theme={theme}
-                      scale={0.55}
-                      origin="top left"
-                    />
+                    {isClassicElimBannerLayout(theme) ? (
+                      <p style={{ fontSize: 10, color: "#64748b", lineHeight: 1.45, maxWidth: 360 }}>
+                        Classic esports banner — uses <strong style={{ color: "#94a3b8" }}>Palette</strong> colors on the live overlay.
+                      </p>
+                    ) : (
+                      <EliminationBannerRouter
+                        theme={theme}
+                        gfxColors={elimGfxColors}
+                        banner={{ team: "SAMPLE", rank: 8, finishes: 3, logo: null }}
+                        scale={0.55}
+                        origin="top left"
+                        previewKey={elimPreviewKey}
+                      />
+                    )}
                   </div>
                   <div style={{ marginTop: 18 }}>
                     <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>WWCD 4-squad strip preview</div>
@@ -798,6 +1052,12 @@ export default function ThemePreview() {
               )}
             </div>
             {!isBmpsBoard ? (
+            isEsportsTournamentGfxTheme(theme) ? (
+              <EsportsRankingBoard
+                teams={BMPS_PREVIEW_TEAMS}
+                theme={theme}
+              />
+            ) : (
             <div
               key={`demo-${previewEnterMode}-${selected}-${activePreset || "nopreset"}`}
               style={{
@@ -865,9 +1125,27 @@ export default function ThemePreview() {
                 );
               })}
             </div>
+            )
             ) : null}
             {!isBmpsBoard ? (
             <>
+            <div style={{ marginTop: 18 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>Elimination banner preview</div>
+              {isClassicElimBannerLayout(theme) ? (
+                <p style={{ fontSize: 10, color: "#64748b", lineHeight: 1.45, maxWidth: 334 }}>
+                  Classic esports banner — uses <strong style={{ color: "#94a3b8" }}>Palette</strong> colors on the live overlay.
+                </p>
+              ) : (
+                <EliminationBannerRouter
+                  theme={theme}
+                  gfxColors={elimGfxColors}
+                  banner={{ team: "SAMPLE TEAM", rank: 13, finishes: 0, logo: null }}
+                  scale={0.72}
+                  origin="top left"
+                  previewKey={elimPreviewKey}
+                />
+              )}
+            </div>
             <div style={{ marginTop: 22, marginBottom: 10 }}>
               <div style={{ fontSize: 11, fontWeight: 800, color: "#94a3b8", letterSpacing: "0.08em" }}>FINISH POINTS RANKING OVERLAY</div>
               <div style={{ fontSize: 10, color: "#64748b", marginTop: 4, maxWidth: 334, lineHeight: 1.45 }}>
@@ -949,6 +1227,49 @@ export default function ThemePreview() {
             <h3 style={{ fontSize: 14, fontWeight: 800, color: "#888", marginBottom: 12, letterSpacing: "0.1em" }}>THEME DETAILS — {theme.name.toUpperCase()}</h3>
 
             <div style={{ background: "rgba(255,255,255,.03)", borderRadius: 12, padding: 20, border: "1px solid rgba(255,255,255,.06)", marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#888", marginBottom: 8 }}>ELIMINATION BANNER STYLE</div>
+              <p style={{ fontSize: 11, color: "#666", margin: "0 0 14px", lineHeight: 1.45 }}>
+                Choose any banner design for this theme — independent of the match board look. Saved per theme and applied on{" "}
+                <code style={{ color: "#6ff3cb" }}>/overlay/elimination</code>.
+              </p>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {ELIMINATION_BANNER_LAYOUTS.map((opt) => {
+                  const active = activeElimLayout === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => {
+                        const nextElim = mergeEliminationForBannerLayout(colorDraft.elimination, opt.id);
+                        const nextDraft = { ...colorDraft, elimination: nextElim };
+                        colorDraftDirtyRef.current = true;
+                        setColorDraft(nextDraft);
+                        setElimBannerPreviewKey((k) => k + 1);
+                        persistThemeColorDraft(
+                          nextDraft,
+                          "Elimination banner style saved — refresh OBS browser source if it does not update.",
+                        );
+                      }}
+                      style={{
+                        padding: "8px 14px",
+                        borderRadius: 8,
+                        border: active ? "2px solid #6FF3CB" : "1px solid rgba(255,255,255,.15)",
+                        background: active ? "rgba(111,243,203,.12)" : "rgba(255,255,255,.04)",
+                        color: active ? "#6FF3CB" : "#bbb",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        letterSpacing: "0.04em",
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{ background: "rgba(255,255,255,.03)", borderRadius: 12, padding: 20, border: "1px solid rgba(255,255,255,.06)", marginBottom: 20 }}>
               <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "#888" }}>COLORS — auto-sync to live overlays</div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -964,7 +1285,12 @@ export default function ThemePreview() {
                 <p style={{ fontSize: 11, color: "#6FF3CB", margin: "0 0 12px" }}>{colorSaveMsg}</p>
               ) : null}
               <p style={{ fontSize: 11, color: "#666", margin: "0 0 14px", lineHeight: 1.45 }}>
-                {isBmpsBoard ? (
+                {isMinimalBroadcast ? (
+                  <>
+                    Minimal broadcast pickers below map to each overlay element — changes{" "}
+                    <strong style={{ color: "#888" }}>auto-save</strong> (≈½s) after you pick a color.
+                  </>
+                ) : isBmpsBoard ? (
                   <>
                     Clean Broadcast uses the BMPS board, elimination banner, and WWCD strip pickers below — not the generic palette. Changes{" "}
                     <strong style={{ color: "#888" }}>auto-save</strong> (≈½s) after you pick a color.
@@ -1063,11 +1389,81 @@ export default function ThemePreview() {
                   </label>
                 ))}
               </div>
+              {activeElimPickers.length > 0 ? (
+                <>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>Elimination banner colors</div>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+                    {activeElimPickers.map(([key, label]) => (
+                      <label key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                        <input
+                          type="color"
+                          value={toInputColor(
+                            elimPickerResolvedColor(
+                              theme,
+                              activeElimLayout,
+                              key,
+                              colorDraft.elimination,
+                            ),
+                          )}
+                          onChange={(e) => {
+                            colorDraftDirtyRef.current = true;
+                            setColorDraft((d) => ({
+                              ...d,
+                              elimination: { ...(d.elimination || {}), [key]: e.target.value },
+                            }));
+                          }}
+                          style={{
+                            width: 48,
+                            height: 36,
+                            border: "1px solid rgba(255,255,255,.2)",
+                            borderRadius: 8,
+                            padding: 0,
+                            cursor: "pointer",
+                          }}
+                        />
+                        <span style={{ fontSize: 9, color: "#888", fontWeight: 600, textAlign: "center", maxWidth: 80 }}>{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              ) : null}
                 </>
               ) : null}
 
               {isBmpsBoard ? (
                 <>
+                  {isMinimalBroadcast ? (
+                    MINIMAL_BROADCAST_COLOR_SECTIONS.map(({ title, keys }) => (
+                      <div key={title}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "#888", margin: "18px 0 8px" }}>{title}</div>
+                        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+                          {keys.map(([key, label]) => (
+                            <label key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                              <input
+                                type="color"
+                                value={toInputColor(
+                                  colorDraft.broadcast?.[key] ??
+                                    baseTheme.broadcast?.[key] ??
+                                    MINIMAL_BROADCAST_COLOR_DEFAULTS[key] ??
+                                    "#888888",
+                                )}
+                                onChange={(e) => {
+                                  colorDraftDirtyRef.current = true;
+                                  setColorDraft((d) => ({
+                                    ...d,
+                                    broadcast: { ...(d.broadcast || {}), [key]: e.target.value },
+                                  }));
+                                }}
+                                style={{ width: 48, height: 36, border: "1px solid rgba(255,255,255,.2)", borderRadius: 8, padding: 0, cursor: "pointer" }}
+                              />
+                              <span style={{ fontSize: 9, color: "#888", fontWeight: 600, textAlign: "center", maxWidth: 80 }}>{label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <>
                   <div style={{ fontSize: 10, fontWeight: 700, color: "#888", margin: "18px 0 8px" }}>BMPS team area</div>
                   <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
                     <label style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}>
@@ -1094,44 +1490,25 @@ export default function ThemePreview() {
                       </span>
                     </label>
                   </div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>BMPS stats panel &amp; header</div>
+                    </>
+                  )}
+                  {!isMinimalBroadcast ? (
+                    <>
+                  {activeElimPickers.length > 0 ? (
+                    <>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>Elimination banner colors</div>
                   <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-                    {[
-                      ["headerBg", "Header bg"],
-                      ["headerText", "Header text"],
-                      ["statsBg", "Stats bg"],
-                      ["statsText", "FIN / PTS text"],
-                      ["knockedColor", "Knocked bars"],
-                      ["recallOn", "Recall on"],
-                      ["recallOff", "Recall off"],
-                    ].map(([key, label]) => (
-                      <label key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}>
-                        <input
-                          type="color"
-                          value={toInputColor(colorDraft.broadcast?.[key] ?? baseTheme.broadcast?.[key] ?? "#888888")}
-                          onChange={(e) => {
-                            colorDraftDirtyRef.current = true;
-                            setColorDraft((d) => ({
-                              ...d,
-                              broadcast: { ...(d.broadcast || {}), [key]: e.target.value },
-                            }));
-                          }}
-                          style={{ width: 48, height: 36, border: "1px solid rgba(255,255,255,.2)", borderRadius: 8, padding: 0, cursor: "pointer" }}
-                        />
-                        <span style={{ fontSize: 9, color: "#888", fontWeight: 600, textAlign: "center", maxWidth: 72 }}>{label}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>Elimination banner</div>
-                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-                    {BROADCAST_ELIMINATION_PICKERS.map(([key, label]) => (
+                    {activeElimPickers.map(([key, label]) => (
                       <label key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}>
                         <input
                           type="color"
                           value={toInputColor(
-                            colorDraft.elimination?.[key] ??
-                              baseTheme.elimination?.[key] ??
-                              "#888888",
+                            elimPickerResolvedColor(
+                              theme,
+                              activeElimLayout,
+                              key,
+                              colorDraft.elimination,
+                            ),
                           )}
                           onChange={(e) => {
                             colorDraftDirtyRef.current = true;
@@ -1146,6 +1523,8 @@ export default function ThemePreview() {
                       </label>
                     ))}
                   </div>
+                    </>
+                  ) : null}
                   <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>WWCD 4-squad strip</div>
                   <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
                     {BROADCAST_WWCD_STRIP_PICKERS.map(([key, label]) => (
@@ -1171,6 +1550,77 @@ export default function ThemePreview() {
                       </label>
                     ))}
                   </div>
+                    </>
+                  ) : (
+                    <>
+                  {activeElimPickers.length > 0 ? (
+                    <>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>Elimination banner colors</div>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+                    {activeElimPickers.map(([key, label]) => (
+                      <label key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                        <input
+                          type="color"
+                          value={toInputColor(
+                            elimPickerResolvedColor(
+                              theme,
+                              activeElimLayout,
+                              key,
+                              colorDraft.elimination,
+                            ),
+                          )}
+                          onChange={(e) => {
+                            colorDraftDirtyRef.current = true;
+                            setColorDraft((d) => ({
+                              ...d,
+                              elimination: { ...(d.elimination || {}), [key]: e.target.value },
+                            }));
+                          }}
+                          style={{ width: 48, height: 36, border: "1px solid rgba(255,255,255,.2)", borderRadius: 8, padding: 0, cursor: "pointer" }}
+                        />
+                        <span style={{ fontSize: 9, color: "#888", fontWeight: 600, textAlign: "center", maxWidth: 80 }}>{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                    </>
+                  ) : null}
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#888", marginBottom: 8 }}>WWCD 4-squad strip</div>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+                    {MINIMAL_WWCD_STRIP_PICKERS.map(([key, label]) => (
+                      <label key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                        <input
+                          type="color"
+                          value={toInputColor(
+                            minimalWwcdPickerColor(theme, key, colorDraft.wwcdStrip),
+                          )}
+                          onChange={(e) => {
+                            colorDraftDirtyRef.current = true;
+                            const value = e.target.value;
+                            setColorDraft((d) => {
+                              const prevWs = { ...(baseTheme.wwcdStrip || {}), ...(d.wwcdStrip || {}) };
+                              const nextWs = { ...(d.wwcdStrip || {}), [key]: value };
+                              if (key === "teamTagBg") {
+                                const header = baseTheme?.broadcast?.headerBg;
+                                const curPanel = prevWs.panelBg;
+                                if (
+                                  !curPanel ||
+                                  String(curPanel).toLowerCase() === String(header || "").toLowerCase() ||
+                                  String(curPanel).toLowerCase() === String(prevWs.teamTagBg || "").toLowerCase()
+                                ) {
+                                  nextWs.panelBg = value;
+                                }
+                              }
+                              return { ...d, wwcdStrip: nextWs };
+                            });
+                          }}
+                          style={{ width: 48, height: 36, border: "1px solid rgba(255,255,255,.2)", borderRadius: 8, padding: 0, cursor: "pointer" }}
+                        />
+                        <span style={{ fontSize: 9, color: "#888", fontWeight: 600, textAlign: "center", maxWidth: 80 }}>{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                    </>
+                  )}
                 </>
               ) : null}
 
@@ -1269,19 +1719,17 @@ export default function ThemePreview() {
                     </code>
                   </>
                 }
-                copyable
               />
-              <UrlRow label="Rondo · recall popup (with optional sound)" url="/overlay/rondo/recall-popup?sound=1" copyable />
-              <div style={{ marginTop: 10, padding: "8px 10px", background: "rgba(65,232,184,.06)", borderRadius: 6, border: "1px solid rgba(65,232,184,.15)" }}>
-                <div style={{ fontSize: 10, color: "#6FF3CB", fontWeight: 700, marginBottom: 2 }}>Live Mode (same origin as this page — copy for OBS)</div>
-                <code style={{ fontSize: 11, color: "#6ff3cb", background: "rgba(0,0,0,.3)", padding: "4px 8px", borderRadius: 4, display: "block", wordBreak: "break-all" }}>
-                  {`${getOverlayPageOrigin() || "(open this page in the browser)"}/overlay/themed`}
-                </code>
-                <div style={{ fontSize: 10, color: "#888", marginTop: 8, lineHeight: 1.45 }}>
-                  Other PCs cannot use <code style={{ color: "#aaa" }}>localhost</code> — open Admin / Theme Preview via your PC&apos;s LAN IP (e.g.{" "}
-                  <code style={{ color: "#6ff3cb" }}>http://192.168.x.x:5173</code>) and paste those URLs. Allow port <strong style={{ color: "#ccc" }}>3001</strong> through Windows Firewall for the API / sockets.
-                </div>
-              </div>
+              <UrlRow label="Rondo · recall popup (with optional sound)" url="/overlay/rondo/recall-popup?sound=1" />
+              <UrlRow
+                label="Live Mode (same origin as this page)"
+                url="/overlay/themed"
+                hint="Quick copy for OBS — use your LAN IP instead of localhost when streaming from another PC."
+              />
+              <p style={{ fontSize: 10, color: "#888", margin: "4px 0 0", lineHeight: 1.45 }}>
+                Other PCs cannot use <code style={{ color: "#aaa" }}>localhost</code> — open Admin / Theme Preview via your PC&apos;s LAN IP (e.g.{" "}
+                <code style={{ color: "#6ff3cb" }}>http://192.168.x.x:5173</code>) and paste those URLs. Allow port <strong style={{ color: "#ccc" }}>3001</strong> through Windows Firewall for the API / sockets.
+              </p>
             </div>
 
             <div style={{ background: "rgba(255,255,255,.03)", borderRadius: 12, padding: 20, border: "1px solid rgba(255,255,255,.06)" }}>
@@ -1333,7 +1781,7 @@ function toInputColor(hex) {
   return /^#[0-9a-f]{6}$/i.test(h) ? h : "#000000";
 }
 
-function UrlRow({ label, url, hint, copyable }) {
+function UrlRow({ label, url, hint }) {
   const origin = getOverlayPageOrigin() || "http://127.0.0.1:5173";
   const full = `${origin}${url}`;
   const [copied, setCopied] = useState(false);
@@ -1351,12 +1799,10 @@ function UrlRow({ label, url, hint, copyable }) {
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
-        <div style={{ fontSize: 10, color: "#666", fontWeight: 700 }}>{label}</div>
-        {copyable ? (
-          <button type="button" onClick={() => void onCopy()} style={overlayCopyBtn}>
-            {copied ? "Copied" : "Copy URL"}
-          </button>
-        ) : null}
+        <div style={{ fontSize: 10, color: "#666", fontWeight: 700, flex: "1 1 auto", minWidth: 0 }}>{label}</div>
+        <button type="button" onClick={() => void onCopy()} style={overlayCopyBtn}>
+          {copied ? "Copied" : "Copy URL"}
+        </button>
       </div>
       <code style={{ fontSize: 11, color: "#6ff3cb", background: "rgba(0,0,0,.3)", padding: "4px 8px", borderRadius: 4, display: "block", wordBreak: "break-all" }}>
         {full}

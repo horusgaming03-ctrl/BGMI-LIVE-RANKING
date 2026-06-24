@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import socket, { API } from "./overlays/socket";
 import { useGfxOverlayColors } from "./overlays/hooks/useGfxOverlayColors";
-import BroadcastEliminationBanner from "./overlays/components/BroadcastEliminationBanner";
-import { isBroadcastGfxTheme, broadcastElimStyleFromTheme } from "./overlays/broadcastGfxUtils";
+import EliminationBannerRouter from "./overlays/components/EliminationBannerRouter";
+import { isClassicElimBannerLayout, resolveEliminationBannerLayout } from "./overlays/eliminationBannerRegistry";
 
 function hexToRgba(hex, alpha) {
   const h = hex.replace("#", "");
@@ -23,7 +23,6 @@ function darken(hex, amount) {
 
 export default function EliminationOverlay() {
   const { eliminationBannerColors: effectiveBannerColors, mergedTheme } = useGfxOverlayColors();
-  const broadcastGfx = isBroadcastGfxTheme(mergedTheme);
 
   const [queue, setQueue] = useState([]);
   const [banner, setBanner] = useState(null);
@@ -108,16 +107,20 @@ export default function EliminationOverlay() {
 
   const animClass = exiting ? "elim-exit" : "elim-enter";
 
-  if (broadcastGfx) {
+  const elimLayout = resolveEliminationBannerLayout(mergedTheme);
+
+  if (!isClassicElimBannerLayout(mergedTheme)) {
     return (
       <div style={s.root}>
-        <BroadcastEliminationBanner
+        <EliminationBannerRouter
+          key={`elim-live-${elimLayout}`}
           banner={banner}
           theme={mergedTheme}
-          style={effectiveBannerColors.broadcastStyle ?? broadcastElimStyleFromTheme(mergedTheme)}
+          gfxColors={effectiveBannerColors}
           animClass={animClass}
+          exiting={exiting}
         />
-        <style>{cssReset}{cssKeyframes}{`@import url("https://fonts.googleapis.com/css2?family=Teko:wght@700&display=swap");`}</style>
+        <style>{cssReset}{cssKeyframes}{`@import url("https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap");@import url("https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;500;600;700&display=swap");`}</style>
       </div>
     );
   }

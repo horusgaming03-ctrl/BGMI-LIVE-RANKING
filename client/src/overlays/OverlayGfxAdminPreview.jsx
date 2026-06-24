@@ -6,14 +6,24 @@ import {
   resolveWwcdStripColors,
   resolveEliminationBannerColors,
 } from "../overlayGfxColors";
+import { layoutElimPatchFromDraft, resolveEliminationBannerLayout } from "./eliminationBannerRegistry";
 import { stripTeamsFromAlive, wwcdPercentsForStripTeams } from "../wwcdModel";
 import WwcdStripTeamCard, { WWCD_STRIP_CARD_WIDTH_PX, wwcdStripStyleFromColors } from "./WwcdStripTeamCard";
 import BroadcastWwcdStripCard from "./BroadcastWwcdStripCard";
+import MinimalBroadcastWwcdStripCard from "./components/MinimalBroadcastWwcdStripCard";
 import { buildOverlayStreamRankingOrder } from "../teamDisplayOrder";
 import ThemedBoard from "./components/ThemedBoard";
 import BroadcastRankingBoard, { themeToBroadcastCssVars } from "./components/BroadcastRankingBoard";
-import BroadcastEliminationBanner from "./components/BroadcastEliminationBanner";
-import { isBroadcastGfxTheme, broadcastElimStyleToGfxDraft, broadcastWwcdStripToGfxDraft } from "./broadcastGfxUtils";
+import MinimalBroadcastRankingBoard, {
+  minimalThemeToCssVars,
+} from "./components/MinimalBroadcastRankingBoard";
+import EliminationBannerRouter from "./components/EliminationBannerRouter";
+import { isBroadcastGfxTheme, broadcastWwcdStripToGfxDraft } from "./broadcastGfxUtils";
+import { isClassicElimBannerLayout } from "./eliminationBannerRegistry";
+import {
+  minimalElimAnimationClasses,
+  minimalElimAnimationResolved,
+} from "./minimalElimAnimations";
 import overlayConfig from "./overlayConfig";
 import { useLiveRankingThemePalette } from "./hooks/useLiveRankingThemePalette";
 import socket from "./socket";
@@ -180,12 +190,26 @@ export default function OverlayGfxAdminPreview({
   elimBannerDraft,
   broadcastElimStyle = null,
   broadcastWwcdStyle = null,
+  elimLayoutOverride = null,
   teams = [],
   matchMap,
 }) {
   const { mergedTheme, themeName } = useLiveRankingThemePalette();
+  const previewTheme = useMemo(() => {
+    if (!elimLayoutOverride) return mergedTheme;
+    return {
+      ...mergedTheme,
+      elimination: {
+        ...(mergedTheme?.elimination || {}),
+        bannerLayout: elimLayoutOverride,
+        layout: elimLayoutOverride,
+      },
+    };
+  }, [mergedTheme, elimLayoutOverride]);
   const broadcastGfx = Boolean(broadcastElimStyle) || isBroadcastGfxTheme(mergedTheme);
+  const isMinimalBroadcast = mergedTheme.broadcastVariant === "minimal";
   const broadcastCssVars = useMemo(() => themeToBroadcastCssVars(mergedTheme), [mergedTheme]);
+  const minimalCssVars = useMemo(() => minimalThemeToCssVars(mergedTheme), [mergedTheme]);
   const [socketMap, setSocketMap] = useState(null);
 
   useEffect(() => {
@@ -203,22 +227,43 @@ export default function OverlayGfxAdminPreview({
 
   const stripColors = useMemo(() => {
     if (broadcastWwcdStyle) {
-      return broadcastWwcdStripToGfxDraft(broadcastWwcdStyle);
+      return broadcastWwcdStripToGfxDraft(broadcastWwcdStyle, mergedTheme);
     }
     return resolveWwcdStripColors(wwcdStripMode, wwcdStripDraft, mergedTheme);
   }, [broadcastWwcdStyle, wwcdStripMode, wwcdStripDraft, mergedTheme]);
   const stripStyle = useMemo(() => wwcdStripStyleFromColors(stripColors), [stripColors]);
-  const StripCard = stripStyle.broadcastLayout ? BroadcastWwcdStripCard : WwcdStripTeamCard;
+  const StripCard = stripStyle.minimalBroadcastLayout
+    ? MinimalBroadcastWwcdStripCard
+    : stripStyle.broadcastLayout
+      ? BroadcastWwcdStripCard
+      : WwcdStripTeamCard;
   const elimColors = useMemo(() => {
-    if (broadcastElimStyle) {
-      return {
-        broadcastLayout: true,
-        broadcastStyle: broadcastElimStyle,
-        ...broadcastElimStyleToGfxDraft(broadcastElimStyle),
-      };
+    if (broadcastElimStyle && Object.keys(broadcastElimStyle).length > 0) {
+      const layout = elimLayoutOverride || resolveEliminationBannerLayout(previewTheme);
+      return resolveEliminationBannerColors(
+        GFX_COLOR_MODE_CUSTOM,
+        {
+          ...broadcastElimStyle,
+          ...layoutElimPatchFromDraft(broadcastElimStyle, layout),
+        },
+        previewTheme,
+      );
     }
-    return resolveEliminationBannerColors(elimBannerMode, elimBannerDraft, mergedTheme);
-  }, [broadcastElimStyle, elimBannerMode, elimBannerDraft, mergedTheme]);
+    return resolveEliminationBannerColors(elimBannerMode, elimBannerDraft, previewTheme);
+  }, [broadcastElimStyle, elimBannerMode, elimBannerDraft, previewTheme, elimLayoutOverride]);
+
+  const elimAnimId = useMemo(
+    () => minimalElimAnimationResolved(previewTheme, elimColors),
+    [previewTheme, elimColors],
+  );
+  const elimAnimClass = isMinimalBroadcast
+    ? minimalElimAnimationClasses(elimAnimId, false)
+    : "";
+  const [elimAnimPreviewKey, setElimAnimPreviewKey] = useState(0);
+
+  useEffect(() => {
+    setElimAnimPreviewKey((k) => k + 1);
+  }, [elimAnimId]);
 
   const stripTeams = useMemo(() => {
     const live = stripTeamsFromAlive(teams);
@@ -268,10 +313,10 @@ export default function OverlayGfxAdminPreview({
           <div style={{ fontSize: 9, fontWeight: 800, color: "#67e8f9", marginBottom: 8, letterSpacing: "0.12em" }}>
             WWCD 4-SQUAD STRIP
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-start", alignItems: "flex-start" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "flex-start", alignItems: "flex-start" }}>
             {stripTeams.map((team, i) => {
               const cardW = stripStyle.cardWidth || WWCD_STRIP_CARD_WIDTH_PX;
-              const cardH = stripStyle.broadcastLayout ? 96 : 118;
+              const cardH = stripStyle.minimalBroadcastLayout ? 88 : stripStyle.broadcastLayout ? 96 : 118;
               return (
               <div
                 key={team.id ?? i}
@@ -306,6 +351,9 @@ export default function OverlayGfxAdminPreview({
                     cardWidth={cardW}
                     teamTagBg={stripStyle.teamTagBg}
                     teamTagText={stripStyle.teamTagText}
+                    panelBg={stripStyle.panelBg}
+                    accentLine={stripStyle.accentLine}
+                    barFilled={stripStyle.barFilled}
                   />
                 </div>
               </div>
@@ -329,7 +377,15 @@ export default function OverlayGfxAdminPreview({
               filter: "drop-shadow(0 4px 14px rgba(0,0,0,.45))",
             }}
           >
-            {broadcastGfx ? (
+            {broadcastGfx && isMinimalBroadcast ? (
+              <MinimalBroadcastRankingBoard
+                teams={rankingTeams}
+                cssVars={minimalCssVars}
+                align="center"
+                previewMode
+                showRecall={rondoRecallColumn}
+              />
+            ) : broadcastGfx ? (
               <BroadcastRankingBoard
                 teams={rankingTeams}
                 cssVars={broadcastCssVars}
@@ -353,16 +409,18 @@ export default function OverlayGfxAdminPreview({
             ELIMINATION BANNER
           </div>
           <div style={{ minHeight: 100, overflow: "visible" }}>
-            {broadcastGfx ? (
-              <BroadcastEliminationBanner
+            {isClassicElimBannerLayout(previewTheme) ? (
+              <PreviewElimBanner colors={elimColors} sampleTeam={elimSample} />
+            ) : (
+              <EliminationBannerRouter
                 banner={elimSample}
-                theme={mergedTheme}
-                style={elimColors.broadcastStyle || broadcastElimStyle}
+                theme={previewTheme}
+                gfxColors={elimColors}
                 scale={0.52}
                 origin="top left"
+                previewKey={`${elimAnimPreviewKey}-${elimAnimId}`}
+                exiting={false}
               />
-            ) : (
-              <PreviewElimBanner colors={elimColors} sampleTeam={elimSample} />
             )}
           </div>
         </div>

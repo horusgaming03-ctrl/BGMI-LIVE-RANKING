@@ -4,7 +4,12 @@ import { ThemeProvider, useTheme } from "./ThemeContext";
 import useAnimation from "./animations/useAnimation";
 import keyframes from "./animations/keyframes";
 import ThemedBoard from "./components/ThemedBoard";
+import EsportsRankingBoard from "./components/EsportsRankingBoard";
+import { isEsportsTournamentGfxTheme } from "./esportsGfxUtils";
 import BroadcastRankingBoard, { themeToBroadcastCssVars } from "./components/BroadcastRankingBoard";
+import MinimalBroadcastRankingBoard, {
+  minimalThemeToCssVars,
+} from "./components/MinimalBroadcastRankingBoard";
 import ThemedWWCD from "./components/ThemedWWCD";
 import ThemeSwitcher from "./components/ThemeSwitcher";
 import BackgroundEffects from "./effects/BackgroundEffects";
@@ -227,7 +232,10 @@ function OverlayInner({ cumulativeOverall = false }) {
   }, [teams, tournamentStats, cumulativeOverall, sortLiveOrder, matchMeta.status]);
 
   const broadcastCssVars = useMemo(() => themeToBroadcastCssVars(theme), [theme]);
+  const minimalCssVars = useMemo(() => minimalThemeToCssVars(theme), [theme]);
   const useBroadcastLayout = Boolean(theme.broadcastLayout);
+  const isMinimalBroadcast = theme.broadcastVariant === "minimal";
+  const useEsportsTournamentGfx = isEsportsTournamentGfxTheme(theme);
   /** Final circle (1–4 squads left): hide live ranking entirely — use `/overlay/wwcd-only` for the strip. */
   const hideLiveRanking = useMemo(() => stripTeamsFromAlive(teams).length > 0, [teams]);
 
@@ -237,14 +245,16 @@ function OverlayInner({ cumulativeOverall = false }) {
         width: "100vw",
         height: "100vh",
         display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
+        justifyContent: useEsportsTournamentGfx ? "flex-end" : "center",
+        alignItems: useEsportsTournamentGfx ? "flex-start" : "center",
+        padding: useEsportsTournamentGfx ? "20px 24px 20px 0" : 0,
         background: "transparent",
         fontFamily: theme.typography.fontFamily,
         position: "relative",
+        overflow: useEsportsTournamentGfx ? "visible" : "hidden",
       }}
     >
-      {!useBroadcastLayout && !hideLiveRanking ? (
+      {!useBroadcastLayout && !useEsportsTournamentGfx && !hideLiveRanking ? (
         <BackgroundEffects theme={theme} enabled={config.enableBackgroundEffects} />
       ) : null}
 
@@ -258,7 +268,14 @@ function OverlayInner({ cumulativeOverall = false }) {
         />
       )}
 
-      {!hideLiveRanking && useBroadcastLayout ? (
+      {!hideLiveRanking && useBroadcastLayout && isMinimalBroadcast ? (
+        <MinimalBroadcastRankingBoard
+          teams={boardTeams}
+          cssVars={minimalCssVars}
+          align="right"
+          showRecall={rondoRecallColumn}
+        />
+      ) : !hideLiveRanking && useBroadcastLayout ? (
         <BroadcastRankingBoard
           teams={boardTeams}
           finishPointsRankingOnly={finishPointsRankingOnly}
@@ -266,6 +283,12 @@ function OverlayInner({ cumulativeOverall = false }) {
           align="center"
           showRecall={rondoRecallColumn}
           hotRank={theme.broadcast?.hotRank}
+        />
+      ) : !hideLiveRanking && useEsportsTournamentGfx ? (
+        <EsportsRankingBoard
+          teams={boardTeams}
+          theme={theme}
+          finishPointsRankingOnly={finishPointsRankingOnly}
         />
       ) : !hideLiveRanking ? (
         <ThemedBoard
@@ -281,13 +304,14 @@ function OverlayInner({ cumulativeOverall = false }) {
           aliveCustomDead={aliveDisplay.customDead}
         />
       ) : null}
-      {!useBroadcastLayout && !hideLiveRanking ? <ThemeSwitcher /> : null}
+      {!useBroadcastLayout && !useEsportsTournamentGfx && !hideLiveRanking ? <ThemeSwitcher /> : null}
 
       <style>{`
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { overflow: hidden; background: transparent; }
+        body { overflow: ${useEsportsTournamentGfx ? "visible" : "hidden"}; background: transparent; }
         ${keyframes}
         ${engineKeyframeCss}
+        ${useEsportsTournamentGfx ? `@import url("https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@500;600;700;800&display=swap");` : ""}
       `}</style>
     </div>
   );

@@ -9,98 +9,119 @@
     "aliveCustomDead": null
   },
   "themeColorOverrides": {
-    "futuristic": {
-      "colors": {
-        "primary": "#007bff"
+    "minimal": {
+      "broadcast": {
+        "legendBg": "#000000",
+        "panelBgBottom": "#000000",
+        "headerBg": "#c08a16",
+        "textDim": "#aca5a5",
+        "textColor": "#ffffff",
+        "rankTabBg": "#8c8678",
+        "panelBgTop": "#2b2b2b",
+        "rowDividerBg": "#ffa200",
+        "knockedColor": "#908989",
+        "statusAlive": "#03b579"
       },
-      "alive": {
-        "color": "#2624a3"
+      "typography": {
+        "fontFamily": "'Oswald', sans-serif",
+        "numbersFontFamily": "'Oswald', sans-serif"
+      },
+      "elimination": {
+        "panelBg": "#c08a16",
+        "rankText": "#f5f5f5",
+        "statsBg": "#ffffff",
+        "statsText": "#0a0a0a",
+        "elimBg": "#9c6b16",
+        "elimText": "#ffffff",
+        "nameTagBg": "#000000",
+        "nameTagText": "#ffffff",
+        "bannerLayout": "broadcast"
+      },
+      "wwcdStrip": {
+        "footerBg": "#ffffff",
+        "pctTextColor": "#000000",
+        "teamTagBg": "#ffffff",
+        "footerText": "#050505",
+        "teamTagText": "#000000",
+        "dividerColor": "#000000",
+        "barFilled": "#ffffff",
+        "barDead": "#dfd8d8",
+        "accentLine": "#ffffff",
+        "panelBg": "#faab00"
+      }
+    },
+    "neon": {
+      "typography": {
+        "fontFamily": "'Teko', sans-serif"
+      }
+    },
+    "cyberpunk": {
+      "elimination": {
+        "rankBadgeText": "#fcee09",
+        "logoRingColor": "#fcee09",
+        "rankText": "#00c8c8",
+        "elimBg": "#ff3333",
+        "elimText": "#ffffff",
+        "accentLine": "#fcee09",
+        "logoPanelBg": "#1c1c1c",
+        "logoBorder": "#00c8c8",
+        "titleBg": "#ececf2",
+        "titleText": "#1a1a1a",
+        "statsBg": "#085858",
+        "statsText": "#ffffff",
+        "teamText": "#ffffff",
+        "killIconColor": "#ffffff",
+        "rankPanelBg": "#1a3fd4",
+        "statNumColor": "#ffe600",
+        "statLabelColor": "#ffffff",
+        "logoFallbackBg": "#2a3048",
+        "logoFallbackText": "#ffffff",
+        "borderColor": "#00f0ff",
+        "panelBg": "#0d4a4f",
+        "nameTagBg": "#8b4789",
+        "nameTagText": "#ffffff",
+        "animation": "slideLeft",
+        "bannerLayout": "minimalBroadcast",
+        "layout": "minimalBroadcast"
       }
     },
     "cleanBroadcast": {
-      "colors": {
-        "accent": "#ffffff",
-        "primary": "#ffffff",
-        "secondary": "#ffffff",
-        "gold": "#000000",
-        "textMuted": "#ffffff",
-        "text": "#ffffff"
-      },
-      "alive": {
-        "color": "#ffffff",
-        "deadColor": "#ffffff"
-      },
-      "row": {
-        "bgA": "#3c6aaa",
-        "bgB": "#236ed7"
-      },
-      "broadcast": {
-        "headerText": "#ffffff",
-        "headerBg": "#ea1010",
-        "leftRowColor": "#ffffff",
-        "statsBg": "#050a0b",
-        "knockedColor": "#f50505"
-      },
-      "typography": {
-        "fontFamily": "'Oswald', sans-serif",
-        "numbersFontFamily": "'Oswald', sans-serif"
-      }
-    },
-    "minimal": {
-      "colors": {
-        "primary": "#ffffff",
-        "secondary": "#fffafa",
-        "accent": "#f2f2f2",
-        "textMuted": "#ffffff",
-        "gold": "#000000",
-        "text": "#ffffff"
-      },
-      "alive": {
-        "color": "#e6e6e6"
-      },
-      "row": {
-        "bgA": "#e00000",
-        "bgB": "#931b1b"
-      },
-      "typography": {
-        "fontFamily": "'Oswald', sans-serif",
-        "numbersFontFamily": "'Oswald', sans-serif"
+      "elimination": {
+        "panelBg": "#0d4a4f",
+        "rankText": "#ffffff",
+        "statsBg": "#ffffff",
+        "statsText": "#0a0a0a",
+        "elimBg": "#ff3333",
+        "elimText": "#ffffff",
+        "nameTagBg": "#8b4789",
+        "nameTagText": "#ffffff",
+        "rankBadgeText": "#fcee09",
+        "logoRingColor": "#fcee09",
+        "accentLine": "#fcee09",
+        "logoPanelBg": "#1c1c1c",
+        "logoBorder": "#00c8c8",
+        "titleBg": "#ececf2",
+        "titleText": "#1a1a1a",
+        "teamText": "#ffffff",
+        "killIconColor": "#ffffff",
+        "animation": "slideLeft",
+        "bannerLayout": "broadcast",
+        "layout": "broadcast"
       }
     },
     "esports": {
       "colors": {
-        "primary": "#ffffff",
-        "secondary": "#ffffff",
-        "accent": "#ffffff",
-        "gold": "#1e2a3a",
-        "textMuted": "#ffffff"
+        "primary": "#ff0015"
       },
       "alive": {
-        "color": "#ffffff",
-        "deadColor": "#000000"
-      },
-      "row": {
-        "bgA": "#113e0e",
-        "bgB": "#1b651a"
-      }
-    },
-    "premiumGold": {
-      "colors": {
-        "primary": "#ffffff",
-        "secondary": "#ffffff",
-        "accent": "#ffffff",
-        "textMuted": "#ffffff",
-        "gold": "#0f0000",
-        "text": "#ffffff"
-      },
-      "alive": {
-        "color": "#ffffff"
-      },
-      "row": {
-        "bgA": "#ffb638",
-        "bgB": "#ca8a1c"
+        "color": "#fa0015"
       }
     }
+  },
+  "eliminationBannerLayouts": {
+    "cyberpunk": "minimalBroadcast",
+    "minimal": "broadcast",
+    "cleanBroadcast": "broadcast"
   },
   "overallStandingsBg": null,
   "obsSharedTriplePng": "/uploads/obs-shared-triple/obs-slot-1779702640974.png",
@@ -125,7 +146,7 @@
     "importedDriveFileIds": [],
     "lastError": null
   },
-  "activeTheme": "cleanBroadcast",
+  "activeTheme": "minimal",
   "sideOverlayPrefs": {
     "groupLabel": "GROUP A",
     "useLiveMatchNumber": true,
@@ -155,11 +176,15 @@
   },
   "eliminationBannerColorMode": "theme",
   "eliminationBannerColors": {
-    "primary": "#0060e6",
-    "accent": "#0060e6",
-    "gold": "#f5f5f5",
-    "secondary": "#0e53b4",
-    "textMuted": "#ffffff"
+    "primary": "#eb0000",
+    "accent": "#00ffff",
+    "gold": "#fff0f0",
+    "secondary": "#000000",
+    "textMuted": "#ffffff",
+    "elimBg": "#eb0000",
+    "elimText": "#ffffff",
+    "broadcastLayout": true,
+    "animation": "slideLeft"
   },
   "obsBgmiLayerPack": {
     "layers": {

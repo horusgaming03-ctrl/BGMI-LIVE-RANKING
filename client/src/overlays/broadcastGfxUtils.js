@@ -1,6 +1,24 @@
 /** Shared BMPS / Clean Broadcast GFX tokens for elimination + WWCD strip. */
 
+import {
+  isMinimalBroadcastTheme,
+  isMinimalElimBannerLayout,
+  minimalElimStyleFromTheme,
+  minimalWwcdStripStyleFromTheme,
+  minimalElimStyleToGfxDraft,
+  minimalWwcdStripToGfxDraft,
+  MINIMAL_ELIMINATION_PICKERS,
+  minimalWwcdDraftFromTheme,
+} from "./minimalGfxUtils";
+import { normalizeMinimalElimAnimation } from "./minimalElimAnimations";
+
+export { isMinimalBroadcastTheme, minimalElimStyleToGfxDraft, minimalWwcdStripToGfxDraft };
+
 export function broadcastElimStyleFromTheme(theme) {
+  if (isMinimalElimBannerLayout(theme)) {
+    return minimalElimStyleFromTheme(theme);
+  }
+
   const bc = theme?.broadcast || {};
   const el = theme?.elimination || {};
   const c = theme?.colors || {};
@@ -20,10 +38,13 @@ export function broadcastElimStyleFromTheme(theme) {
 }
 
 export function broadcastWwcdStripStyleFromTheme(theme) {
+  if (isMinimalBroadcastTheme(theme)) {
+    return minimalWwcdStripStyleFromTheme(theme);
+  }
+
   const bc = theme?.broadcast || {};
   const ws = theme?.wwcdStrip || {};
   const c = theme?.colors || {};
-  const alive = theme?.alive || {};
 
   return {
     broadcastLayout: true,
@@ -31,8 +52,14 @@ export function broadcastWwcdStripStyleFromTheme(theme) {
     teamTagText: ws.teamTagText || c.text || "#0a0a0a",
     logoBoxBg: ws.logoBoxBg || ws.teamTagBg || "#ffffff",
     barsBg: ws.barsBg || ws.teamTagBg || "#ffffff",
-    barFilled: ws.barFilled || alive.color || bc.statusAlive || c.accent || "#22c55e",
-    barDead: ws.barDead || alive.deadColor || bc.statusDead || "#4a4a4a",
+    barFilled:
+      ws.barFilled != null && String(ws.barFilled).trim()
+        ? String(ws.barFilled).trim()
+        : BROADCAST_WWCD_STRIP_DEFAULTS.barFilled,
+    barDead:
+      ws.barDead != null && String(ws.barDead).trim()
+        ? String(ws.barDead).trim()
+        : BROADCAST_WWCD_STRIP_DEFAULTS.barDead,
     footerBg: ws.footerBg || ws.teamTagBg || "#ffffff",
     footerText: ws.footerText || bc.knockedColor || "#e50000",
     dividerColor: ws.dividerColor || ws.footerText || bc.knockedColor || "#e50000",
@@ -75,6 +102,25 @@ export function isLegacyWwcdStripCustom(patch) {
 export function broadcastWwcdStripColorsResolved(theme, patch = {}) {
   const base = broadcastWwcdStripStyleFromTheme(theme);
   const p = patch && typeof patch === "object" ? patch : {};
+  const minimal = isMinimalBroadcastTheme(theme) || p.minimalBroadcastLayout;
+  if (minimal) {
+    return {
+      broadcastLayout: true,
+      minimalBroadcastLayout: true,
+      teamTagBg: p.teamTagBg ?? base.teamTagBg,
+      teamTagText: p.teamTagText ?? base.teamTagText,
+      panelBg: p.panelBg ?? base.panelBg,
+      accentLine: p.accentLine ?? base.accentLine,
+      dividerColor: p.dividerColor ?? base.dividerColor,
+      pctTextColor: p.pctTextColor ?? base.pctTextColor,
+      footerBg: p.footerBg ?? base.footerBg,
+      footerText: p.footerText ?? base.footerText,
+      barFilled: p.barFilled ?? base.barFilled,
+      barDead: p.barDead ?? base.barDead,
+      fontFamily: p.fontFamily ?? base.fontFamily,
+      cardWidth: base.cardWidth,
+    };
+  }
   return {
     broadcastLayout: true,
     teamTagBg: p.teamTagBg ?? base.teamTagBg,
@@ -94,6 +140,9 @@ export function broadcastWwcdStripColorsResolved(theme, patch = {}) {
 
 /** Draft object for admin pickers from merged theme. */
 export function broadcastWwcdDraftFromTheme(theme) {
+  if (isMinimalBroadcastTheme(theme)) {
+    return minimalWwcdDraftFromTheme(theme);
+  }
   const resolved = broadcastWwcdStripColorsResolved(theme, {});
   const out = {};
   for (const k of BROADCAST_WWCD_STRIP_COLOR_KEYS) {
@@ -103,11 +152,15 @@ export function broadcastWwcdDraftFromTheme(theme) {
 }
 
 /** Gfx draft payload for instant WWCD strip preview (OBS socket). */
-export function broadcastWwcdStripToGfxDraft(draft) {
-  return broadcastWwcdStripColorsResolved({ broadcastLayout: true, wwcdStrip: draft || {} }, {
-    ...(draft || {}),
-    broadcastLayout: true,
-  });
+export function broadcastWwcdStripToGfxDraft(draft, theme = null) {
+  const patch = draft && typeof draft === "object" ? draft : {};
+  const resolvedTheme =
+    theme && typeof theme === "object"
+      ? theme
+      : patch.minimalBroadcastLayout || patch.panelBg != null || patch.accentLine != null
+        ? { broadcastLayout: true, broadcastVariant: "minimal" }
+        : { broadcastLayout: true };
+  return broadcastWwcdStripColorsResolved(resolvedTheme, patch);
 }
 
 export function isBroadcastGfxTheme(theme) {
@@ -140,6 +193,9 @@ export const BROADCAST_ELIMINATION_DEFAULTS = {
 
 /** Convert live broadcast elimination style → gfx draft payload (instant OBS preview). */
 export function broadcastElimStyleToGfxDraft(style) {
+  if (style?.minimalBroadcastLayout) {
+    return minimalElimStyleToGfxDraft(style);
+  }
   const s = style || {};
   return {
     broadcastLayout: true,
@@ -161,13 +217,33 @@ export function broadcastElimStyleToGfxDraft(style) {
 /** Merge saved broadcast elimination patch onto a base style object. */
 export function broadcastElimStyleFromPatch(baseStyle, patch = {}) {
   const out = { ...(baseStyle || broadcastElimStyleFromTheme({})) };
-  if (patch.primary != null && patch.elimBg == null) out.elimBg = patch.primary;
-  if (patch.accent != null && patch.panelBg == null) out.panelBg = patch.accent;
-  if (patch.gold != null && patch.nameTagBg == null) out.nameTagBg = patch.gold;
-  if (patch.secondary != null && patch.panelBg == null) out.panelBg = patch.secondary;
-  if (patch.textMuted != null && patch.statsText == null) out.statsText = patch.textMuted;
-  for (const [key] of BROADCAST_ELIMINATION_PICKERS) {
+  const minimal = Boolean(patch.minimalBroadcastLayout || out.minimalBroadcastLayout);
+  if (patch.minimalBroadcastLayout) out.minimalBroadcastLayout = true;
+  const pickerList = minimal ? MINIMAL_ELIMINATION_PICKERS : BROADCAST_ELIMINATION_PICKERS;
+
+  for (const [key] of pickerList) {
     if (patch[key] != null && typeof patch[key] === "string") out[key] = patch[key];
+  }
+  if (patch.animation != null) out.animation = normalizeMinimalElimAnimation(patch.animation);
+
+  const hasLayoutPicker = pickerList.some(([k]) => patch[k] != null);
+  if (hasLayoutPicker || patch.broadcastLayout || patch.minimalBroadcastLayout) {
+    return out;
+  }
+
+  if (minimal) {
+    if (patch.primary != null && patch.elimBg == null) out.elimBg = patch.primary;
+    if (patch.gold != null && patch.leftPanelBg == null) out.leftPanelBg = patch.gold;
+    if (patch.accent != null && patch.logoRingColor == null) out.logoRingColor = patch.accent;
+    if (patch.secondary != null && patch.rankBadgeText == null) out.rankBadgeText = patch.secondary;
+    if (patch.textMuted != null && patch.elimText == null) out.elimText = patch.textMuted;
+  } else {
+    if (patch.primary != null && patch.elimBg == null) out.elimBg = patch.primary;
+    if (patch.accent != null && patch.panelBg == null) out.panelBg = patch.accent;
+    if (patch.gold != null && patch.nameTagBg == null) out.nameTagBg = patch.gold;
+    if (patch.secondary != null && patch.panelBg == null) out.panelBg = patch.secondary;
+    if (patch.textMuted != null && patch.statsText == null) out.statsText = patch.textMuted;
+    if (patch.logoPanelBg != null) out.logoPanelBg = patch.logoPanelBg;
   }
   return out;
 }

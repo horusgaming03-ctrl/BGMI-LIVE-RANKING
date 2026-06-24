@@ -131,7 +131,7 @@ function ThemedRow({
         <div
           style={{
             display: "flex",
-            justifyContent: "flex-end",
+            justifyContent: "center",
             alignItems: "center",
             width: "100%",
             minWidth: 52,

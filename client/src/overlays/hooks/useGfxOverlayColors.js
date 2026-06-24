@@ -10,7 +10,7 @@ import {
   resolveEliminationBannerColors,
 } from "../../overlayGfxColors";
 import { useLiveRankingThemePalette } from "./useLiveRankingThemePalette";
-import socket, { API } from "../socket";
+import socket, { apiUrl } from "../socket";
 
 const DEFAULT_GFX_SETTINGS = {
   wwcdStripColorMode: GFX_COLOR_MODE_THEME,
@@ -59,7 +59,7 @@ export function useGfxOverlayColors(options = {}) {
     socket.on("settingsUpdated", applySettings);
     socket.on("overlayGfxDraft", onGfxDraft);
     socket.emit("requestSettings");
-    fetch(`${API}/settings`)
+    fetch(apiUrl("/settings"), { cache: "no-store" })
       .then((r) => r.json())
       .then(applySettings)
       .catch(() => {});
