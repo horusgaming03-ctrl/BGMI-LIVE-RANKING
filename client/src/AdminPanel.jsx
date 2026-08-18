@@ -57,6 +57,9 @@ import {
 } from "./overlays/eliminationBannerRegistry";
 import OverlayGfxAdminPreview, { publishGfxPreviewDraft } from "./overlays/OverlayGfxAdminPreview";
 import ScheduleMatchSection from "./schedule-match/ScheduleMatchSection";
+import WwcdStatusSection from "./wwcd-status/WwcdStatusSection";
+import TopFraggersSection from "./top-fraggers/TopFraggersSection";
+import OverallStandingSection from "./overall-standing/OverallStandingSection";
 import {
   useLiveRankingThemePalette,
   announcementAdminPreviewStyles,
@@ -75,11 +78,6 @@ const BGMI_MAP_OPTS = [
 function bgmiMapLabel(slug) {
   const hit = BGMI_MAP_OPTS.find((o) => o.value === String(slug || "").toLowerCase());
   return hit ? hit.label : "ERANGEL";
-}
-
-function normalizeWwcdArts(arr) {
-  const src = Array.isArray(arr) ? arr : [];
-  return [0, 1, 2, 3].map((i) => (typeof src[i] === "string" && src[i].trim() ? src[i].trim() : null));
 }
 
 export default function AdminPanel() {
@@ -660,9 +658,6 @@ export default function AdminPanel() {
     activeElimLayout,
     gfxMergedTheme,
   ]);
-  const [wwcdCharacterArts, setWwcdCharacterArts] = useState([null, null, null, null]);
-  const [wwcdSlotSelected, setWwcdSlotSelected] = useState(0);
-  const [wwcdUrlDraft, setWwcdUrlDraft] = useState("");
   const sideBannerTourLogoRef = useRef(null);
   const [sideOverlayDraft, setSideOverlayDraft] = useState(() => ({ ...SIDE_OVERLAY_DEFAULT_PREFS }));
   const [broadcastTournamentLogo, setBroadcastTournamentLogo] = useState(null);
@@ -675,7 +670,6 @@ export default function AdminPanel() {
   const [screenshotPreviews, setScreenshotPreviews] = useState([]);
   const screenshotInputRef = useRef(null);
   const logoInputRef = useRef(null);
-  const wwcdFileInputRef = useRef(null);
   const overallBgSectionRef = useRef(null);
   const [pendingNewLogo, setPendingNewLogo] = useState(null); // { file: File, url: string }
   /** @type {React.MutableRefObject<number|'new'|null>} */
@@ -747,9 +741,6 @@ export default function AdminPanel() {
       }
       if (data && Object.prototype.hasOwnProperty.call(data, "overallStandingsBg")) {
         setOverallStandingsBg(data.overallStandingsBg || null);
-      }
-      if (Array.isArray(data?.wwcdCharacterArts)) {
-        setWwcdCharacterArts(normalizeWwcdArts(data.wwcdCharacterArts));
       }
       if (Object.prototype.hasOwnProperty.call(data, "tournamentLogo")) {
         setBroadcastTournamentLogo(data.tournamentLogo || null);
@@ -871,11 +862,6 @@ export default function AdminPanel() {
     socket.on("activeThemeChanged", onActiveTheme);
     return () => socket.off("activeThemeChanged", onActiveTheme);
   }, []);
-
-  useEffect(() => {
-    const a = wwcdCharacterArts[wwcdSlotSelected];
-    setWwcdUrlDraft(a && /^https?:\/\//i.test(a) ? a : "");
-  }, [wwcdSlotSelected, wwcdCharacterArts]);
 
   useEffect(() => {
     if (expandedSection !== "googleSync") return;
@@ -2336,6 +2322,39 @@ export default function AdminPanel() {
           <span aria-hidden>📅</span>
           <span style={{ flex: 1 }}>Schedule of the match</span>
         </button>
+        <button
+          type="button"
+          onClick={() => goSection("wwcdStatus")}
+          style={{
+            ...dash.navItem,
+            ...(expandedSection === "wwcdStatus" ? dash.navItemActive : {}),
+          }}
+        >
+          <span aria-hidden>🏆</span>
+          <span style={{ flex: 1 }}>WWCD STATUS</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => goSection("topFraggers")}
+          style={{
+            ...dash.navItem,
+            ...(expandedSection === "topFraggers" ? dash.navItemActive : {}),
+          }}
+        >
+          <span aria-hidden>🎯</span>
+          <span style={{ flex: 1 }}>Top fraggers</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => goSection("overallStanding")}
+          style={{
+            ...dash.navItem,
+            ...(expandedSection === "overallStanding" ? dash.navItemActive : {}),
+          }}
+        >
+          <span aria-hidden>📊</span>
+          <span style={{ flex: 1 }}>Overall standing</span>
+        </button>
 
         <div style={dash.navGroupLab}>Team management</div>
         <button
@@ -3134,6 +3153,11 @@ export default function AdminPanel() {
 
         {expandedSection === "scheduleMatch" && <ScheduleMatchSection />}
 
+        {expandedSection === "wwcdStatus" && <WwcdStatusSection />}
+        {expandedSection === "topFraggers" && <TopFraggersSection />}
+
+        {expandedSection === "overallStanding" && <OverallStandingSection />}
+
         {expandedSection === "announcements" && (
           <section style={ns.sectionCard}>
             <div style={ns.sectionHeader}>
@@ -3563,10 +3587,15 @@ export default function AdminPanel() {
                   Upload custom PNG for this overlay →
                 </button>
               </div>
-              <div style={ns.overlayCard} onClick={() => window.open("/overlay/wwcd", "_blank", "width=1920,height=1080")}>
-                <div style={{ fontSize: 36, marginBottom: 8 }}>🍗</div>
-                <div style={{ fontWeight: 800, fontSize: 16 }}>WWCD Screen</div>
-                <div style={{ color: "#8CB7BE", fontSize: 12, marginTop: 4 }}>Open WWCD overlay window</div>
+              <div style={ns.overlayCard} onClick={() => goSection("wwcdStatus")}>
+                <div style={{ fontSize: 36, marginBottom: 8 }}>🏆</div>
+                <div style={{ fontWeight: 800, fontSize: 16 }}>WWCD STATUS</div>
+                <div style={{ color: "#8CB7BE", fontSize: 12, marginTop: 4 }}>Open the WWCD STATUS editor & 1920×1080 overlay</div>
+              </div>
+              <div style={ns.overlayCard} onClick={() => goSection("topFraggers")}>
+                <div style={{ fontSize: 36, marginBottom: 8 }}>🎯</div>
+                <div style={{ fontWeight: 800, fontSize: 16 }}>Top fraggers</div>
+                <div style={{ color: "#8CB7BE", fontSize: 12, marginTop: 4 }}>Mumbai LAN top 5 player finishes GFX</div>
               </div>
               <div
                 style={ns.overlayCard}
@@ -4684,137 +4713,6 @@ export default function AdminPanel() {
               </div>
             </div>
 
-            {/* WWCD character card art (4 slots) */}
-            <div style={{ marginTop: 14, padding: "16px 18px", background: "rgba(127,180,255,.05)", borderRadius: 12, border: "1px solid rgba(127,180,255,.2)" }}>
-              <div style={{ fontWeight: 800, fontSize: 14, color: "#9EC9FF", marginBottom: 8, letterSpacing: 0.5 }}>WWCD character cards</div>
-              <p style={{ margin: "0 0 14px", fontSize: 11, color: "#8CB7BE", lineHeight: 1.45 }}>
-                Four images for the WWCD team stats overlay (slots match P1–P4 left to right). Upload PNG/WebP here, paste a public <strong style={{ color: "#ccc" }}>image URL</strong> for a browser-loaded asset, or remove to use the default art in{" "}
-                <code style={{ color: "#F1CF69" }}>client/public/wwcd/</code>. Saved with app settings. Quick edit on the overlay:{" "}
-                <code style={{ color: "#F1CF69" }}>/overlay/wwcd?edit=1</code> (use clean URL in OBSlive).
-              </p>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 10, marginBottom: 14 }}>
-                {[0, 1, 2, 3].map((slot) => {
-                  const art = wwcdCharacterArts[slot];
-                  const src =
-                    art && /^https?:\/\//i.test(art)
-                      ? art
-                      : art && art.startsWith("/")
-                        ? `${API}${art}`
-                        : `/wwcd/char-${slot}.png`;
-                  return (
-                    <div
-                      key={slot}
-                      style={{
-                        borderRadius: 10,
-                        border: wwcdSlotSelected === slot ? "2px solid #7EB8FF" : "1px solid rgba(255,255,255,.12)",
-                        overflow: "hidden",
-                        background: "rgba(0,0,0,.25)",
-                      }}
-                    >
-                      <div style={{ height: 100, display: "grid", placeItems: "center", background: "rgba(255,255,255,.06)" }}>
-                        <img src={src} alt="" style={{ maxHeight: 96, maxWidth: "100%", objectFit: "contain" }} />
-                      </div>
-                      <div style={{ padding: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-                        <div style={{ fontSize: 10, fontWeight: 800, color: "#9EC9FF", textAlign: "center" }}>P{slot + 1}</div>
-                        <button
-                          type="button"
-                          onClick={() => setWwcdSlotSelected(slot)}
-                          style={{
-                            padding: "6px 8px",
-                            fontSize: 10,
-                            fontWeight: 800,
-                            borderRadius: 6,
-                            border: "1px solid rgba(127,180,255,.4)",
-                            background: wwcdSlotSelected === slot ? "rgba(127,180,255,.2)" : "rgba(255,255,255,.05)",
-                            color: "#C8E0FF",
-                            cursor: "pointer",
-                          }}
-                        >
-                          Select
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <input ref={wwcdFileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
-                const f = e.target.files?.[0];
-                e.target.value = "";
-                if (!f) return;
-                const fd = new FormData();
-                fd.append("file", f);
-                const res = await fetch(`${API}/upload/wwcd-character/${wwcdSlotSelected}`, { method: "POST", body: fd });
-                if (res.ok) {
-                  const data = await res.json().catch(() => ({}));
-                  if (Array.isArray(data.wwcdCharacterArts)) setWwcdCharacterArts(normalizeWwcdArts(data.wwcdCharacterArts));
-                  setMessage(`WWCD slot ${wwcdSlotSelected + 1} image saved.`);
-                } else setMessage("WWCD upload failed.");
-              }} />
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                <span style={{ fontSize: 11, color: "#8CB7BE", fontWeight: 700 }}>Editing slot {wwcdSlotSelected + 1}:</span>
-                <button
-                  type="button"
-                  onClick={() => wwcdFileInputRef.current?.click()}
-                  style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "linear-gradient(90deg, #7EB8FF, #5b8cff)", color: "#0a1628", fontSize: 11, fontWeight: 800, cursor: "pointer" }}
-                >
-                  Upload image…
-                </button>
-                <input
-                  type="url"
-                  value={wwcdUrlDraft}
-                  onChange={(e) => setWwcdUrlDraft(e.target.value)}
-                  placeholder="Image URL (https://…)"
-                  style={{
-                    flex: "1 1 200px",
-                    minWidth: 160,
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    border: "1px solid rgba(255,255,255,.15)",
-                    background: "rgba(0,0,0,.2)",
-                    color: "#fff",
-                    fontSize: 12,
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const res = await fetch(`${API}/overlay/wwcd-characters`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ slot: wwcdSlotSelected, imageUrl: wwcdUrlDraft.trim() || null }),
-                    });
-                    if (res.ok) {
-                      const data = await res.json().catch(() => ({}));
-                      if (Array.isArray(data.wwcdCharacterArts)) setWwcdCharacterArts(normalizeWwcdArts(data.wwcdCharacterArts));
-                      setMessage(`WWCD slot ${wwcdSlotSelected + 1} URL applied.`);
-                    } else setMessage("Invalid URL or missing API.");
-                  }}
-                  style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid rgba(115,231,190,.45)", background: "rgba(56,189,248,.1)", color: "#73E7BE", fontSize: 11, fontWeight: 800, cursor: "pointer" }}
-                >
-                  Apply URL
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const res = await fetch(`${API}/overlay/wwcd-characters`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ slot: wwcdSlotSelected, imageUrl: null }),
-                    });
-                    if (res.ok) {
-                      const data = await res.json().catch(() => ({}));
-                      if (Array.isArray(data.wwcdCharacterArts)) setWwcdCharacterArts(normalizeWwcdArts(data.wwcdCharacterArts));
-                      setWwcdUrlDraft("");
-                      setMessage(`WWCD slot ${wwcdSlotSelected + 1} reset to default art.`);
-                    }
-                  }}
-                  style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid rgba(255,120,120,.35)", background: "rgba(180,60,60,.15)", color: "#ffb0b0", fontSize: 11, fontWeight: 800, cursor: "pointer" }}
-                >
-                  Remove image
-                </button>
-              </div>
-            </div>
-
             <div style={{ marginTop: 16, padding: "12px 16px", background: "rgba(255,255,255,.03)", borderRadius: 14, border: "1px solid rgba(255,255,255,.06)" }}>
               <p style={{ margin: "0 0 8px", color: "#8CB7BE", fontSize: 13, lineHeight: 1.6 }}>
                 <strong style={{ color: "#73E7BE" }}>Backend required:</strong> Overlays need the API + Socket.IO server on port 3001. If anything is blank, confirm <code style={{ color: "#F1CF69" }}>node index.js</code> is running.
@@ -4849,8 +4747,6 @@ export default function AdminPanel() {
               <button onClick={fetchTournament} style={ns.matchBtn}>Refresh</button>
             </div>
             <div
-              ref={overallBgSectionRef}
-              id="overall-standings-bg-upload"
               style={{
                 marginBottom: 20,
                 padding: "16px 18px",
@@ -4860,14 +4756,13 @@ export default function AdminPanel() {
               }}
             >
               <div style={{ fontWeight: 800, fontSize: 13, color: "#73E7BE", marginBottom: 8, letterSpacing: 0.4 }}>
-                Overall tournament · custom background PNG
+                Mumbai LAN broadcast GFX
               </div>
               <p style={{ margin: "0 0 12px", color: "#8CB7BE", fontSize: 12, lineHeight: 1.55, maxWidth: 720 }}>
-                Upload a <strong style={{ color: "#C8E8E4" }}>1920×1080</strong> (or similar) image. Standings and stats draw on top in a glass panel — see the{" "}
-                <strong style={{ color: "#C8E8E4" }}>preview below</strong> and in{" "}
+                Customize the full <strong style={{ color: "#C8E8E4" }}>1920×1080</strong> standings overlay (header, colors, background, characters) in{" "}
                 <button
                   type="button"
-                  onClick={() => window.open("/overlay/themed/overall", "_blank", "width=1920,height=1080")}
+                  onClick={() => goSection("overallStanding")}
                   style={{
                     padding: "2px 8px",
                     margin: "0 2px",
@@ -4881,138 +4776,40 @@ export default function AdminPanel() {
                     verticalAlign: "baseline",
                   }}
                 >
-                  Open overlay window
+                  Overall standing
                 </button>{" "}
-                for OBS/browser. Add <code style={{ color: "#F1CF69" }}>?layout=theme</code> to that URL to hide the image and use the default table-only theme.
+                — same editor style as Schedule of the match. OBS URL:{" "}
+                <code style={{ color: "#F1CF69", fontSize: 11 }}>/overall-standing/overlay.html</code>
               </p>
-              {overallBgUploadMsg ? (
-                <p style={{ margin: "0 0 10px", fontSize: 12, color: "#6FF3CB" }}>{overallBgUploadMsg}</p>
-              ) : null}
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
-                <label style={{ fontSize: 12, fontWeight: 700, color: "#ccc", cursor: "pointer" }}>
-                  Choose PNG / JPG
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif,.svg"
-                    style={{ display: "block", marginTop: 6 }}
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      e.target.value = "";
-                      if (!file) return;
-                      try {
-                        const fd = new FormData();
-                        fd.append("file", file);
-                        const res = await fetch(`${API}/upload/overall-standings-bg`, { method: "POST", body: fd });
-                        const raw = await res.text();
-                        let json = {};
-                        try {
-                          json = raw ? JSON.parse(raw) : {};
-                        } catch {
-                        /* HTML error page etc. */
-                        }
-                        if (!res.ok) {
-                          const stripped = raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-                          const snippet = stripped.slice(0, 180);
-                          let msg = json.message || snippet || `HTTP ${res.status}`;
-                          if (res.status === 404 || /cannot post/i.test(raw)) {
-                            msg = `${msg} — Restart the API (node index.js) on port 3001, or stop duplicate Node processes using that port.`;
-                          }
-                          setOverallBgUploadMsg(msg);
-                          setTimeout(() => setOverallBgUploadMsg(""), 12_000);
-                          return;
-                        }
-                        if (json.path) setOverallStandingsBg(json.path);
-                        setOverallBgUploadMsg("Saved — refresh the overall overlay window.");
-                        setTimeout(() => setOverallBgUploadMsg(""), 4000);
-                      } catch (err) {
-                        const net = err instanceof Error ? err.message : "";
-                        const hint =
-                          net && /fetch|network|failed|load/i.test(net)
-                            ? " — Is node index.js running on 3001? (Dev: keep API running while using Vite.)"
-                            : "";
-                        setOverallBgUploadMsg(`Could not reach server${hint}`);
-                        setTimeout(() => setOverallBgUploadMsg(""), 12_000);
-                      }
-                    }}
-                  />
-                </label>
-                {overallStandingsBg ? (
-                  <>
-                    <img
-                      src={`${API}${overallStandingsBg}?t=1`}
-                      alt=""
-                      style={{ maxHeight: 72, borderRadius: 8, border: "1px solid rgba(255,255,255,.15)" }}
-                    />
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        await fetch(`${API}/settings`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ overallStandingsBg: null }),
-                        });
-                        setOverallStandingsBg(null);
-                        setOverallBgUploadMsg("Cleared — using default themed layout.");
-                        setTimeout(() => setOverallBgUploadMsg(""), 4000);
-                      }}
-                      style={{
-                        padding: "8px 14px",
-                        fontSize: 12,
-                        fontWeight: 700,
-                        borderRadius: 8,
-                        border: "1px solid rgba(248,113,113,.45)",
-                        background: "rgba(0,0,0,.2)",
-                        color: "#fca5a5",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Remove background
-                    </button>
-                  </>
-                ) : null}
-              </div>
+              <button
+                type="button"
+                onClick={() => window.open("/overall-standing/overlay.html", "_blank", "width=1920,height=1080")}
+                style={{
+                  padding: "8px 14px",
+                  fontSize: 12,
+                  fontWeight: 800,
+                  borderRadius: 8,
+                  border: "1px solid rgba(230,57,70,.5)",
+                  background: "linear-gradient(160deg,#e63946,#b91c1c)",
+                  color: "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                Open overlay preview
+              </button>
             </div>
             <p
               style={{
                 margin: "0 0 10px",
                 fontSize: 11,
                 fontWeight: 700,
-                color: overallStandingsBg ? "#73E7BE" : "#5a6d72",
+                color: "#5a6d72",
                 letterSpacing: 0.03,
               }}
             >
-              {overallStandingsBg
-                ? "Preview — standings on your background (same layout as the overlay window)."
-                : "Standings table — enable a background above to see numbers composited on your image."}
+              Data table below — live totals from completed matches (WWCD · PLACE · FINISH · TOTAL on overlay).
             </p>
-            <div
-              style={
-                overallStandingsBg
-                  ? {
-                      position: "relative",
-                      borderRadius: 16,
-                      overflow: "hidden",
-                      border: "1px solid rgba(255,255,255,.12)",
-                      backgroundColor: "#0a0c10",
-                      backgroundImage: `url(${API}${overallStandingsBg}?t=2)`,
-                      backgroundSize: "cover",
-                      backgroundPosition: "center",
-                      backgroundRepeat: "no-repeat",
-                    }
-                  : {}
-              }
-            >
-              <div
-                style={
-                  overallStandingsBg
-                    ? {
-                        padding: 16,
-                        background: "rgba(8,10,18,0.86)",
-                        backdropFilter: "blur(10px)",
-                      }
-                    : {}
-                }
-              >
+            <div>
                 <div style={ns.matchTable}>
                   <div style={{ ...ns.matchTableHead, gridTemplateColumns: "50px 1fr 80px 80px 80px 80px 80px" }}>
                     <div>#</div><div>Team</div><div>Matches</div><div>Kills</div><div>Pos Pts</div><div>WWCD</div><div>Total</div>
@@ -5059,7 +4856,6 @@ export default function AdminPanel() {
                     </div>
                   </div>
                 )}
-              </div>
             </div>
           </section>
         )}

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>TOP FRAGGERS — Overlay</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Teko:wght@500;600;700&family=Rajdhani:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/overlay.css" />
+    <link rel="stylesheet" href="css/animations.css" />
+  </head>
+  <body>
+    <div id="tf-viewport" class="tf-viewport">
+      <div id="tf-stage" class="tf-stage" data-section="TOP FRAGGERS">
+        <div id="tf-bg" class="tf-bg" aria-hidden="true"></div>
+        <div id="tf-root" class="tf-content">
+          <header class="tf-header" id="tf-header">
+            <div class="tf-header__left">
+              <div class="tf-brand" id="tf-brand">
+                <span id="tf-brand-main">MEA</span>
+                <small id="tf-brand-sub">MUMBAI ESPORTS</small>
+              </div>
+              <img id="tf-left-logo" class="tf-logo tf-hidden" alt="" />
+            </div>
+            <h1 id="tf-title" class="tf-title">TOP FRAGGERS</h1>
+            <div class="tf-header__right">
+              <img id="tf-right-logo" class="tf-logo tf-hidden" alt="" />
+            </div>
+          </header>
+
+          <div class="tf-cards-wrap">
+            <div id="tf-cards" class="tf-cards" data-count="5"></div>
+          </div>
+
+          <footer id="tf-footer" class="tf-footer">#MUMBAI LAN EVENT</footer>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="js/overlay.js"></script>
+  </body>
+</html>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, memo } from "react";
 import { teamLogoUrl } from "../../apiOrigin";
 import { getRondoRecallChargesRemaining } from "../../rondo/recallCharges";
-import { getBmpsLeftRowVariant, resolveLeftRowPalette } from "../broadcastBmpsUtils";
+import { getBmpsLeftRowVariant, resolveLeftRowPalette, hexToRgba } from "../broadcastBmpsUtils";
 import "../../LiveRankingOverlay.css";
 
 function resolveLogoSrc(logoPath) {
@@ -133,18 +133,20 @@ export function themeToBroadcastCssVars(theme) {
   const ty = theme.typography || {};
   const left = resolveLeftRowPalette(bc);
   const headerText = bc.headerText || "#7fdbda";
-  const statsText = theme.colors?.text || bc.statsText || "#ffffff";
+  const statsText = bc.statsText || theme.colors?.text || "#ffffff";
+  const finColor = bc.finColor || statsText;
+  const ptsColor = bc.ptsColor || statsText;
 
   return {
     "--rank-color": left.leftText,
     "--team-color": left.leftText,
-    "--fin-color": statsText,
-    "--pts-color": statsText,
+    "--fin-color": finColor,
+    "--pts-color": ptsColor,
     "--header-color": headerText,
     "--lr-header-text": headerText,
-    "--status-alive": alive.color || bc.statusAlive,
-    "--status-knocked": bc.knockedColor || alive.knockedColor,
-    "--status-dead": alive.deadColor || bc.statusDead,
+    "--status-alive": bc.statusAlive ?? alive.color,
+    "--status-knocked": bc.knockedColor ?? alive.knockedColor,
+    "--status-dead": bc.statusDead ?? alive.deadColor,
     "--lr-font-family": ty.fontFamily || "'Teko', sans-serif",
     "--lr-numbers-font": ty.numbersFontFamily || ty.fontFamily || "'Teko', sans-serif",
     "--lr-header-bg": bc.headerBg,
@@ -159,6 +161,14 @@ export function themeToBroadcastCssVars(theme) {
     "--lr-board-shadow": theme.shadows?.board,
     "--lr-row-height": theme.row?.height ? `${theme.row.height}px` : undefined,
     "--lr-hot-rank": bc.hotRank != null ? String(bc.hotRank) : undefined,
+    "--lr-status-bench": bc.statusBench,
+    "--lr-legend-bg": bc.legendBg,
+    "--lr-legend-text": bc.legendText,
+    "--lr-row-border": bc.rowBorder ? hexToRgba(bc.rowBorder, 0.12) : undefined,
+    "--lr-split-border": bc.splitBorder ? hexToRgba(bc.splitBorder, 0.22) : undefined,
+    "--lr-col-separator": bc.colSeparator ? hexToRgba(bc.colSeparator, 0.08) : undefined,
+    "--lr-logo-box-bg": bc.logoBoxBg ? hexToRgba(bc.logoBoxBg, 0.4) : undefined,
+    "--lr-logo-box-border": bc.logoBoxBorder ? hexToRgba(bc.logoBoxBorder, 0.15) : undefined,
   };
 }
 

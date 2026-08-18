@@ -1,0 +1,102 @@
+/* TOP FRAGGERS — card reveal animations (same patterns as WWCD STATUS) */
+
+.tf-card {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform, opacity, clip-path;
+  opacity: 1;
+}
+
+.tf-card.anim-pending:not(.anim-play) {
+  opacity: 0;
+}
+
+[data-anim-enabled="1"] .tf-card.anim-play {
+  animation-iteration-count: 1;
+}
+
+[data-anim="flip"] .tf-card.anim-pending:not(.anim-play) {
+  transform: perspective(900px) rotateY(-88deg) scale(0.92);
+  opacity: 0;
+}
+[data-anim="flip"] .tf-card.anim-play {
+  animation: tf-flip var(--anim-duration) cubic-bezier(0.22, 1, 0.36, 1) var(--stagger-delay) forwards;
+}
+@keyframes tf-flip {
+  from { transform: perspective(900px) rotateY(-88deg) scale(0.92); opacity: 0; }
+  to { transform: perspective(900px) rotateY(0deg) scale(1); opacity: 1; }
+}
+
+[data-anim="shutter"] .tf-card.anim-pending:not(.anim-play) {
+  clip-path: inset(50% 0 50% 0);
+  opacity: 1;
+}
+[data-anim="shutter"] .tf-card.anim-play {
+  animation: tf-shutter-top var(--anim-duration) cubic-bezier(0.4, 0, 0.2, 1) var(--stagger-delay) forwards;
+}
+[data-anim="shutter"] .tf-card:nth-child(even).anim-pending:not(.anim-play) {
+  clip-path: inset(0 0 100% 0);
+}
+[data-anim="shutter"] .tf-card:nth-child(even).anim-play {
+  animation-name: tf-shutter-bottom;
+}
+@keyframes tf-shutter-top {
+  from { clip-path: inset(0 0 100% 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+@keyframes tf-shutter-bottom {
+  from { clip-path: inset(100% 0 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+[data-anim="slideUp"] .tf-card.anim-pending:not(.anim-play) {
+  transform: translateY(120px);
+  opacity: 0;
+}
+[data-anim="slideUp"] .tf-card.anim-play {
+  animation: tf-slide-up var(--anim-duration) cubic-bezier(0.16, 1, 0.3, 1) var(--stagger-delay) forwards;
+}
+@keyframes tf-slide-up {
+  to { transform: translateY(0); opacity: 1; }
+}
+
+[data-anim="slideDown"] .tf-card.anim-pending:not(.anim-play) {
+  transform: translateY(-120px);
+  opacity: 0;
+}
+[data-anim="slideDown"] .tf-card.anim-play {
+  animation: tf-slide-down var(--anim-duration) cubic-bezier(0.16, 1, 0.3, 1) var(--stagger-delay) forwards;
+}
+@keyframes tf-slide-down {
+  to { transform: translateY(0); opacity: 1; }
+}
+
+[data-anim="fadeScale"] .tf-card.anim-pending:not(.anim-play) {
+  transform: scale(0.82);
+  opacity: 0;
+}
+[data-anim="fadeScale"] .tf-card.anim-play {
+  animation: tf-fade-scale var(--anim-duration) ease-out var(--stagger-delay) forwards;
+}
+@keyframes tf-fade-scale {
+  to { transform: scale(1); opacity: 1; }
+}
+
+[data-anim="staggered"] .tf-card.anim-pending:not(.anim-play) {
+  transform: translateY(36px) scale(0.96);
+  opacity: 0;
+}
+[data-anim="staggered"] .tf-card.anim-play {
+  animation: tf-stagger var(--anim-duration) cubic-bezier(0.22, 1, 0.36, 1) var(--stagger-delay) forwards;
+}
+@keyframes tf-stagger {
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+[data-anim-enabled="0"] .tf-card {
+  opacity: 1 !important;
+  transform: none !important;
+  clip-path: none !important;
+  filter: none !important;
+  animation: none !important;
+}

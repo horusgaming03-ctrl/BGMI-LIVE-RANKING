@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WWCD STATUS — Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Exo+2:wght@500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/admin.css" />
+  </head>
+  <body>
+    <div class="admin-shell">
+      <header class="admin-top">
+        <div>
+          <h1>WWCD STATUS</h1>
+          <span class="tag">Admin · BGMI / PUBG style</span>
+          <p class="hint" style="margin-top: 10px">
+            Edit, then click <strong>Save all settings</strong>. Backgrounds and images upload to the server so OBS sees
+            them — refresh the OBS browser source after saving. Backend must be running on port 3001.
+          </p>
+        </div>
+        <div class="admin-actions">
+          <button type="button" class="btn btn-save-lg" id="btn-save-all">Save all settings</button>
+          <button type="button" class="btn" id="btn-export">Export JSON</button>
+          <button type="button" class="btn" id="btn-import">Import JSON</button>
+          <input type="file" id="import-file" accept="application/json" hidden />
+          <button type="button" class="btn" id="btn-replay">Replay animation</button>
+          <button type="button" class="btn btn-primary" id="btn-reset">Reset defaults</button>
+        </div>
+      </header>
+
+      <div class="save-bar">
+        <button type="button" class="btn btn-save-lg" id="btn-save-all-sticky">Save all settings</button>
+        <p class="status-dot" id="save-status">Ready — click Save after changes (syncs OBS + preview)</p>
+      </div>
+
+      <div class="admin-grid">
+        <section class="panel">
+          <h2>Header</h2>
+          <div class="field"><label>Title</label><input type="text" id="cfg-title" placeholder="WWCD TEAM STATS" /></div>
+          <div class="field"><label>Subtitle (pill)</label><input type="text" id="cfg-subtitle" placeholder="GRAND FINALS - DAY 1" /></div>
+          <div class="field-row">
+            <div class="field"><label>Title color</label><input type="color" id="cfg-title-color" /></div>
+            <div class="field"><label>Title size (px)</label><input type="number" id="cfg-title-size" min="40" max="220" /></div>
+          </div>
+          <div class="field"><label>Subtitle size (px)</label><input type="number" id="cfg-subtitle-size" min="16" max="120" /></div>
+          <div class="field-row">
+            <div class="field"><label>Position X</label><input type="number" id="cfg-pos-x" /></div>
+            <div class="field"><label>Position Y</label><input type="number" id="cfg-pos-y" /></div>
+          </div>
+          <div class="field">
+            <label>Tournament logo (top-left, optional)</label>
+            <input type="file" id="cfg-logo-upload" accept="image/*" />
+          </div>
+          <button type="button" class="btn" id="cfg-logo-clear">Clear logo</button>
+          <div id="logo-preview" class="media-preview"></div>
+        </section>
+
+        <section class="panel">
+          <h2>Background (behind cards)</h2>
+          <div class="field">
+            <label>Upload image or video (MP4 / WebM / MOV)</label>
+            <input type="file" id="cfg-bg-upload" accept="image/*,video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" />
+          </div>
+          <button type="button" class="btn" id="cfg-bg-clear">Clear background</button>
+          <div class="field" style="margin-top: 12px">
+            <label>Background zoom <span id="cfg-bg-scale-val" class="hint">1.05×</span></label>
+            <input type="range" id="cfg-bg-scale" min="100" max="130" step="1" value="105" />
+          </div>
+          <div id="bg-preview" class="media-preview"></div>
+          <p class="hint">Image or <strong>video</strong> (loops in OBS). Prefer <strong>1920×1080</strong>.</p>
+        </section>
+
+        <section class="panel">
+          <h2>Card theme</h2>
+          <div class="field"><label>Accent color</label><input type="color" id="cfg-accent" /></div>
+          <div class="field"><label>Card / footer color</label><input type="color" id="cfg-card-bg" /></div>
+          <div class="field"><label>Name bar color</label><input type="color" id="cfg-name-bar" /></div>
+          <div class="field"><label>Name text color</label><input type="color" id="cfg-name-text" /></div>
+          <div class="field"><label>Finishes value color</label><input type="color" id="cfg-stat-value" /></div>
+          <div class="field"><label>Character bg — Top</label><input type="color" id="cfg-media-top" /></div>
+          <div class="field"><label>Character bg — Bottom</label><input type="color" id="cfg-media-bottom" /></div>
+        </section>
+
+        <section class="panel">
+          <h2>Animation</h2>
+          <div class="field"><label>Type</label><select id="cfg-anim-type"></select></div>
+          <div class="field">
+            <label>Speed (0.25 – 3) — <span id="cfg-anim-speed-val">1</span></label>
+            <input type="range" id="cfg-anim-speed" min="0.25" max="3" step="0.05" value="1" />
+          </div>
+          <div class="checkbox-field"><input type="checkbox" id="cfg-anim-enabled" checked /><label>Animations enabled</label></div>
+        </section>
+
+        <section class="panel full-width">
+          <h2>Data source</h2>
+          <div class="field" style="max-width: 360px">
+            <label>Stats source</label>
+            <select id="cfg-winner-source">
+              <option value="live">Live winner (auto from tournament — #1 team)</option>
+              <option value="manual">Manual (type names + finishes below)</option>
+            </select>
+            <p class="hint">
+              Live mode auto-fills the #1 team's name, logo and splits its finishes across the 4 cards. Per-player names
+              come from the tournament if set, otherwise placeholders. Use Manual for exact per-player finishes.
+            </p>
+          </div>
+          <div class="field-row" style="max-width: 520px">
+            <div class="field"><label>Team name (manual / fallback)</label><input type="text" id="cfg-team-name" placeholder="GODLIKE" /></div>
+            <div class="checkbox-field" style="align-self: end"><input type="checkbox" id="cfg-team-footer" checked /><label>Show team footer</label></div>
+          </div>
+          <div class="field-row" style="max-width: 520px">
+            <div class="field"><label>“TEAM” label color</label><input type="color" id="cfg-team-label-color" /></div>
+            <div class="field"><label>Team name color (chicken dinner winner)</label><input type="color" id="cfg-team-name-color" /></div>
+          </div>
+          <div class="field" style="max-width: 360px">
+            <label>Team logo (manual mode, optional)</label>
+            <input type="file" id="cfg-team-logo-upload" accept="image/*" />
+            <button type="button" class="btn" id="cfg-team-logo-clear" style="margin-top: 8px">Clear team logo</button>
+          </div>
+        </section>
+
+        <section class="panel full-width">
+          <h2>Player cards (character + name + finishes)</h2>
+          <p class="hint">Four cards. Upload any BGMI character image per slot (defaults are pre-loaded). Edit <strong>Player name</strong> and <strong>Finishes</strong> below — your edits apply immediately (even in Live mode) and override auto-fill for that card until you click “Use live”.</p>
+          <div id="player-stats-row" class="player-stats-row"></div>
+          <div id="char-grid" class="char-grid"></div>
+        </section>
+
+        <section class="panel full-width">
+          <h2>OBS browser source</h2>
+          <p class="hint">Width <strong>1920</strong> · Height <strong>1080</strong>.</p>
+          <div class="obs-url" id="obs-url"></div>
+          <iframe id="preview-frame" class="preview-frame" title="Overlay preview"></iframe>
+        </section>
+      </div>
+    </div>
+    <script type="module" src="js/admin.js"></script>
+  </body>
+</html>

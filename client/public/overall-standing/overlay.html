@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OVERALL STANDING — Overlay</title>
+    <link rel="stylesheet" href="css/overlay.css" />
+    <link rel="stylesheet" href="css/animations.css" />
+  </head>
+  <body class="os-transparent">
+    <div class="os-viewport" id="os-viewport">
+      <div class="os-stage os-mode-content" id="os-stage">
+        <div class="os-bg" id="os-bg-fallback" aria-hidden="true"></div>
+        <div class="os-bg-layer" id="os-bg-layer" aria-hidden="true"></div>
+
+        <header class="os-header os-hidden" id="os-header">
+          <div class="os-logo-left" id="os-logo-left">
+            <div class="os-brand" id="os-brand">
+              <span id="os-brand-main">MEA</span>
+              <small id="os-brand-sub">MUMBAI ESPORTS</small>
+            </div>
+            <img id="os-left-logo" class="os-hidden" alt="" />
+          </div>
+          <h1 class="os-title" id="os-title">STANDINGS</h1>
+          <div class="os-logo-right">
+            <img id="os-right-logo" class="os-hidden" alt="" />
+            <div class="os-cup-badge os-hidden" id="os-cup-badge">👑</div>
+          </div>
+        </header>
+
+        <div class="os-content" id="os-content">
+          <h1 class="os-standings-title" id="os-standings-title">
+            <span class="os-standings-title__text" data-text="STANDINGS">STANDINGS</span>
+          </h1>
+          <div class="os-body" id="os-body">
+            <div class="os-top">
+              <div class="os-top-left" id="os-top-left">
+                <div id="os-featured"></div>
+                <div class="os-table-head" id="os-table-head">
+                  <div class="os-table-head__pos"><span class="os-cell-text">POS.</span></div>
+                  <div class="os-table-head__cells">
+                    <div class="os-head-team"><span class="os-cell-text">TEAM NAME</span></div>
+                    <div><span class="os-cell-text">WWCD</span></div>
+                    <div><span class="os-cell-text">PLACE</span></div>
+                    <div><span class="os-cell-text">FINISH</span></div>
+                    <div><span class="os-cell-text">TOTAL</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="os-top-right">
+                <div id="os-right-offset" class="os-right-offset" aria-hidden="true"></div>
+              </div>
+            </div>
+            <div class="os-pairs" id="os-pairs"></div>
+          </div>
+        </div>
+
+        <footer class="os-footer os-hidden" id="os-footer"></footer>
+        <div class="os-empty os-hidden" id="os-empty">No standings data yet — complete matches in admin.</div>
+      </div>
+    </div>
+    <script type="module" src="js/overlay.js"></script>
+  </body>
+</html>

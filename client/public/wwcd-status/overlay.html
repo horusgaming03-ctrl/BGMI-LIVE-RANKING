@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>WWCD STATUS — Overlay</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Teko:wght@500;600;700&family=Rajdhani:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/overlay.css" />
+    <link rel="stylesheet" href="css/animations.css" />
+  </head>
+  <body>
+    <!-- WWCD STATUS — OBS Browser Source: set width 1920, height 1080 -->
+    <div id="ws-viewport" class="ws-viewport">
+      <div id="ws-stage" class="ws-stage" data-section="WWCD STATUS">
+        <div id="ws-bg" class="ws-bg" aria-hidden="true"></div>
+        <div id="ws-root" class="ws-content">
+          <header id="ws-header" class="ws-header">
+            <img id="ws-logo" class="ws-logo ws-hidden" alt="" />
+            <div class="ws-titles">
+              <h1 id="ws-title" class="ws-title">WWCD TEAM STATS</h1>
+              <p id="ws-subtitle" class="ws-subtitle">GRAND FINALS</p>
+            </div>
+          </header>
+          <div class="ws-cards-wrap">
+            <div id="ws-cards" class="ws-cards" data-count="4"></div>
+            <div id="ws-teambar" class="ws-teambar ws-hidden">
+              <span class="ws-teambar__label">TEAM</span>
+              <span id="ws-teambar-name" class="ws-teambar__name"></span>
+              <img id="ws-teambar-logo" class="ws-teambar__logo ws-hidden" alt="" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="js/overlay.js"></script>
+  </body>
+</html>

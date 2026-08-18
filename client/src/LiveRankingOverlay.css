@@ -48,6 +48,10 @@
   --lr-status-knocked: var(--status-knocked);
   --lr-status-dead: var(--status-dead);
   --lr-status-bench: #555555;
+  --lr-legend-bg: #030708;
+  --lr-legend-text: #b0b8bc;
+  --lr-logo-box-bg: rgba(255, 255, 255, 0.4);
+  --lr-logo-box-border: rgba(0, 0, 0, 0.15);
 
   --lr-transition-fast: 0.28s ease;
   --lr-transition-row: 0.45s ease;
@@ -229,8 +233,8 @@
   width: 24px;
   height: 24px;
   flex-shrink: 0;
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid var(--lr-logo-box-border);
+  background: var(--lr-logo-box-bg);
   overflow: hidden;
   display: grid;
   place-items: center;
@@ -391,12 +395,12 @@
   gap: 10px;
   min-height: var(--lr-legend-height);
   padding: 4px 6px;
-  background: #030708;
+  background: var(--lr-legend-bg);
   border-top: 1px solid var(--lr-split-border);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: #b0b8bc;
+  color: var(--lr-legend-text);
 }
 
 .lr-legend-item {

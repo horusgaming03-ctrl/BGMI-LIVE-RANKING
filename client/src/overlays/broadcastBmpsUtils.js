@@ -10,6 +10,13 @@ function hexToRgb(hex) {
   };
 }
 
+/** rgba from #rrggbb for borders / translucent fills */
+export function hexToRgba(hex, alpha = 1) {
+  const c = hexToRgb(hex);
+  if (!c) return null;
+  return `rgba(${c.r}, ${c.g}, ${c.b}, ${alpha})`;
+}
+
 /** Pick black or white label text for a row background. */
 export function contrastTextOnBg(hex, dark = "#0a0a0a", light = "#ffffff") {
   const c = hexToRgb(hex);
@@ -31,7 +38,7 @@ export function resolveLeftRowPalette(bc = {}) {
       leftRowB: row,
       leftRowAccent: row,
       leftRowHot: row,
-      leftText: contrastTextOnBg(row),
+      leftText: bc.leftText || contrastTextOnBg(row),
     };
   }
 
@@ -61,13 +68,6 @@ export const LIVE_RANKING_FONT_OPTIONS = [
   { id: "inter", label: "Inter", stack: "'Inter', system-ui, sans-serif" },
 ];
 
-export function resolveFontStack(idOrStack, fallback = "'Teko', sans-serif") {
-  if (!idOrStack || typeof idOrStack !== "string") return fallback;
-  if (idOrStack.includes(",")) return idOrStack;
-  const hit = LIVE_RANKING_FONT_OPTIONS.find((f) => f.id === idOrStack);
-  return hit?.stack || fallback;
-}
-
 /** Sample teams for theme preview — 16 rows like BMPS broadcast. */
 export const BMPS_PREVIEW_TEAMS = [
   { id: 1, team: "TAG", finishes: 9, points: 59, logo: null, alivePlayers: 4, status: "alive" },
@@ -87,3 +87,100 @@ export const BMPS_PREVIEW_TEAMS = [
   { id: 15, team: "T4M", finishes: 0, points: 22, logo: null, alivePlayers: 1, status: "knocked" },
   { id: 16, team: "WOLF", finishes: 0, points: 20, logo: null, alivePlayers: 0, status: "eliminated" },
 ];
+
+export const BROADCAST_BMPS_COLOR_DEFAULTS = {
+  headerBg: "#0d4a4f",
+  headerText: "#7fdbda",
+  statsBg: "#061518",
+  statsText: "#ffffff",
+  finColor: "#ffffff",
+  ptsColor: "#ffffff",
+  leftRowColor: "#ffffff",
+  leftRowB: "#d8d4f0",
+  leftRowAccent: "#c4bee8",
+  leftRowHot: "#ff6b00",
+  leftText: "#0a0a0a",
+  statusAlive: "#39ff14",
+  knockedColor: "#ff3333",
+  statusDead: "#808080",
+  statusBench: "#555555",
+  rowBorder: "#000000",
+  splitBorder: "#000000",
+  colSeparator: "#ffffff",
+  logoBoxBg: "#ffffff",
+  logoBoxBorder: "#000000",
+  legendBg: "#030708",
+  legendText: "#b0b8bc",
+  recallOn: "#ffffff",
+  recallOff: "#555555",
+};
+
+/** Clean Broadcast live ranking board — color picker groups for Theme Preview. */
+export const BROADCAST_BMPS_COLOR_SECTIONS = [
+  {
+    title: "Header",
+    keys: [
+      ["headerBg", "Header bg"],
+      ["headerText", "Header text"],
+    ],
+  },
+  {
+    title: "Left panel (rank & team)",
+    keys: [
+      ["leftRowColor", "Team area (all rows)"],
+      ["leftRowB", "Stripe B"],
+      ["leftRowAccent", "Accent row"],
+      ["leftRowHot", "Hot row"],
+      ["leftText", "Rank & team text"],
+    ],
+  },
+  {
+    title: "Right panel (status / FIN / PTS)",
+    keys: [
+      ["statsBg", "Stats panel bg"],
+      ["statsText", "Stats text"],
+      ["finColor", "FIN text"],
+      ["ptsColor", "PTS text"],
+    ],
+  },
+  {
+    title: "Status bars",
+    keys: [
+      ["statusAlive", "Alive"],
+      ["knockedColor", "Knocked"],
+      ["statusDead", "Eliminated"],
+      ["statusBench", "Bench (Rondo)"],
+    ],
+  },
+  {
+    title: "Dividers & logo box",
+    keys: [
+      ["rowBorder", "Row divider"],
+      ["splitBorder", "Left/right split"],
+      ["colSeparator", "Column lines"],
+      ["logoBoxBg", "Logo box bg"],
+      ["logoBoxBorder", "Logo box border"],
+    ],
+  },
+  {
+    title: "Legend",
+    keys: [
+      ["legendBg", "Legend bg"],
+      ["legendText", "Legend text"],
+    ],
+  },
+  {
+    title: "Rondo recall",
+    keys: [
+      ["recallOn", "Recall (on)"],
+      ["recallOff", "Recall (off)"],
+    ],
+  },
+];
+
+export function resolveFontStack(idOrStack, fallback = "'Teko', sans-serif") {
+  if (!idOrStack || typeof idOrStack !== "string") return fallback;
+  if (idOrStack.includes(",")) return idOrStack;
+  const hit = LIVE_RANKING_FONT_OPTIONS.find((f) => f.id === idOrStack);
+  return hit?.stack || fallback;
+}

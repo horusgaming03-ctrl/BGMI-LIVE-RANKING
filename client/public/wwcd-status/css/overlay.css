@@ -1,0 +1,302 @@
+/* WWCD STATUS — OBS overlay (1920×1080, transparent), styled like Schedule of the match */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #05080c;
+}
+
+body {
+  font-family: "Rajdhani", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.ws-viewport {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #05080c;
+}
+
+.ws-viewport:not(.has-bg) {
+  background: transparent;
+}
+
+.ws-stage {
+  position: relative;
+  width: 1920px;
+  height: 1080px;
+  flex: 0 0 auto;
+  transform-origin: center center;
+  background: transparent;
+  overflow: hidden;
+}
+
+.ws-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: #05080c;
+  overflow: hidden;
+}
+
+.ws-bg__cover,
+.ws-bg__cover-video {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: block;
+  pointer-events: none;
+  max-width: none;
+  max-height: none;
+  border: 0;
+  object-fit: cover;
+}
+
+.ws-bg__fill {
+  position: absolute;
+  inset: 0;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center center;
+}
+
+.ws-bg__fill[data-fit="contain"] {
+  background-size: contain;
+  background-color: #05080c;
+}
+
+.ws-content {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+}
+
+/* Header — top-left logo + title + subtitle */
+.ws-header {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  z-index: 3;
+  white-space: nowrap;
+}
+
+.ws-logo {
+  height: 132px;
+  width: auto;
+  max-width: 220px;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.55));
+}
+
+.ws-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ws-title {
+  font-family: "Bebas Neue", "Anton", sans-serif;
+  color: #ffffff;
+  line-height: 0.86;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.85), 0 4px 26px rgba(0, 0, 0, 0.5);
+}
+
+.ws-subtitle {
+  align-self: flex-start;
+  font-family: "Rajdhani", system-ui, sans-serif;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #ffffff;
+  background: var(--accent, #ff6600);
+  padding: 8px 18px;
+  border-radius: 4px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.ws-subtitle:empty {
+  display: none;
+}
+
+/* Cards row — centered (BGMI broadcast style) */
+.ws-cards-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+  padding: 220px 80px 64px;
+  box-sizing: border-box;
+  min-height: 0;
+}
+
+.ws-cards {
+  display: flex;
+  gap: var(--cards-gap, 26px);
+  align-items: stretch;
+  justify-content: center;
+  flex-wrap: nowrap;
+  max-width: 100%;
+}
+
+/* Player card */
+.wwcd-card {
+  flex: 0 0 var(--card-width, 300px);
+  width: var(--card-width, 300px);
+  max-width: var(--card-width, 300px);
+  display: flex;
+  flex-direction: column;
+  border-style: solid;
+  border-width: var(--card-border-w, 1px);
+  border-color: var(--card-border-c, rgba(255, 255, 255, 0.1));
+  background: var(--card-bg, #0c1320);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.55);
+}
+
+.wwcd-card__media {
+  position: relative;
+  flex: 0 0 auto;
+  height: var(--card-media-h, 440px);
+  min-height: var(--card-media-h, 440px);
+  overflow: hidden;
+  background: var(--media-tint, linear-gradient(180deg, #15b6c4 0%, #0a5a64 100%));
+  margin: 5px 5px 0;
+  outline: 1px solid rgba(255, 255, 255, 0.18);
+  outline-offset: -1px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.wwcd-card__char {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: bottom center;
+  display: block;
+  transform-origin: bottom center;
+  filter: drop-shadow(0 12px 22px rgba(0, 0, 0, 0.45));
+  /* Dissolve the hard bottom crop line smoothly into the card background. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 88%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 88%, transparent 100%);
+}
+
+.wwcd-card__name {
+  font-family: "Rajdhani", system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 24px;
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-transform: uppercase;
+  color: var(--name-text, #ffffff);
+  background: var(--name-bar, var(--accent, #ff6600));
+  padding: 12px 10px;
+  margin: 6px 5px 0;
+  border-radius: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wwcd-card__stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px 18px;
+  margin: 0 5px 5px;
+}
+
+.wwcd-card__stat-label {
+  font-family: "Rajdhani", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--stat-label, rgba(255, 255, 255, 0.65));
+}
+
+.wwcd-card__stat-value {
+  font-family: "Bebas Neue", "Teko", sans-serif;
+  font-weight: 700;
+  font-size: 46px;
+  line-height: 1;
+  color: var(--stat-value, #ffffff);
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.4);
+}
+
+/* Team footer bar */
+.ws-teambar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.ws-teambar__label {
+  font-family: "Bebas Neue", sans-serif;
+  font-size: 40px;
+  letter-spacing: 0.06em;
+  color: var(--team-label-color, rgba(255, 255, 255, 0.75));
+}
+
+.ws-teambar__name {
+  font-family: "Bebas Neue", sans-serif;
+  font-size: 48px;
+  letter-spacing: 0.04em;
+  color: var(--team-name-color, var(--accent, #ff6600));
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.5);
+}
+
+.ws-teambar__logo {
+  height: 64px;
+  width: auto;
+  max-width: 96px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+/* Count-based sizing */
+.ws-cards[data-count="1"] {
+  --card-width: 420px;
+}
+.ws-cards[data-count="2"] {
+  --card-width: 360px;
+}
+.ws-cards[data-count="3"] {
+  --card-width: 320px;
+}
+.ws-cards[data-count="4"] {
+  --card-width: 300px;
+}
+
+.ws-hidden {
+  display: none !important;
+}

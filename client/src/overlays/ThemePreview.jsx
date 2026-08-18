@@ -23,7 +23,7 @@ import MinimalBroadcastWwcdStripCard from "./components/MinimalBroadcastWwcdStri
 import EliminationBannerRouter from "./components/EliminationBannerRouter";
 import EsportsRankingBoard from "./components/EsportsRankingBoard";
 import { isEsportsTournamentGfxTheme } from "./esportsGfxUtils";
-import { BMPS_PREVIEW_TEAMS, LIVE_RANKING_FONT_OPTIONS } from "./broadcastBmpsUtils";
+import { BMPS_PREVIEW_TEAMS, LIVE_RANKING_FONT_OPTIONS, BROADCAST_BMPS_COLOR_SECTIONS, BROADCAST_BMPS_COLOR_DEFAULTS } from "./broadcastBmpsUtils";
 import { BROADCAST_WWCD_STRIP_PICKERS, BROADCAST_WWCD_STRIP_DEFAULTS, broadcastElimStyleFromTheme, broadcastElimStyleToGfxDraft, broadcastWwcdDraftFromTheme, broadcastWwcdStripStyleFromTheme, broadcastWwcdStripColorsResolved } from "./broadcastGfxUtils";
 import { MINIMAL_WWCD_STRIP_PICKERS, minimalWwcdPickerColor } from "./minimalGfxUtils";
 import {
@@ -107,6 +107,13 @@ const MINIMAL_BROADCAST_COLOR_SECTIONS = [
     keys: [
       ["legendBg", "Legend bg"],
       ["legendText", "Legend text"],
+    ],
+  },
+  {
+    title: "Rondo recall",
+    keys: [
+      ["recallOn", "Recall (on)"],
+      ["recallOff", "Recall (off)"],
     ],
   },
 ];
@@ -1463,34 +1470,35 @@ export default function ThemePreview() {
                       </div>
                     ))
                   ) : (
-                    <>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#888", margin: "18px 0 8px" }}>BMPS team area</div>
-                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-                    <label style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}>
-                      <input
-                        type="color"
-                        value={toInputColor(
-                          colorDraft.broadcast?.leftRowColor ??
-                            colorDraft.broadcast?.leftRowA ??
-                            baseTheme.broadcast?.leftRowColor ??
-                            baseTheme.broadcast?.leftRowA ??
-                            "#ffffff",
-                        )}
-                        onChange={(e) => {
-                          colorDraftDirtyRef.current = true;
-                          setColorDraft((d) => ({
-                            ...d,
-                            broadcast: { ...(d.broadcast || {}), leftRowColor: e.target.value },
-                          }));
-                        }}
-                        style={{ width: 48, height: 36, border: "1px solid rgba(255,255,255,.2)", borderRadius: 8, padding: 0, cursor: "pointer" }}
-                      />
-                      <span style={{ fontSize: 9, color: "#888", fontWeight: 600, textAlign: "center", maxWidth: 96 }}>
-                        Team area color (all rows)
-                      </span>
-                    </label>
-                  </div>
-                    </>
+                    BROADCAST_BMPS_COLOR_SECTIONS.map(({ title, keys }) => (
+                      <div key={title}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "#888", margin: "18px 0 8px" }}>{title}</div>
+                        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+                          {keys.map(([key, label]) => (
+                            <label key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}>
+                              <input
+                                type="color"
+                                value={toInputColor(
+                                  colorDraft.broadcast?.[key] ??
+                                    baseTheme.broadcast?.[key] ??
+                                    BROADCAST_BMPS_COLOR_DEFAULTS[key] ??
+                                    "#888888",
+                                )}
+                                onChange={(e) => {
+                                  colorDraftDirtyRef.current = true;
+                                  setColorDraft((d) => ({
+                                    ...d,
+                                    broadcast: { ...(d.broadcast || {}), [key]: e.target.value },
+                                  }));
+                                }}
+                                style={{ width: 48, height: 36, border: "1px solid rgba(255,255,255,.2)", borderRadius: 8, padding: 0, cursor: "pointer" }}
+                              />
+                              <span style={{ fontSize: 9, color: "#888", fontWeight: 600, textAlign: "center", maxWidth: 96 }}>{label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    ))
                   )}
                   {!isMinimalBroadcast ? (
                     <>

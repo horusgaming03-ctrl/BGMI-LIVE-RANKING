@@ -25,9 +25,12 @@ const wwcdCharsDir = path.join(uploadsDir, "wwcd-chars");
 const obsSharedTripleDir = path.join(uploadsDir, "obs-shared-triple");
 const obsBgmiLayeredDir = path.join(uploadsDir, "obs-bgmi-layered");
 const scheduleOverlayDir = path.join(uploadsDir, "schedule-overlay");
+const wwcdStatusDir = path.join(uploadsDir, "wwcd-status");
+const overallStandingDir = path.join(uploadsDir, "overall-standing");
+const topFraggersDir = path.join(uploadsDir, "top-fraggers");
 const announcementsDir = path.join(uploadsDir, "announcements");
 
-[uploadsDir, logosDir, screenshotsDir, tournamentDir, aliveIconsDir, overallStandingsDir, wwcdCharsDir, obsSharedTripleDir, obsBgmiLayeredDir, scheduleOverlayDir, announcementsDir].forEach((dir) => {
+[uploadsDir, logosDir, screenshotsDir, tournamentDir, aliveIconsDir, overallStandingsDir, wwcdCharsDir, obsSharedTripleDir, obsBgmiLayeredDir, scheduleOverlayDir, wwcdStatusDir, overallStandingDir, topFraggersDir, announcementsDir].forEach((dir) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
@@ -1350,6 +1353,36 @@ const getTournamentStats = () => {
   return result;
 };
 
+/** Top fraggers — aggregate per-player finishes from match history (splits team kills across roster). */
+const getTopFraggersLive = (limit = 5) => {
+  const playerMap = {};
+
+  const processTeamList = (teamList) => {
+    (teamList || []).forEach((t) => {
+      const names = padSquadNames(t.players, t.team);
+      const fins = splitFinishesAcrossSquad(t.finishes);
+      names.forEach((name, i) => {
+        if (!playerMap[name]) {
+          playerMap[name] = { name, finishes: 0, team: t.team };
+        }
+        playerMap[name].finishes += fins[i] || 0;
+        if (t.team) playerMap[name].team = t.team;
+      });
+    });
+  };
+
+  matchHistory.forEach((m) => processTeamList(m.teams));
+  if (String(currentMatch.status || "live").toLowerCase() === "live") {
+    processTeamList(teams);
+  }
+
+  const sorted = Object.values(playerMap)
+    .sort((a, b) => b.finishes - a.finishes || String(a.name).localeCompare(String(b.name)))
+    .slice(0, Math.max(1, Math.min(10, Number(limit) || 5)));
+
+  return sorted.map((p, i) => ({ rank: i + 1, name: p.name, finishes: p.finishes, team: p.team }));
+};
+
 function applyRegistrationFromSheet(row) {
   const teamName = String(row.team || "")
     .toUpperCase()
@@ -2289,6 +2322,293 @@ app.post("/schedule-of-the-match/upload-background", (req, res) => {
       return res.status(400).json({ message: 'No file — field name must be "background".' });
     }
     const url = `/uploads/schedule-overlay/${req.file.filename}`;
+    const isVideo = (req.file.mimetype || "").startsWith("video/");
+    res.json({ url, ok: true, mediaType: isVideo ? "video" : "image" });
+  });
+});
+
+// ── WWCD STATUS standalone overlay (modeled on Schedule of the match) ──
+
+const wwcdStatusConfigFile = path.join(ROOT, "data", "wwcd-status-config.json");
+
+const wwcdStatusBgUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, wwcdStatusDir),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname || "") || ".jpg";
+      const low = ext.toLowerCase();
+      const isVid =
+        (typeof file.mimetype === "string" && file.mimetype.startsWith("video/")) ||
+        SCHEDULE_BG_VIDEO_EXT.includes(low);
+      const safe = isVid
+        ? SCHEDULE_BG_VIDEO_EXT.includes(low)
+          ? low
+          : ".mp4"
+        : SCHEDULE_BG_IMAGE_EXT.includes(low)
+          ? low
+          : ".jpg";
+      cb(null, `wwcd-status-${Date.now()}${safe}`);
+    },
+  }),
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const mime = file.mimetype || "";
+    const ext = path.extname(file.originalname || "").toLowerCase();
+    const ok =
+      mime.startsWith("image/") ||
+      mime.startsWith("video/") ||
+      SCHEDULE_BG_IMAGE_EXT.includes(ext) ||
+      SCHEDULE_BG_VIDEO_EXT.includes(ext);
+    cb(null, ok);
+  },
+});
+
+function loadWwcdStatusConfig() {
+  try {
+    if (!fs.existsSync(wwcdStatusConfigFile)) return null;
+    const raw = JSON.parse(fs.readFileSync(wwcdStatusConfigFile, "utf8"));
+    return raw && typeof raw === "object" ? raw : null;
+  } catch (e) {
+    console.warn("wwcd-status-config:", e.message);
+    return null;
+  }
+}
+
+function persistWwcdStatusConfig(config) {
+  const dataDir = path.dirname(wwcdStatusConfigFile);
+  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(wwcdStatusConfigFile, JSON.stringify(config, null, 2), "utf8");
+}
+
+app.get("/wwcd-status/config", (_req, res) => {
+  const cfg = loadWwcdStatusConfig();
+  res.json(cfg || { ok: false, empty: true });
+});
+
+app.post("/wwcd-status/config", (req, res) => {
+  const body = req.body;
+  if (!body || typeof body !== "object") {
+    return res.status(400).json({ message: "JSON config body required" });
+  }
+  persistWwcdStatusConfig(body);
+  io.emit("wwcdStatusUpdated", body);
+  res.json({ ok: true, savedAt: Date.now() });
+});
+
+app.post("/wwcd-status/upload-background", (req, res) => {
+  wwcdStatusBgUpload.single("background")(req, res, (err) => {
+    if (err) {
+      console.error("wwcd-status-bg:", err.message);
+      return res.status(400).json({ message: err.message || "Upload failed" });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file — field name must be "background".' });
+    }
+    const url = `/uploads/wwcd-status/${req.file.filename}`;
+    const isVideo = (req.file.mimetype || "").startsWith("video/");
+    res.json({ url, ok: true, mediaType: isVideo ? "video" : "image" });
+  });
+});
+
+// ── OVERALL STANDING standalone overlay (modeled on Schedule / WWCD STATUS) ──
+
+const overallStandingConfigFile = path.join(ROOT, "data", "overall-standing-config.json");
+
+const overallStandingBgUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, overallStandingDir),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname || "") || ".jpg";
+      const low = ext.toLowerCase();
+      const isVid =
+        (typeof file.mimetype === "string" && file.mimetype.startsWith("video/")) ||
+        SCHEDULE_BG_VIDEO_EXT.includes(low);
+      const safe = isVid
+        ? SCHEDULE_BG_VIDEO_EXT.includes(low)
+          ? low
+          : ".mp4"
+        : SCHEDULE_BG_IMAGE_EXT.includes(low)
+          ? low
+          : ".jpg";
+      cb(null, `overall-standing-${Date.now()}${safe}`);
+    },
+  }),
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const mime = file.mimetype || "";
+    const ext = path.extname(file.originalname || "").toLowerCase();
+    const ok =
+      mime.startsWith("image/") ||
+      mime.startsWith("video/") ||
+      SCHEDULE_BG_IMAGE_EXT.includes(ext) ||
+      SCHEDULE_BG_VIDEO_EXT.includes(ext);
+    cb(null, ok);
+  },
+});
+
+const overallStandingAssetUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, overallStandingDir),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname || "") || ".png";
+      const low = ext.toLowerCase();
+      const safe = SCHEDULE_BG_IMAGE_EXT.includes(low) ? low : ".png";
+      cb(null, `overall-standing-asset-${Date.now()}${safe}`);
+    },
+  }),
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const mime = file.mimetype || "";
+    const ext = path.extname(file.originalname || "").toLowerCase();
+    cb(null, mime.startsWith("image/") || SCHEDULE_BG_IMAGE_EXT.includes(ext));
+  },
+});
+
+function loadOverallStandingConfig() {
+  try {
+    if (!fs.existsSync(overallStandingConfigFile)) return null;
+    const raw = JSON.parse(fs.readFileSync(overallStandingConfigFile, "utf8"));
+    return raw && typeof raw === "object" ? raw : null;
+  } catch (e) {
+    console.warn("overall-standing-config:", e.message);
+    return null;
+  }
+}
+
+function persistOverallStandingConfig(config) {
+  const dataDir = path.dirname(overallStandingConfigFile);
+  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(overallStandingConfigFile, JSON.stringify(config, null, 2), "utf8");
+}
+
+app.get("/overall-standing/config", (_req, res) => {
+  const cfg = loadOverallStandingConfig();
+  res.json(cfg || { ok: false, empty: true });
+});
+
+app.post("/overall-standing/config", (req, res) => {
+  const body = req.body;
+  if (!body || typeof body !== "object") {
+    return res.status(400).json({ message: "JSON config body required" });
+  }
+  persistOverallStandingConfig(body);
+  io.emit("overallStandingUpdated", body);
+  res.json({ ok: true, savedAt: Date.now() });
+});
+
+app.post("/overall-standing/upload-background", (req, res) => {
+  overallStandingBgUpload.single("background")(req, res, (err) => {
+    if (err) {
+      console.error("overall-standing-bg:", err.message);
+      return res.status(400).json({ message: err.message || "Upload failed" });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file — field name must be "background".' });
+    }
+    const url = `/uploads/overall-standing/${req.file.filename}`;
+    const isVideo = (req.file.mimetype || "").startsWith("video/");
+    res.json({ url, ok: true, mediaType: isVideo ? "video" : "image" });
+  });
+});
+
+app.post("/overall-standing/upload-asset", (req, res) => {
+  overallStandingAssetUpload.single("asset")(req, res, (err) => {
+    if (err) {
+      console.error("overall-standing-asset:", err.message);
+      return res.status(400).json({ message: err.message || "Upload failed" });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file — field name must be "asset".' });
+    }
+    const url = `/uploads/overall-standing/${req.file.filename}`;
+    res.json({ url, ok: true });
+  });
+});
+
+// ── TOP FRAGGERS standalone overlay ──
+
+const topFraggersConfigFile = path.join(ROOT, "data", "top-fraggers-config.json");
+
+const topFraggersBgUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, topFraggersDir),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname || "") || ".jpg";
+      const low = ext.toLowerCase();
+      const isVid =
+        (typeof file.mimetype === "string" && file.mimetype.startsWith("video/")) ||
+        SCHEDULE_BG_VIDEO_EXT.includes(low);
+      const safe = isVid
+        ? SCHEDULE_BG_VIDEO_EXT.includes(low)
+          ? low
+          : ".mp4"
+        : SCHEDULE_BG_IMAGE_EXT.includes(low)
+          ? low
+          : ".jpg";
+      cb(null, `top-fraggers-${Date.now()}${safe}`);
+    },
+  }),
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const mime = file.mimetype || "";
+    const ext = path.extname(file.originalname || "").toLowerCase();
+    const ok =
+      mime.startsWith("image/") ||
+      mime.startsWith("video/") ||
+      SCHEDULE_BG_IMAGE_EXT.includes(ext) ||
+      SCHEDULE_BG_VIDEO_EXT.includes(ext);
+    cb(null, ok);
+  },
+});
+
+function loadTopFraggersConfig() {
+  try {
+    if (!fs.existsSync(topFraggersConfigFile)) return null;
+    const raw = JSON.parse(fs.readFileSync(topFraggersConfigFile, "utf8"));
+    return raw && typeof raw === "object" ? raw : null;
+  } catch (e) {
+    console.warn("top-fraggers-config:", e.message);
+    return null;
+  }
+}
+
+function persistTopFraggersConfig(config) {
+  const dataDir = path.dirname(topFraggersConfigFile);
+  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(topFraggersConfigFile, JSON.stringify(config, null, 2), "utf8");
+}
+
+app.get("/top-fraggers/config", (_req, res) => {
+  const cfg = loadTopFraggersConfig();
+  res.json(cfg || { ok: false, empty: true });
+});
+
+app.post("/top-fraggers/config", (req, res) => {
+  const body = req.body;
+  if (!body || typeof body !== "object") {
+    return res.status(400).json({ message: "JSON config body required" });
+  }
+  persistTopFraggersConfig(body);
+  io.emit("topFraggersUpdated", body);
+  res.json({ ok: true, savedAt: Date.now() });
+});
+
+app.get("/top-fraggers/live", (req, res) => {
+  const cfg = loadTopFraggersConfig();
+  const limit = cfg?.cardCount || 5;
+  res.json({ players: getTopFraggersLive(limit) });
+});
+
+app.post("/top-fraggers/upload-background", (req, res) => {
+  topFraggersBgUpload.single("background")(req, res, (err) => {
+    if (err) {
+      console.error("top-fraggers-bg:", err.message);
+      return res.status(400).json({ message: err.message || "Upload failed" });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file — field name must be "background".' });
+    }
+    const url = `/uploads/top-fraggers/${req.file.filename}`;
     const isVideo = (req.file.mimetype || "").startsWith("video/");
     res.json({ url, ok: true, mediaType: isVideo ? "video" : "image" });
   });

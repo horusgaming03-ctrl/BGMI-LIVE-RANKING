@@ -1,0 +1,49 @@
+{
+  "header": {
+    "title": "WWCD TEAM STATS",
+    "subtitle": "GRAND FINALS - DAY 1",
+    "titleFont": "Bebas Neue",
+    "titleColor": "#ffffff",
+    "titleSize": 118,
+    "subtitleColor": "#ff6600",
+    "subtitleSize": 40,
+    "logoUrl": "",
+    "position": { "x": 96, "y": 70 }
+  },
+  "background": {
+    "imageUrl": "",
+    "mediaType": "image",
+    "opacity": 1,
+    "fit": "cover",
+    "position": "center center",
+    "scale": 1.05
+  },
+  "theme": {
+    "accent": "#ff6600",
+    "cardBg": "#0c1320",
+    "cardBorderColor": "rgba(255,255,255,0.10)",
+    "cardBorderWidth": 1,
+    "mediaTintTop": "#15b6c4",
+    "mediaTintBottom": "#0a5a64",
+    "mediaTint": "linear-gradient(180deg, #15b6c4 0%, #0a5a64 100%)",
+    "nameBarColor": "#ff6600",
+    "nameTextColor": "#ffffff",
+    "statLabelColor": "rgba(255,255,255,0.65)",
+    "statValueColor": "#ffffff"
+  },
+  "animation": { "type": "staggered", "speed": 1, "enabled": true, "replayKey": 0 },
+  "winnerSource": "live",
+  "team": {
+    "name": "",
+    "logoUrl": "",
+    "showFooter": true,
+    "labelColor": "#ffffff",
+    "nameColor": "#ff6600"
+  },
+  "cards": [
+    { "name": "PLAYER 1", "finishes": 0, "characterImageUrl": "" },
+    { "name": "PLAYER 2", "finishes": 0, "characterImageUrl": "" },
+    { "name": "PLAYER 3", "finishes": 0, "characterImageUrl": "" },
+    { "name": "PLAYER 4", "finishes": 0, "characterImageUrl": "" }
+  ]
+}

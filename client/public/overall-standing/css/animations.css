@@ -1,0 +1,141 @@
+/* Overall standing — cell slide + text shutter reveal */
+
+[data-anim-enabled="1"] .os-pos,
+[data-anim-enabled="1"] .os-team-cell,
+[data-anim-enabled="1"] .os-stat-cell,
+[data-anim-enabled="1"] .os-table-head__pos,
+[data-anim-enabled="1"] .os-table-head__cells > div,
+[data-anim-enabled="1"] .os-featured-chars,
+[data-anim-enabled="1"] .os-featured-banner,
+[data-anim-enabled="1"] .os-featured-points {
+  overflow: hidden;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform;
+}
+
+[data-anim-enabled="1"] .os-cell-text {
+  display: inline-block;
+  max-width: 100%;
+  will-change: clip-path, opacity;
+}
+
+[data-anim-enabled="1"] .os-stat-cell .os-cell-text {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+/* ── Slide: columns / cells scale in ── */
+[data-anim-enabled="1"] .os-row.anim-pending .os-pos,
+[data-anim-enabled="1"] .os-row.anim-pending .os-team-cell,
+[data-anim-enabled="1"] .os-row.anim-pending .os-stat-cell {
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+[data-anim-enabled="1"] .os-row[data-slide-from="right"].anim-pending .os-pos,
+[data-anim-enabled="1"] .os-row[data-slide-from="right"].anim-pending .os-team-cell,
+[data-anim-enabled="1"] .os-row[data-slide-from="right"].anim-pending .os-stat-cell {
+  transform-origin: right center;
+}
+
+[data-anim-enabled="1"] .os-row.anim-play .os-pos,
+[data-anim-enabled="1"] .os-row.anim-play .os-team-cell,
+[data-anim-enabled="1"] .os-row.anim-play .os-stat-cell {
+  animation: os-cell-slide var(--os-slide-duration, 0.4s) cubic-bezier(0.22, 1, 0.36, 1)
+    calc(var(--stagger-delay, 0s) + var(--cell-delay, 0s)) forwards;
+}
+
+[data-anim-enabled="1"] .os-featured-chars.anim-pending,
+[data-anim-enabled="1"] .os-featured-banner.anim-pending,
+[data-anim-enabled="1"] .os-featured-points.anim-pending,
+[data-anim-enabled="1"] .os-table-head.anim-pending .os-table-head__pos,
+[data-anim-enabled="1"] .os-table-head.anim-pending .os-table-head__cells > div {
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+[data-anim-enabled="1"] .os-featured-chars.anim-play,
+[data-anim-enabled="1"] .os-featured-banner.anim-play,
+[data-anim-enabled="1"] .os-featured-points.anim-play,
+[data-anim-enabled="1"] .os-table-head.anim-play .os-table-head__pos,
+[data-anim-enabled="1"] .os-table-head.anim-play .os-table-head__cells > div {
+  animation: os-cell-slide var(--os-slide-duration, 0.4s) cubic-bezier(0.22, 1, 0.36, 1)
+    calc(var(--stagger-delay, 0s) + var(--cell-delay, 0s)) forwards;
+}
+
+@keyframes os-cell-slide {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* ── Shutter: text & numbers reveal after slide ── */
+[data-anim-enabled="1"] .anim-pending .os-cell-text {
+  clip-path: inset(0 0 100% 0);
+  opacity: 0;
+}
+
+[data-anim-enabled="1"] .os-row.anim-play .os-cell-text,
+[data-anim-enabled="1"] .os-featured-banner.anim-play .os-cell-text,
+[data-anim-enabled="1"] .os-featured-points.anim-play .os-cell-text,
+[data-anim-enabled="1"] .os-table-head.anim-play .os-cell-text {
+  animation: os-text-shutter var(--os-shutter-duration, 0.28s) cubic-bezier(0.4, 0, 0.2, 1)
+    calc(
+      var(--stagger-delay, 0s) + var(--cell-delay, 0s) +
+        var(--os-slide-duration, 0.4s) * 0.52
+    )
+    forwards;
+}
+
+@keyframes os-text-shutter {
+  from {
+    clip-path: inset(0 0 100% 0);
+    opacity: 0;
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+}
+
+/* Title shutter on load */
+[data-anim-enabled="1"] .os-standings-title.anim-pending .os-standings-title__text {
+  clip-path: inset(50% 0 50% 0);
+  opacity: 1;
+}
+
+[data-anim-enabled="1"] .os-standings-title.anim-play .os-standings-title__text {
+  animation: os-title-shutter calc(var(--os-shutter-duration, 0.28s) * 1.4)
+    cubic-bezier(0.4, 0, 0.2, 1) 0.05s forwards;
+}
+
+@keyframes os-title-shutter {
+  from {
+    clip-path: inset(50% 0 50% 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+[data-anim-enabled="0"] .os-row,
+[data-anim-enabled="0"] .os-pos,
+[data-anim-enabled="0"] .os-team-cell,
+[data-anim-enabled="0"] .os-stat-cell,
+[data-anim-enabled="0"] .os-featured-chars,
+[data-anim-enabled="0"] .os-featured-banner,
+[data-anim-enabled="0"] .os-featured-points,
+[data-anim-enabled="0"] .os-table-head,
+[data-anim-enabled="0"] .os-cell-text,
+[data-anim-enabled="0"] .os-standings-title__text {
+  transform: none !important;
+  clip-path: none !important;
+  opacity: 1 !important;
+  animation: none !important;
+}

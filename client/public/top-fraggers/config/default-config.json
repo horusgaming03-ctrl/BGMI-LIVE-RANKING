@@ -1,0 +1,55 @@
+{
+  "header": {
+    "title": "TOP FRAGGERS",
+    "titleFont": "Bebas Neue",
+    "titleColor": "#e8c547",
+    "titleSize": 132,
+    "leftLogoUrl": "",
+    "rightLogoUrl": "",
+    "brandMain": "MEA",
+    "brandSub": "MUMBAI ESPORTS"
+  },
+  "footer": {
+    "text": "#MUMBAI LAN EVENT",
+    "color": "#e8c547",
+    "size": 36,
+    "show": true
+  },
+  "background": {
+    "imageUrl": "",
+    "mediaType": "image",
+    "opacity": 1,
+    "fit": "cover",
+    "position": "center center",
+    "scale": 1.05
+  },
+  "theme": {
+    "accent": "#2a9fd4",
+    "cardBg": "#0c1320",
+    "cardBorderColor": "rgba(255,255,255,0.10)",
+    "cardBorderWidth": 1,
+    "rankBadgeBg": "#e8c547",
+    "rankBadgeText": "#1a1a1a",
+    "mediaTintTop": "#1a4d7a",
+    "mediaTintBottom": "#0a2840",
+    "mediaTint": "linear-gradient(180deg, #1a4d7a 0%, #0a2840 100%)",
+    "nameBarColor": "#e8c547",
+    "nameTextColor": "#1a1a1a",
+    "statLabelColor": "rgba(255,255,255,0.85)",
+    "statLabelBg": "#1a4d7a",
+    "statValueColor": "#1a4d7a",
+    "statValueBgTop": "#f5e6b8",
+    "statValueBgBottom": "#ffffff",
+    "cardAccentLine": "#2a9fd4"
+  },
+  "animation": { "type": "staggered", "speed": 1, "enabled": true, "replayKey": 0 },
+  "dataSource": "manual",
+  "cardCount": 5,
+  "cards": [
+    { "name": "LEGENDxKuna", "finishes": 7, "characterImageUrl": "" },
+    { "name": "WoLFxADNAN", "finishes": 4, "characterImageUrl": "" },
+    { "name": "SOHAM", "finishes": 3, "characterImageUrl": "" },
+    { "name": "LEGENDxBoo", "finishes": 3, "characterImageUrl": "" },
+    { "name": "HadesCrazyO", "finishes": 3, "characterImageUrl": "" }
+  ]
+}

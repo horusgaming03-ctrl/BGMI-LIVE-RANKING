@@ -12,6 +12,9 @@ const proxy = {
     bypass(req) {
       const u = req.url || "";
       if (u.startsWith("/api/schedule-of-the-match")) return false;
+      if (u.startsWith("/api/wwcd-status")) return false;
+      if (u.startsWith("/api/overall-standing")) return false;
+      if (u.startsWith("/api/top-fraggers")) return false;
     },
     /** Large PNGs through Vite dev/preview proxy */
     timeout: 120_000,

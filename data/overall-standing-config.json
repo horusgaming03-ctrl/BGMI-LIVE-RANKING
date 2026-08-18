@@ -1,0 +1,88 @@
+{
+  "header": {
+    "show": true,
+    "title": "STANDINGS",
+    "titleFont": "Bebas Neue",
+    "titleSize": 96,
+    "titleColor": "#0d3263",
+    "titleOutlineColor": "#ffffff",
+    "leftBrand": "",
+    "leftSubBrand": "",
+    "leftLogoUrl": "/uploads/overall-standing/overall-standing-asset-1782769291940.jpeg",
+    "rightLogoUrl": "",
+    "footer": "",
+    "footerSize": 42,
+    "footerColor": "#0d3263"
+  },
+  "background": {
+    "imageUrl": "",
+    "mediaType": "image",
+    "opacity": 1,
+    "scale": 1
+  },
+  "theme": {
+    "bgNavy": "#001a3d",
+    "brandMainColor": "#ffffff",
+    "brandSubColor": "#ffffff",
+    "posBgTop": "#0d3263",
+    "posBgBottom": "#2268d8",
+    "posText": "#001a3d",
+    "posLeaderTop": "#fff2cc",
+    "posLeaderBottom": "#c7a11a",
+    "posLeaderText": "#001a3d",
+    "rowBarStart": "#c7a11a",
+    "rowBarEnd": "#c7a11a",
+    "rowBarDeep": "#896e0b",
+    "statCellStart": "#0a2d52",
+    "statCellEnd": "#061a32",
+    "statText": "#ffffff",
+    "rowBarLeaderStart": "#fafafa",
+    "rowBarLeaderEnd": "#e8e8e8",
+    "rowText": "#ffffff",
+    "rowLeaderTeamColor": "#0047ab",
+    "rowLeaderStatStart": "#f4f4f4",
+    "rowLeaderStatEnd": "#e6e6e6",
+    "rowLeaderStatText": "#001a3d",
+    "tableHeadBg": "#fff2cc",
+    "tableHeadText": "#0d3263",
+    "featuredCream": "#f5ecd8",
+    "featuredCharGradTop": "#e8dfd0",
+    "featuredBannerTop": "#c7a11a",
+    "featuredBanner": "#c7a11a",
+    "featuredBannerBottom": "#896e0b",
+    "featuredBannerText": "#ffffff",
+    "featuredPointsBg": "#fff2cc",
+    "featuredPointsText": "#080808",
+    "divider": "rgba(255,255,255,0.28)",
+    "barGlow": "rgba(100, 180, 255, 0.45)",
+    "rowGap": 10,
+    "cellGap": 6,
+    "gapColor": "#fffdf5"
+  },
+  "labels": {
+    "colPos": "POS.",
+    "colTeam": "TEAM NAME",
+    "colWwcd": "WWCD",
+    "colPlace": "PLACE",
+    "colFinish": "FINISH",
+    "colTotal": "TOTAL",
+    "featuredPoints": "TOTAL POINTS"
+  },
+  "featured": {
+    "characterUrls": [
+      "/uploads/overall-standing/overall-standing-asset-1782771334722.png"
+    ]
+  },
+  "animation": {
+    "enabled": true,
+    "speed": 1,
+    "replayKey": 0
+  },
+  "layout": {
+    "mode": "contentOnly",
+    "dynamicColumns": true,
+    "showTitle": true,
+    "showFeatured": true,
+    "showTableHeader": true
+  }
+}

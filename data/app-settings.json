@@ -13,27 +13,27 @@
       "broadcast": {
         "legendBg": "#000000",
         "panelBgBottom": "#000000",
-        "headerBg": "#c08a16",
+        "headerBg": "#c09316",
         "textDim": "#aca5a5",
         "textColor": "#ffffff",
-        "rankTabBg": "#8c8678",
+        "rankTabBg": "#c09316",
         "panelBgTop": "#2b2b2b",
-        "rowDividerBg": "#ffa200",
+        "rowDividerBg": "#c09316",
         "knockedColor": "#908989",
         "statusAlive": "#03b579"
       },
       "typography": {
-        "fontFamily": "'Oswald', sans-serif",
+        "fontFamily": "'Orbitron', sans-serif",
         "numbersFontFamily": "'Oswald', sans-serif"
       },
       "elimination": {
-        "panelBg": "#c08a16",
-        "rankText": "#f5f5f5",
+        "panelBg": "#e9b21c",
+        "rankText": "#ffffff",
         "statsBg": "#ffffff",
         "statsText": "#0a0a0a",
-        "elimBg": "#9c6b16",
+        "elimBg": "#f2b202",
         "elimText": "#ffffff",
-        "nameTagBg": "#000000",
+        "nameTagBg": "#17a173",
         "nameTagText": "#ffffff",
         "bannerLayout": "broadcast"
       },
@@ -47,7 +47,7 @@
         "barFilled": "#ffffff",
         "barDead": "#dfd8d8",
         "accentLine": "#ffffff",
-        "panelBg": "#faab00"
+        "panelBg": "#e5ab0b"
       }
     },
     "neon": {
@@ -86,27 +86,49 @@
       }
     },
     "cleanBroadcast": {
+      "broadcast": {
+        "headerBg": "#ffffff",
+        "headerText": "#000000",
+        "leftText": "#000000",
+        "statsBg": "#6f3e06",
+        "leftRowColor": "#f9e59f",
+        "splitBorder": "#ffffff",
+        "leftRowHot": "#000000",
+        "statsText": "#f0dfa3",
+        "knockedColor": "#ff2e2e",
+        "finColor": "#ffffff",
+        "rowBorder": "#ded7c0",
+        "logoBoxBorder": "#ffffff",
+        "logoBoxBg": "#ffffff",
+        "statusDead": "#ababab",
+        "ptsColor": "#ffffff",
+        "leftRowAccent": "#ffffff",
+        "leftRowB": "#000000",
+        "colSeparator": "#ffffff"
+      },
+      "typography": {
+        "fontFamily": "'Orbitron', sans-serif",
+        "numbersFontFamily": "'Oswald', sans-serif"
+      },
       "elimination": {
-        "panelBg": "#0d4a4f",
-        "rankText": "#ffffff",
+        "panelBg": "#ffffff",
+        "rankText": "#000000",
         "statsBg": "#ffffff",
         "statsText": "#0a0a0a",
-        "elimBg": "#ff3333",
+        "elimBg": "#6f3e06",
         "elimText": "#ffffff",
-        "nameTagBg": "#8b4789",
-        "nameTagText": "#ffffff",
-        "rankBadgeText": "#fcee09",
-        "logoRingColor": "#fcee09",
-        "accentLine": "#fcee09",
-        "logoPanelBg": "#1c1c1c",
-        "logoBorder": "#00c8c8",
-        "titleBg": "#ececf2",
-        "titleText": "#1a1a1a",
-        "teamText": "#ffffff",
-        "killIconColor": "#ffffff",
-        "animation": "slideLeft",
-        "bannerLayout": "broadcast",
-        "layout": "broadcast"
+        "nameTagBg": "#ff9d00",
+        "nameTagText": "#000000",
+        "bannerLayout": "broadcast"
+      },
+      "wwcdStrip": {
+        "footerText": "#ffffff",
+        "dividerColor": "#ffffff",
+        "barFilled": "#ffffff",
+        "footerBg": "#6f3e06",
+        "teamTagBg": "#6f3e06",
+        "pctTextColor": "#fffafa",
+        "teamTagText": "#ffffff"
       }
     },
     "esports": {
@@ -116,12 +138,60 @@
       "alive": {
         "color": "#fa0015"
       }
+    },
+    "pubgTournament": {
+      "colors": {
+        "gold": "#ffffff",
+        "secondary": "#473e3e",
+        "primary": "#e2a108",
+        "accent": "#696354",
+        "textMuted": "#e2a108"
+      },
+      "alive": {
+        "color": "#ffffff"
+      },
+      "row": {
+        "bgA": "#e2a108",
+        "bgB": "#d29104"
+      }
+    },
+    "streamerStyle": {
+      "colors": {
+        "primary": "#8e1a1a",
+        "accent": "#8e1a1a",
+        "gold": "#fafafa",
+        "secondary": "#000000"
+      },
+      "alive": {
+        "color": "#ffc561"
+      },
+      "row": {
+        "bgA": "#8a1e1e",
+        "bgB": "#782121"
+      },
+      "typography": {
+        "fontFamily": "'Oswald', sans-serif",
+        "numbersFontFamily": "'Oswald', sans-serif"
+      },
+      "elimination": {
+        "panelBg": "#a52c2c",
+        "rankText": "#ffffff",
+        "statsBg": "#ffffff",
+        "statsText": "#000000",
+        "elimBg": "#782121",
+        "elimText": "#ffffff",
+        "nameTagBg": "#b79024",
+        "nameTagText": "#ffffff",
+        "bannerLayout": "broadcast",
+        "layout": "broadcast"
+      }
     }
   },
   "eliminationBannerLayouts": {
     "cyberpunk": "minimalBroadcast",
     "minimal": "broadcast",
-    "cleanBroadcast": "broadcast"
+    "cleanBroadcast": "broadcast",
+    "streamerStyle": "broadcast"
   },
   "overallStandingsBg": null,
   "obsSharedTriplePng": "/uploads/obs-shared-triple/obs-slot-1779702640974.png",
@@ -146,7 +216,7 @@
     "importedDriveFileIds": [],
     "lastError": null
   },
-  "activeTheme": "minimal",
+  "activeTheme": "cleanBroadcast",
   "sideOverlayPrefs": {
     "groupLabel": "GROUP A",
     "useLiveMatchNumber": true,
@@ -166,13 +236,14 @@
   },
   "wwcdStripColorMode": "theme",
   "wwcdStripColors": {
-    "footerBg": "#0060e6",
-    "footerText": "#e8eaed",
-    "barFilled": "#ffffff",
-    "barDead": "#ffffff",
-    "barsBg": "#0060e6",
-    "logoBoxBg": "#ffffff",
-    "initialsColor": "#000000"
+    "footerBg": "#3237d2",
+    "footerText": "#efeff1",
+    "barFilled": "#ffce1f",
+    "barDead": "#26262c",
+    "barsBg": "#214278",
+    "logoBoxBg": "#0e0e10",
+    "initialsColor": "#fafafa",
+    "broadcastLayout": true
   },
   "eliminationBannerColorMode": "theme",
   "eliminationBannerColors": {

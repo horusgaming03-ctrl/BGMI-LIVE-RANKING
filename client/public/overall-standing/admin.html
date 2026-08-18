@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OVERALL STANDING — Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Exo+2:wght@500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="css/admin.css" />
+  </head>
+  <body>
+    <div class="admin-shell">
+      <header class="admin-top">
+        <div>
+          <h1>OVERALL STANDING</h1>
+          <span class="tag">Admin · BGMI / PUBG style</span>
+          <p class="hint" style="margin-top: 10px">
+            Controls sync in real time to the overlay. Standings data auto-updates from tournament match results.
+            Click <strong>Save all settings</strong> after changes.
+          </p>
+        </div>
+        <div class="admin-actions">
+          <button type="button" class="btn btn-save-lg" id="btn-save-all">Save all settings</button>
+          <button type="button" class="btn" id="btn-export">Export JSON</button>
+          <button type="button" class="btn" id="btn-import">Import JSON</button>
+          <input type="file" id="import-file" accept="application/json" hidden />
+          <button type="button" class="btn" id="btn-replay">Replay animation</button>
+          <button type="button" class="btn btn-primary" id="btn-reset">Reset defaults</button>
+        </div>
+      </header>
+
+      <div class="save-bar">
+        <button type="button" class="btn btn-save-lg" id="btn-save-all-sticky">Save all settings</button>
+        <p class="status-dot" id="save-status">Ready — click Save after changes (syncs OBS + preview)</p>
+      </div>
+
+      <div class="admin-grid">
+        <section class="panel">
+          <h2>Layout</h2>
+          <div class="field">
+            <label>Overlay mode</label>
+            <select id="cfg-layout-mode">
+              <option value="contentOnly">Standings only (transparent — for OBS)</option>
+              <option value="broadcast">Full broadcast (title + background + footer)</option>
+            </select>
+            <p class="hint">Default: <strong>Standings only</strong> — transparent background for OBS. Teams split automatically (18 → #1–#9 | #10–#18, 20 → 10+10).</p>
+          </div>
+          <div class="checkbox-field"><input type="checkbox" id="cfg-show-title" checked /><label>Show STANDINGS title (top center)</label></div>
+          <div class="checkbox-field"><input type="checkbox" id="cfg-show-featured" checked /><label>Show featured #1 leader card</label></div>
+          <div class="checkbox-field"><input type="checkbox" id="cfg-show-table-head" checked /><label>Show column headers (left table)</label></div>
+        </section>
+
+        <section class="panel">
+          <h2>Header</h2>
+          <p class="hint">Title text/size used for the top-center STANDINGS label (standings-only mode) and full broadcast header.</p>
+          <div class="checkbox-field"><input type="checkbox" id="cfg-show-header" /><label>Show header bar</label></div>
+          <div class="field"><label>Title</label><input type="text" id="cfg-title" placeholder="STANDINGS" /></div>
+          <div class="field-row">
+            <div class="field"><label>Title size (px)</label><input type="number" id="cfg-title-size" min="48" max="200" /></div>
+            <div class="field"><label>&nbsp;</label><button type="button" class="btn" id="cfg-title-outline-auto">Auto outline</button></div>
+          </div>
+          <p class="hint">Title color pickers are in the <strong>Colors — title &amp; broadcast header</strong> section below.</p>
+          <div class="field"><label>Left brand (if no logo)</label><input type="text" id="cfg-left-brand" placeholder="MEA" /></div>
+          <div class="field"><label>Left sub-brand</label><input type="text" id="cfg-left-sub" placeholder="MUMBAI ESPORTS" /></div>
+          <div class="field"><label>Footer hashtag</label><input type="text" id="cfg-footer" placeholder="#MUMBAI LAN EVENT" /></div>
+          <div class="field-row">
+            <div class="field"><label>Footer size (px)</label><input type="number" id="cfg-footer-size" min="20" max="80" /></div>
+          </div>
+          <div class="field"><label>Left logo</label><input type="file" id="cfg-left-logo-upload" accept="image/*" /></div>
+          <button type="button" class="btn" id="cfg-left-logo-clear">Clear left logo</button>
+          <div class="field" style="margin-top:12px"><label>Right logo (tournament cup)</label><input type="file" id="cfg-right-logo-upload" accept="image/*" /></div>
+          <button type="button" class="btn" id="cfg-right-logo-clear">Clear right logo</button>
+        </section>
+
+        <section class="panel">
+          <h2>Background</h2>
+          <div class="field"><label>Upload image or video</label><input type="file" id="cfg-bg-upload" accept="image/*,video/mp4,video/webm,video/quicktime" /></div>
+          <button type="button" class="btn" id="cfg-bg-clear">Clear background</button>
+          <div class="field" style="margin-top:12px">
+            <label>Background zoom <span id="cfg-bg-scale-val" class="hint">1.05×</span></label>
+            <input type="range" id="cfg-bg-scale" min="100" max="130" step="1" value="105" />
+          </div>
+          <div id="bg-preview" class="bg-preview"></div>
+          <p class="hint">Only in broadcast mode, or upload here for a custom BG behind standings in content-only mode.</p>
+        </section>
+
+        <section class="panel full-width">
+          <h2>Column labels (table header text)</h2>
+          <p class="hint">Edit every header label shown above the left standings column.</p>
+          <div class="label-grid">
+            <div class="field"><label>Position</label><input type="text" id="cfg-lbl-pos" placeholder="POS." /></div>
+            <div class="field"><label>Team name</label><input type="text" id="cfg-lbl-team" placeholder="TEAM NAME" /></div>
+            <div class="field"><label>WWCD</label><input type="text" id="cfg-lbl-wwcd" placeholder="WWCD" /></div>
+            <div class="field"><label>Place points</label><input type="text" id="cfg-lbl-place" placeholder="PLACE" /></div>
+            <div class="field"><label>Finish / kills</label><input type="text" id="cfg-lbl-finish" placeholder="FINISH" /></div>
+            <div class="field"><label>Total points</label><input type="text" id="cfg-lbl-total" placeholder="TOTAL" /></div>
+            <div class="field"><label>Featured #1 label</label><input type="text" id="cfg-lbl-featured-pts" placeholder="TOTAL POINTS" /></div>
+          </div>
+        </section>
+
+        <section class="panel full-width">
+          <h2>Colors — title &amp; broadcast header</h2>
+          <div class="color-grid">
+            <div class="field"><label>Title color</label><input type="color" id="cfg-title-color" /></div>
+            <div class="field"><label>Title outline</label><input type="color" id="cfg-title-outline-color" /></div>
+            <div class="field"><label>Footer text</label><input type="color" id="cfg-footer-color" /></div>
+            <div class="field"><label>Brand main (MEA)</label><input type="color" id="cfg-brand-main-color" /></div>
+            <div class="field"><label>Brand sub</label><input type="color" id="cfg-brand-sub-color" /></div>
+            <div class="field"><label>Broadcast bg navy</label><input type="color" id="cfg-bg-navy" /></div>
+          </div>
+        </section>
+
+        <section class="panel full-width">
+          <h2>Colors — table header row</h2>
+          <div class="color-grid">
+            <div class="field"><label>Header cell background</label><input type="color" id="cfg-head-bg" /></div>
+            <div class="field"><label>Header text</label><input type="color" id="cfg-head-text" /></div>
+          </div>
+        </section>
+
+        <section class="panel full-width">
+          <h2>Colors — position # box</h2>
+          <div class="color-grid">
+            <div class="field"><label>Rank box — top</label><input type="color" id="cfg-pos-top" /></div>
+            <div class="field"><label>Rank box — bottom</label><input type="color" id="cfg-pos-bottom" /></div>
+            <div class="field"><label>Rank number text</label><input type="color" id="cfg-pos-text" /></div>
+            <div class="field"><label>#1 rank — top</label><input type="color" id="cfg-pos-leader-top" /></div>
+            <div class="field"><label>#1 rank — bottom</label><input type="color" id="cfg-pos-leader-bottom" /></div>
+            <div class="field"><label>#1 rank text</label><input type="color" id="cfg-pos-leader-text" /></div>
+          </div>
+        </section>
+
+        <section class="panel full-width">
+          <h2>Colors — team name bar</h2>
+          <div class="color-grid">
+            <div class="field"><label>Team bar — top</label><input type="color" id="cfg-bar-end" /></div>
+            <div class="field"><label>Team bar — mid</label><input type="color" id="cfg-bar-start" /></div>
+            <div class="field"><label>Team bar — bottom deep</label><input type="color" id="cfg-bar-deep" /></div>
+            <div class="field"><label>Team name text</label><input type="color" id="cfg-row-text" /></div>
+            <div class="field"><label>#1 team bar — top</label><input type="color" id="cfg-bar-leader-start" /></div>
+            <div class="field"><label>#1 team bar — bottom</label><input type="color" id="cfg-bar-leader-end" /></div>
+            <div class="field"><label>#1 team name text</label><input type="color" id="cfg-leader-team-text" /></div>
+          </div>
+        </section>
+
+        <section class="panel full-width">
+          <h2>Colors — stat cells (WWCD · PLACE · FINISH · TOTAL)</h2>
+          <div class="color-grid">
+            <div class="field"><label>Stat cell — top</label><input type="color" id="cfg-stat-start" /></div>
+            <div class="field"><label>Stat cell — bottom</label><input type="color" id="cfg-stat-end" /></div>
+            <div class="field"><label>Stat number text</label><input type="color" id="cfg-stat-text" /></div>
+            <div class="field"><label>#1 stat — top</label><input type="color" id="cfg-leader-stat-start" /></div>
+            <div class="field"><label>#1 stat — bottom</label><input type="color" id="cfg-leader-stat-end" /></div>
+            <div class="field"><label>#1 stat text</label><input type="color" id="cfg-leader-stat-text" /></div>
+          </div>
+        </section>
+
+        <section class="panel full-width">
+          <h2>Colors — featured #1 leader card</h2>
+          <div class="color-grid">
+            <div class="field"><label>Card cream bg</label><input type="color" id="cfg-featured-cream" /></div>
+            <div class="field"><label>Character area — top</label><input type="color" id="cfg-featured-char-top" /></div>
+            <div class="field"><label>Team banner — top</label><input type="color" id="cfg-featured-banner-top" /></div>
+            <div class="field"><label>Team banner — mid</label><input type="color" id="cfg-featured-banner" /></div>
+            <div class="field"><label>Team banner — bottom</label><input type="color" id="cfg-featured-banner-bottom" /></div>
+            <div class="field"><label>Team name text</label><input type="color" id="cfg-featured-banner-text" /></div>
+            <div class="field"><label>Points box bg</label><input type="color" id="cfg-featured-points-bg" /></div>
+            <div class="field"><label>Points text</label><input type="color" id="cfg-featured-points-text" /></div>
+          </div>
+        </section>
+
+        <section class="panel full-width">
+          <h2>Colors — gaps &amp; spacing</h2>
+          <div class="color-grid">
+            <div class="field"><label>Gutter / gap color</label><input type="color" id="cfg-gap-color" /></div>
+          </div>
+          <div class="field-row" style="margin-top: 12px; max-width: 480px">
+            <div class="field"><label>Row gap (px)</label><input type="number" id="cfg-row-gap" min="0" max="24" /></div>
+            <div class="field"><label>Cell gap (px)</label><input type="number" id="cfg-cell-gap" min="0" max="16" /></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Animation</h2>
+          <div class="field">
+            <label>Speed (0.25 – 3) — <span id="cfg-anim-speed-val">1</span></label>
+            <input type="range" id="cfg-anim-speed" min="0.25" max="3" step="0.05" value="1" />
+          </div>
+          <div class="checkbox-field"><input type="checkbox" id="cfg-anim-enabled" checked /><label>Slide + shutter animations</label></div>
+          <p class="hint">Columns slide in first; team names and numbers reveal with a shutter effect. Use <strong>Replay animation</strong> to preview again.</p>
+        </section>
+
+        <section class="panel full-width">
+          <h2>Featured leader — character image</h2>
+          <p class="hint">One character cutout shown for the #1 team. Default uses WWCD STATUS character.</p>
+          <div id="char-grid" class="char-grid"></div>
+        </section>
+
+        <section class="panel full-width">
+          <h2>OBS browser source</h2>
+          <p class="hint">Width <strong>1920</strong> · Height <strong>1080</strong>.</p>
+          <div class="obs-url" id="obs-url"></div>
+          <iframe id="preview-frame" class="preview-frame" title="Overlay preview"></iframe>
+        </section>
+      </div>
+    </div>
+    <style>
+      .char-grid { max-width: 320px; }
+      .char-slot { border: 1px solid var(--panel-border); border-radius: 8px; padding: 12px; background: rgba(0,0,0,.2); }
+      .char-slot img { max-height: 120px; width: 100%; object-fit: contain; background: #0d1117; border-radius: 6px; margin: 8px 0; }
+      .color-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px 16px; }
+      .label-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px 16px; }
+      .color-grid .field label, .label-grid .field label { font-size: 11px; letter-spacing: 0.03em; }
+    </style>
+    <script type="module" src="js/admin.js"></script>
+  </body>
+</html>

@@ -1,0 +1,125 @@
+{
+  "header": {
+    "title": "TOP FRAGGERS",
+    "titleFont": "Bebas Neue",
+    "titleColor": "#ffffff",
+    "titleSize": 132,
+    "leftLogoUrl": "",
+    "rightLogoUrl": "",
+    "brandMain": "GRAND FINAL",
+    "brandSub": "PARADIES ESPORTS"
+  },
+  "footer": {
+    "text": "# PARADIES PRO SHOWDOWN",
+    "color": "#fcfcfc",
+    "size": 36,
+    "show": true
+  },
+  "background": {
+    "imageUrl": "/uploads/top-fraggers/top-fraggers-1784683311729.png",
+    "mediaType": "image",
+    "opacity": 1,
+    "fit": "cover",
+    "position": "center center",
+    "scale": 1.13
+  },
+  "theme": {
+    "accent": "#2a9fd4",
+    "cardBg": "#0c1320",
+    "cardBorderColor": "rgba(255,255,255,0.10)",
+    "cardBorderWidth": 1,
+    "rankBadgeBg": "#ffffff",
+    "rankBadgeText": "#1a1a1a",
+    "mediaTintTop": "#fcfcfc",
+    "mediaTintBottom": "#ffffff",
+    "mediaTint": "linear-gradient(180deg, #fcfcfc 0%, #ffffff 100%)",
+    "nameBarColor": "#ffffff",
+    "nameTextColor": "#1a1a1a",
+    "statLabelColor": "rgba(255,255,255,0.85)",
+    "statLabelBg": "#1a4d7a",
+    "statValueColor": "#1a4d7a",
+    "statValueBgTop": "#f5e6b8",
+    "statValueBgBottom": "#ffffff",
+    "cardAccentLine": "#fafafa"
+  },
+  "animation": {
+    "type": "shutter",
+    "speed": 1,
+    "enabled": true,
+    "replayKey": 0
+  },
+  "dataSource": "manual",
+  "cardCount": 5,
+  "cards": [
+    {
+      "name": "FCRxVoltricASN",
+      "finishes": 2,
+      "characterImageUrl": "/uploads/top-fraggers/top-fraggers-1782773081420.jpeg",
+      "transform": {
+        "zoom": 1.02,
+        "x": 0,
+        "y": 0,
+        "stretchX": 1.1,
+        "stretchY": 1
+      },
+      "manualName": true,
+      "manualFinishes": true
+    },
+    {
+      "name": "FCRxVersaceASN",
+      "finishes": 7,
+      "characterImageUrl": "/uploads/top-fraggers/top-fraggers-1782773089921.jpeg",
+      "transform": {
+        "zoom": 0.99,
+        "x": 0,
+        "y": 0,
+        "stretchX": 1.1,
+        "stretchY": 1
+      },
+      "manualName": true,
+      "manualFinishes": true
+    },
+    {
+      "name": "MFCRxYuvazaASN",
+      "finishes": 5,
+      "characterImageUrl": "/uploads/top-fraggers/top-fraggers-1782773093034.jpeg",
+      "transform": {
+        "zoom": 1.17,
+        "x": 0,
+        "y": 0,
+        "stretchX": 1,
+        "stretchY": 1
+      },
+      "manualName": true,
+      "manualFinishes": true
+    },
+    {
+      "name": "FCRxMonacoASn",
+      "finishes": 5,
+      "characterImageUrl": "/uploads/top-fraggers/top-fraggers-1782773098679.jpeg",
+      "transform": {
+        "zoom": 1.07,
+        "x": 0,
+        "y": 0,
+        "stretchX": 1,
+        "stretchY": 1
+      },
+      "manualName": true,
+      "manualFinishes": true
+    },
+    {
+      "name": "HadesCrazyO",
+      "finishes": 0,
+      "characterImageUrl": "/uploads/top-fraggers/top-fraggers-1782773106019.png",
+      "transform": {
+        "zoom": 1.93,
+        "x": -5,
+        "y": 87,
+        "stretchX": 1.04,
+        "stretchY": 0.98
+      },
+      "manualName": false,
+      "manualFinishes": true
+    }
+  ]
+}

@@ -17,6 +17,9 @@
     "build": "cd client && npm run build",
     "preview": "cd client && npm run preview",
     "wwcd:chars": "node scripts/build-wwcd-characters.mjs",
+    "wwcd:clean": "node scripts/clean-wwcd-bg.mjs",
+    "wwcd:chars:strip": "node scripts/extract-wwcd-chars-from-strip.mjs",
+    "wwcd:chars:white": "node scripts/extract-wwcd-chars-white.mjs",
     "start:app": "npm run build:client && node index.js",
     "db:up": "docker compose up -d"
   },

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TOP FRAGGERS — Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Exo+2:wght@500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="css/admin.css" />
+  </head>
+  <body>
+    <div class="admin-shell">
+      <header class="admin-top">
+        <div>
+          <h1>TOP FRAGGERS</h1>
+          <span class="tag">Admin · Mumbai LAN broadcast GFX</span>
+          <p class="hint" style="margin-top: 10px">
+            Edit player cards, colors, and logos — then click <strong>Save all settings</strong>. Uploads go to the server
+            so OBS sees them. Refresh the OBS browser source after saving.
+          </p>
+        </div>
+        <div class="admin-actions">
+          <button type="button" class="btn btn-save-lg" id="btn-save-all">Save all settings</button>
+          <button type="button" class="btn" id="btn-export">Export JSON</button>
+          <button type="button" class="btn" id="btn-import">Import JSON</button>
+          <input type="file" id="import-file" accept="application/json" hidden />
+          <button type="button" class="btn" id="btn-replay">Replay animation</button>
+          <button type="button" class="btn btn-primary" id="btn-reset">Reset defaults</button>
+        </div>
+      </header>
+
+      <div class="save-bar">
+        <button type="button" class="btn btn-save-lg" id="btn-save-all-sticky">Save all settings</button>
+        <p class="status-dot" id="save-status">Ready — click Save after changes (syncs OBS + preview)</p>
+      </div>
+
+      <div class="admin-grid">
+        <section class="panel">
+          <h2>Header</h2>
+          <div class="field"><label>Title (center)</label><input type="text" id="cfg-title" placeholder="TOP FRAGGERS" /></div>
+          <div class="field-row">
+            <div class="field"><label>Title color</label><input type="color" id="cfg-title-color" /></div>
+            <div class="field"><label>Title size (px)</label><input type="number" id="cfg-title-size" min="40" max="220" /></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label>Brand main (left)</label><input type="text" id="cfg-brand-main" placeholder="MEA" /></div>
+            <div class="field"><label>Brand sub</label><input type="text" id="cfg-brand-sub" placeholder="MUMBAI ESPORTS" /></div>
+          </div>
+          <div class="field">
+            <label>Left logo (replaces brand text when set)</label>
+            <input type="file" id="cfg-left-logo-upload" accept="image/*" />
+            <button type="button" class="btn" id="cfg-left-logo-clear" style="margin-top: 8px">Clear left logo</button>
+          </div>
+          <div id="left-logo-preview" class="media-preview"></div>
+          <div class="field">
+            <label>Right logo (tournament / cup)</label>
+            <input type="file" id="cfg-right-logo-upload" accept="image/*" />
+            <button type="button" class="btn" id="cfg-right-logo-clear" style="margin-top: 8px">Clear right logo</button>
+          </div>
+          <div id="right-logo-preview" class="media-preview"></div>
+        </section>
+
+        <section class="panel">
+          <h2>Footer</h2>
+          <div class="field"><label>Footer text</label><input type="text" id="cfg-footer-text" placeholder="#MUMBAI LAN EVENT" /></div>
+          <div class="field-row">
+            <div class="field"><label>Footer color</label><input type="color" id="cfg-footer-color" /></div>
+            <div class="field"><label>Footer size (px)</label><input type="number" id="cfg-footer-size" min="16" max="80" /></div>
+          </div>
+          <div class="checkbox-field"><input type="checkbox" id="cfg-footer-show" checked /><label>Show footer</label></div>
+        </section>
+
+        <section class="panel">
+          <h2>Background</h2>
+          <div class="field">
+            <label>Upload image or video</label>
+            <input type="file" id="cfg-bg-upload" accept="image/*,video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" />
+          </div>
+          <button type="button" class="btn" id="cfg-bg-clear">Clear background</button>
+          <div class="field" style="margin-top: 12px">
+            <label>Background zoom <span id="cfg-bg-scale-val" class="hint">1.05×</span></label>
+            <input type="range" id="cfg-bg-scale" min="100" max="130" step="1" value="105" />
+          </div>
+          <div id="bg-preview" class="media-preview"></div>
+        </section>
+
+        <section class="panel">
+          <h2>Card theme</h2>
+          <div class="field"><label>Rank badge bg</label><input type="color" id="cfg-rank-bg" /></div>
+          <div class="field"><label>Rank badge text</label><input type="color" id="cfg-rank-text" /></div>
+          <div class="field"><label>Name bar</label><input type="color" id="cfg-name-bar" /></div>
+          <div class="field"><label>Name text</label><input type="color" id="cfg-name-text" /></div>
+          <div class="field"><label>Finishes label bg</label><input type="color" id="cfg-stat-label-bg" /></div>
+          <div class="field"><label>Finishes number</label><input type="color" id="cfg-stat-value" /></div>
+          <div class="field"><label>Character bg — Top</label><input type="color" id="cfg-media-top" /></div>
+          <div class="field"><label>Character bg — Bottom</label><input type="color" id="cfg-media-bottom" /></div>
+          <div class="field"><label>Bottom accent line</label><input type="color" id="cfg-card-accent" /></div>
+        </section>
+
+        <section class="panel">
+          <h2>Animation</h2>
+          <div class="field"><label>Type</label><select id="cfg-anim-type"></select></div>
+          <div class="field">
+            <label>Speed (0.25 – 3) — <span id="cfg-anim-speed-val">1</span></label>
+            <input type="range" id="cfg-anim-speed" min="0.25" max="3" step="0.05" value="1" />
+          </div>
+          <div class="checkbox-field"><input type="checkbox" id="cfg-anim-enabled" checked /><label>Animations enabled</label></div>
+        </section>
+
+        <section class="panel full-width">
+          <h2>Data source</h2>
+          <div class="field" style="max-width: 420px">
+            <label>Stats source</label>
+            <select id="cfg-data-source">
+              <option value="manual">Manual (edit names + finishes below)</option>
+              <option value="live">Live (auto top 5 from tournament match history)</option>
+            </select>
+            <p class="hint">
+              Live mode estimates per-player finishes from team totals across completed matches. Override any card manually
+              below — your edits stick until you click “Use live”.
+            </p>
+          </div>
+          <div class="field" style="max-width: 200px">
+            <label>Card count</label>
+            <select id="cfg-card-count">
+              <option value="3">3 players</option>
+              <option value="4">4 players</option>
+              <option value="5">5 players</option>
+            </select>
+          </div>
+        </section>
+
+        <section class="panel full-width">
+          <h2>Player cards</h2>
+          <p class="hint">Upload character cutouts per slot (defaults use WWCD STATUS characters). Edit player name and finishes.</p>
+          <div id="player-stats-row" class="player-stats-row"></div>
+          <div id="char-grid" class="char-grid"></div>
+        </section>
+
+        <section class="panel full-width">
+          <h2>OBS browser source</h2>
+          <p class="hint">Width <strong>1920</strong> · Height <strong>1080</strong>.</p>
+          <div class="obs-url" id="obs-url"></div>
+          <iframe id="preview-frame" class="preview-frame" title="Overlay preview"></iframe>
+        </section>
+      </div>
+    </div>
+    <script type="module" src="js/admin.js"></script>
+  </body>
+</html>
