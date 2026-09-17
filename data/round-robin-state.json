@@ -1,0 +1,263 @@
+{
+  "groups": [
+    {
+      "id": "grp-a",
+      "name": "GROUP A",
+      "letter": "A",
+      "teams": [
+        {
+          "id": 1789632924254,
+          "team": "PHEONIX",
+          "logo": "/uploads/logos/rr-team-1789632924254-1789646619470.jpg",
+          "slot": 1
+        },
+        {
+          "id": 1789632924011,
+          "team": "RS ESP",
+          "logo": "/uploads/logos/rr-team-1789632924011-1789646633361.jpg",
+          "slot": 2
+        },
+        {
+          "id": 1789632923887,
+          "team": "DIVINE LYNX",
+          "logo": "/uploads/logos/rr-team-1789632923887-1789646639541.jpg",
+          "slot": 3
+        },
+        {
+          "id": 1789632924220,
+          "team": "CREWX",
+          "logo": "/uploads/logos/rr-team-1789632924220-1789646647480.jpg",
+          "slot": 4
+        },
+        {
+          "id": 1789632924586,
+          "team": "DNA",
+          "logo": "/uploads/logos/rr-team-1789632924586-1789646654289.jpg",
+          "slot": 5
+        },
+        {
+          "id": 1789632923868,
+          "team": "RCB",
+          "logo": "/uploads/logos/rr-team-1789632923868-1789646658313.jpg",
+          "slot": 6
+        },
+        {
+          "id": 1789632923770,
+          "team": "OLS",
+          "logo": "/uploads/logos/rr-team-1789632923770-1789646664583.jpg",
+          "slot": 7
+        },
+        {
+          "id": 1789632924658,
+          "team": "GALACTICOS",
+          "logo": "/uploads/logos/rr-team-1789632924658-1789646669250.jpg",
+          "slot": 8
+        }
+      ],
+      "createdAt": 1
+    },
+    {
+      "id": "grp-b",
+      "name": "GROUP B",
+      "letter": "B",
+      "teams": [
+        {
+          "id": 1789644237268,
+          "team": "APEX",
+          "logo": "/uploads/logos/rr-team-1789644237268-1789646689650.png",
+          "slot": 1
+        },
+        {
+          "id": 1789644251042,
+          "team": "GALACTIC ESPORTS",
+          "logo": "/uploads/logos/rr-team-1789644251042-1789646694002.jpg",
+          "slot": 2
+        },
+        {
+          "id": 1789644257710,
+          "team": "FEARLESS",
+          "logo": "/uploads/logos/rr-team-1789644257710-1789646702115.jpg",
+          "slot": 3
+        },
+        {
+          "id": 1789644267766,
+          "team": "ACE OFFICIAL",
+          "logo": "/uploads/logos/rr-team-1789644267766-1789646706395.png",
+          "slot": 4
+        },
+        {
+          "id": 1789644273302,
+          "team": "ULTIMATE ESPORTS",
+          "logo": "/uploads/logos/rr-team-1789644273302-1789646711558.jpg",
+          "slot": 5
+        },
+        {
+          "id": 1789644279361,
+          "team": "UNIVERSE 7",
+          "logo": "/uploads/logos/rr-team-1789644279361-1789646716570.jpg",
+          "slot": 6
+        },
+        {
+          "id": 1789644312647,
+          "team": "THRONE HUNTERS",
+          "logo": "/uploads/logos/rr-team-1789644312647-1789646720865.png",
+          "slot": 7
+        },
+        {
+          "id": 1789644300610,
+          "team": "TEAMXICE",
+          "logo": "/uploads/logos/rr-team-1789644300610-1789646726658.jpg",
+          "slot": 8
+        }
+      ],
+      "createdAt": 2
+    },
+    {
+      "id": "grp-1789639596083",
+      "name": "GROUP C",
+      "letter": "C",
+      "teams": [
+        {
+          "id": 1789644337543,
+          "team": "4 THRIVES",
+          "logo": "/uploads/logos/rr-team-1789644337543-1789646754086.jpg",
+          "slot": 1
+        },
+        {
+          "id": 1789644346146,
+          "team": "GHOST",
+          "logo": "/uploads/logos/rr-team-1789644346146-1789646759008.jpg",
+          "slot": 2
+        },
+        {
+          "id": 1789644354527,
+          "team": "STAR GAMING",
+          "logo": "/uploads/logos/rr-team-1789644354527-1789646765454.jpg",
+          "slot": 3
+        },
+        {
+          "id": 1789644362123,
+          "team": "SAURYA",
+          "logo": "/uploads/logos/rr-team-1789644362123-1789646771055.jpg",
+          "slot": 4
+        },
+        {
+          "id": 1789644369660,
+          "team": "PARAS GAMING",
+          "logo": "/uploads/logos/rr-team-1789644369660-1789646780495.jpg",
+          "slot": 5
+        },
+        {
+          "id": 1789644375638,
+          "team": "TIME 2 RISE",
+          "logo": "/uploads/logos/rr-team-1789644375638-1789646793116.jpg",
+          "slot": 6
+        },
+        {
+          "id": 1789644380875,
+          "team": "EQUINOX SHATTERS",
+          "logo": "/uploads/logos/rr-team-1789644380875-1789646797524.jpg",
+          "slot": 7
+        },
+        {
+          "id": 1789644389163,
+          "team": "CRYPTON",
+          "logo": "/uploads/logos/rr-team-1789644389163-1789646804791.jpg",
+          "slot": 8
+        }
+      ],
+      "createdAt": 1789639596083
+    },
+    {
+      "id": "grp-1789639602842",
+      "name": "GROUP D",
+      "letter": "D",
+      "teams": [
+        {
+          "id": 1789644416501,
+          "team": "PRADNYA",
+          "logo": "/uploads/logos/rr-team-1789644416501-1789647027517.jpg",
+          "slot": 1
+        },
+        {
+          "id": 1789644423168,
+          "team": "NOMAD ESPORTS",
+          "logo": "/uploads/logos/rr-team-1789644423168-1789646880278.jpg",
+          "slot": 2
+        },
+        {
+          "id": 1789644433291,
+          "team": "4CLAW OFFICIALS",
+          "logo": "/uploads/logos/rr-team-1789644433291-1789646892089.jpg",
+          "slot": 3
+        },
+        {
+          "id": 1789644440678,
+          "team": "CHARPATA GANG",
+          "logo": "/uploads/logos/rr-team-1789644440678-1789646948394.jpg",
+          "slot": 4
+        },
+        {
+          "id": 1789644445986,
+          "team": "FURIOUS ESPORTS",
+          "logo": "/uploads/logos/rr-team-1789644445986-1789646961911.jpg",
+          "slot": 5
+        },
+        {
+          "id": 1789644451969,
+          "team": "TITAN ESPORTS",
+          "logo": "/uploads/logos/rr-team-1789644451969-1789646977491.jpg",
+          "slot": 6
+        },
+        {
+          "id": 1789644461600,
+          "team": "JMC",
+          "logo": "/uploads/logos/rr-team-1789644461600-1789646988525.jpg",
+          "slot": 7
+        },
+        {
+          "id": 1789644469622,
+          "team": "B4K",
+          "logo": "/uploads/logos/rr-team-1789644469622-1789646998908.jpg",
+          "slot": 8
+        }
+      ],
+      "createdAt": 1789639602842
+    },
+    {
+      "id": "grp-1789639610322",
+      "name": "GROUP E",
+      "letter": "E",
+      "teams": [
+        {
+          "id": 1789644510859,
+          "team": "BALLENTINES",
+          "logo": null,
+          "slot": 1
+        },
+        {
+          "id": 1789644517439,
+          "team": "DEADEYE",
+          "logo": null,
+          "slot": 2
+        },
+        {
+          "id": 1789644524685,
+          "team": "OLD GANGSTER",
+          "logo": null,
+          "slot": 3
+        },
+        {
+          "id": 1789644534338,
+          "team": "4GEN ESP",
+          "logo": null,
+          "slot": 4
+        }
+      ],
+      "createdAt": 1789639610322
+    }
+  ],
+  "matches": [],
+  "allowSameGroup": true,
+  "nextMatchSeq": 1
+}

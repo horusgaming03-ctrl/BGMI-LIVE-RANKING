@@ -1,0 +1,25 @@
+{
+  "themes": [],
+  "lastAnalyzed": {
+    "id": "custom_1789634735206",
+    "at": 1789634913337,
+    "layoutFamily": "broadcast",
+    "sourceImage": "/uploads/theme-customization/test-ref.png",
+    "palette": {
+      "background": "#111723",
+      "accent": "#7a383a",
+      "textPrimary": "#eefdeb",
+      "textMuted": "#747f7d",
+      "gold": "#7a383a",
+      "alive": "#38f017",
+      "dead": "#0b0f17",
+      "rowA": "#232933",
+      "rowB": "#1e1b26",
+      "rowHeight": 42,
+      "fontFamily": "'Inter', 'Roboto', sans-serif",
+      "glowStrength": 0.35,
+      "edgeContrast": 0.9097222222222222
+    },
+    "analysisFailed": false
+  }
+}

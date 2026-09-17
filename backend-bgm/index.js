@@ -29,8 +29,9 @@ const wwcdStatusDir = path.join(uploadsDir, "wwcd-status");
 const overallStandingDir = path.join(uploadsDir, "overall-standing");
 const topFraggersDir = path.join(uploadsDir, "top-fraggers");
 const announcementsDir = path.join(uploadsDir, "announcements");
+const themeCustomizationDir = path.join(uploadsDir, "theme-customization");
 
-[uploadsDir, logosDir, screenshotsDir, tournamentDir, aliveIconsDir, overallStandingsDir, wwcdCharsDir, obsSharedTripleDir, obsBgmiLayeredDir, scheduleOverlayDir, wwcdStatusDir, overallStandingDir, topFraggersDir, announcementsDir].forEach((dir) => {
+[uploadsDir, logosDir, screenshotsDir, tournamentDir, aliveIconsDir, overallStandingsDir, wwcdCharsDir, obsSharedTripleDir, obsBgmiLayeredDir, scheduleOverlayDir, wwcdStatusDir, overallStandingDir, topFraggersDir, announcementsDir, themeCustomizationDir].forEach((dir) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
@@ -559,6 +560,8 @@ let settings = {
   eliminationBannerColors: sanitizeEliminationBannerColors({}),
   /** Multi-layer BGMI ranking overlay — `/overlay/bgmi-layered-ranking` */
   obsBgmiLayerPack: sanitizeObsBgmiLayerPackServer({}),
+  /** Generated overlay themes from Theme Customization — keyed by custom_* id */
+  customOverlayThemes: {},
 };
 
 const dataDir = path.join(ROOT, "data");
@@ -913,6 +916,9 @@ function loadPersistedSettings() {
     if (Object.prototype.hasOwnProperty.call(raw, "activeTheme")) {
       settings.activeTheme = sanitizeActiveThemeServer(raw.activeTheme);
     }
+    if (raw.customOverlayThemes != null && typeof raw.customOverlayThemes === "object" && !Array.isArray(raw.customOverlayThemes)) {
+      settings.customOverlayThemes = raw.customOverlayThemes;
+    }
     const hasValidSidePrefs =
       raw.sideOverlayPrefs != null &&
       typeof raw.sideOverlayPrefs === "object" &&
@@ -984,6 +990,7 @@ function persistAppSettings() {
           eliminationBannerColorMode: settings.eliminationBannerColorMode,
           eliminationBannerColors: settings.eliminationBannerColors,
           obsBgmiLayerPack: settings.obsBgmiLayerPack,
+          customOverlayThemes: settings.customOverlayThemes,
         },
         null,
         2
@@ -1223,6 +1230,7 @@ const eliminateTeam = (team) => {
     rank: team.eliminationRank,
     finishes: team.finishes,
     points: team.points,
+    source: "simple",
   });
   checkForWinner();
 };
@@ -3086,6 +3094,41 @@ function wantsSpaIndex(reqPath, method) {
   if (reqPath === "/overlay" || reqPath.startsWith("/overlay/")) return true;
   return false;
 }
+require("./round-robin")({
+  app,
+  io,
+  dataDir,
+  logosDir,
+  getPositionPoints,
+  getAutoCalculate: () => Boolean(settings.autoCalculate),
+  sanitizeMatchMap,
+});
+
+require("./theme-customization")({
+  app,
+  io,
+  dataDir,
+  uploadsDir,
+  getSettings: () => settings,
+  persistAppSettings,
+  getActiveTheme: () => activeThemeName,
+  setActiveTheme: (name) => {
+    activeThemeName = sanitizeActiveThemeServer(name);
+    settings.activeTheme = activeThemeName;
+    if (
+      activeThemeName === "cleanBroadcast" &&
+      settings.wwcdStripColorMode === "custom" &&
+      isLegacyWwcdStripCustomServer(settings.wwcdStripColors)
+    ) {
+      settings.wwcdStripColorMode = "theme";
+    }
+    persistAppSettings();
+    io.emit("activeThemeChanged", activeThemeName);
+    io.emit("settingsUpdated", settings);
+  },
+  sanitizeActiveTheme: sanitizeActiveThemeServer,
+});
+
 if (serveSpa && fs.existsSync(path.join(clientDist, "index.html"))) {
   app.use(express.static(clientDist));
   app.use((req, res, next) => {

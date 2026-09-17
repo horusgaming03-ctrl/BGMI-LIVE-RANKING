@@ -1,7 +1,9 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import socket from "./socket";
 import { getRondoRecallChargesRemaining } from "../rondo/recallCharges.js";
 import { getApiBase } from "../apiOrigin";
+import { useRoundRobinOverlay } from "./hooks/useRoundRobinOverlay";
+import { overlayListensToRoundRobin, overlayListensToSimple } from "./utils/overlaySource";
 
 const API = getApiBase();
 
@@ -14,11 +16,13 @@ const TOAST_UNMOUNT_MS = Math.round(POP_ANIM_DURATION_SEC * 1000) + 220;
  *
  * URL: `/overlay/rondo/recall-popup`
  * Query:
+ *   - default — Simple and Round Robin (same OBS link for both)
+ *   - `source=simple` / `source=roundRobin` — lock one lobby
  *   - `sound=1` — short synthesized success chime (optional; muted by default)
  *   - `headline` — override main line (URL-encoded)
  *   - `sub` — optional second line override
  *
- * Detection (no backend changes): listens to `teamsUpdated` only.
+ * Detection: Simple `teamsUpdated` and Round Robin overlay socket, with namespaced ids.
  * Fires once per qualifying transition:
  *   - Bench → combat: was `rondo_benched`, now alive/knocked with alivePlayers > 0
  *   - Mid‑fight recall: alivePlayers increases & recall credits decreased vs previous snapshot
@@ -107,10 +111,13 @@ function RecallIcon({ gradId }) {
 export default function RondoRecallPopupOverlay() {
   const iconGradId = useId().replace(/\W/g, "");
   const soundOn = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("sound") === "1";
+  const listenSimple = overlayListensToSimple();
+  const listenRr = overlayListensToRoundRobin();
+  const { teams: rrTeams } = useRoundRobinOverlay();
 
   const [toast, setToast] = useState(null);
-  const prevSnapRef = useRef(new Map());
-  const seededRef = useRef(false);
+  const snapsRef = useRef({ simple: new Map(), rr: new Map() });
+  const seededRef = useRef({ simple: false, rr: false });
 
   const qsOverrides = useMemo(() => {
     if (typeof window === "undefined") return { headline: null, sub: null };
@@ -121,30 +128,31 @@ export default function RondoRecallPopupOverlay() {
     };
   }, []);
 
-  useEffect(() => {
-    const onTeams = (list) => {
-      if (!Array.isArray(list)) return;
+  const processTeamList = useCallback(
+    (list, ns) => {
+      if (!Array.isArray(list) || !ns) return;
 
-      if (!seededRef.current) {
-        seededRef.current = true;
+      if (!seededRef.current[ns]) {
+        seededRef.current[ns] = true;
         const m = new Map();
         for (const t of list) {
           const row = snapshotRow(t);
-          if (row.id != null) m.set(row.id, row);
+          if (row.id != null) m.set(`${ns}:${row.id}`, row);
         }
-        prevSnapRef.current = m;
+        snapsRef.current[ns] = m;
         return;
       }
 
-      const prevMap = prevSnapRef.current;
+      const prevMap = snapsRef.current[ns];
       const nextMap = new Map();
 
       for (const t of list) {
         const cur = snapshotRow(t);
         if (cur.id == null) continue;
-        nextMap.set(cur.id, cur);
+        const key = `${ns}:${cur.id}`;
+        nextMap.set(key, cur);
 
-        const prev = prevMap.get(cur.id);
+        const prev = prevMap.get(key);
         if (!prev) continue;
 
         const benchRecall =
@@ -180,7 +188,7 @@ export default function RondoRecallPopupOverlay() {
         if (soundOn) playOptionalChime();
 
         setToast({
-          key: `${cur.id}-${Date.now()}`,
+          key: `${key}-${Date.now()}`,
           headline,
           sub,
           team: cur.team,
@@ -188,13 +196,23 @@ export default function RondoRecallPopupOverlay() {
         });
       }
 
-      prevSnapRef.current = nextMap;
-    };
+      snapsRef.current[ns] = nextMap;
+    },
+    [soundOn, qsOverrides.headline, qsOverrides.sub],
+  );
 
+  useEffect(() => {
+    if (!listenSimple) return undefined;
+    const onTeams = (list) => processTeamList(list, "simple");
     socket.on("teamsUpdated", onTeams);
     socket.emit("requestTeams");
     return () => socket.off("teamsUpdated", onTeams);
-  }, [soundOn, qsOverrides.headline, qsOverrides.sub]);
+  }, [listenSimple, processTeamList]);
+
+  useEffect(() => {
+    if (!listenRr) return;
+    processTeamList(rrTeams, "rr");
+  }, [listenRr, rrTeams, processTeamList]);
 
   useEffect(() => {
     if (!toast) return undefined;

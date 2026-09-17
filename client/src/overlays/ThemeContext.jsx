@@ -1,8 +1,8 @@
 import { createContext, useContext, useMemo, useState, useCallback, useEffect, useRef } from "react";
-import { getTheme, getThemeNames } from "./themes";
 import overlayConfig from "./overlayConfig";
 import socket from "./socket";
 import { getApiBase } from "../apiOrigin";
+import { resolveTheme, isKnownTheme, listAvailableThemes } from "./utils/resolveTheme";
 
 const ThemeContext = createContext(null);
 
@@ -13,10 +13,27 @@ export function ThemeProvider({ children, initialTheme, initialConfig, listenFor
     initialTheme || overlayConfig.activeTheme
   );
   const [config, setConfig] = useState({ ...overlayConfig, ...initialConfig });
+  const [customOverlayThemes, setCustomOverlayThemes] = useState({});
 
   useEffect(() => {
     explicitInitialThemeRef.current = Boolean(initialTheme != null && String(initialTheme).trim() !== "");
   }, [initialTheme]);
+
+  useEffect(() => {
+    const base = getApiBase();
+    const loadCustom = (s) => {
+      if (s?.customOverlayThemes && typeof s.customOverlayThemes === "object" && !Array.isArray(s.customOverlayThemes)) {
+        setCustomOverlayThemes(s.customOverlayThemes);
+      }
+    };
+    socket.on("settingsUpdated", loadCustom);
+    socket.emit("requestSettings");
+    fetch(`${base}/settings`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then(loadCustom)
+      .catch(() => {});
+    return () => socket.off("settingsUpdated", loadCustom);
+  }, []);
 
   useEffect(() => {
     if (!listenForLive) return;
@@ -28,14 +45,14 @@ export function ThemeProvider({ children, initialTheme, initialConfig, listenFor
       .then((d) => {
         if (cancelled) return;
         const t = d?.theme;
-        if (typeof t === "string" && getThemeNames().includes(t) && !explicitInitialThemeRef.current) {
+        if (typeof t === "string" && isKnownTheme(t, customOverlayThemes) && !explicitInitialThemeRef.current) {
           setThemeName(t);
         }
       })
       .catch(() => {});
 
     const onActiveTheme = (name) => {
-      if (typeof name === "string" && getThemeNames().includes(name)) {
+      if (typeof name === "string" && isKnownTheme(name, customOverlayThemes)) {
         setThemeName(name);
       }
     };
@@ -47,21 +64,40 @@ export function ThemeProvider({ children, initialTheme, initialConfig, listenFor
       cancelled = true;
       socket.off("activeThemeChanged", onActiveTheme);
     };
-  }, [listenForLive]);
+  }, [listenForLive, customOverlayThemes]);
 
-  const theme = useMemo(() => getTheme(themeName), [themeName]);
+  const theme = useMemo(
+    () => resolveTheme(themeName, customOverlayThemes),
+    [themeName, customOverlayThemes]
+  );
 
-  const switchTheme = useCallback((name) => {
-    if (getThemeNames().includes(name)) setThemeName(name);
-  }, []);
+  const switchTheme = useCallback(
+    (name) => {
+      if (isKnownTheme(name, customOverlayThemes)) setThemeName(name);
+    },
+    [customOverlayThemes]
+  );
 
   const updateConfig = useCallback((patch) => {
     setConfig((prev) => ({ ...prev, ...patch }));
   }, []);
 
+  const availableThemes = useMemo(
+    () => listAvailableThemes(customOverlayThemes),
+    [customOverlayThemes]
+  );
+
   const value = useMemo(
-    () => ({ theme, themeName, config, switchTheme, updateConfig, availableThemes: getThemeNames() }),
-    [theme, themeName, config, switchTheme, updateConfig]
+    () => ({
+      theme,
+      themeName,
+      config,
+      switchTheme,
+      updateConfig,
+      availableThemes,
+      customOverlayThemes,
+    }),
+    [theme, themeName, config, switchTheme, updateConfig, availableThemes, customOverlayThemes]
   );
 
   return (

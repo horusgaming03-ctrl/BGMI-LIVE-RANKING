@@ -87,11 +87,11 @@
     },
     "cleanBroadcast": {
       "broadcast": {
-        "headerBg": "#ffffff",
-        "headerText": "#000000",
+        "headerBg": "#056131",
+        "headerText": "#ffffff",
         "leftText": "#000000",
-        "statsBg": "#6f3e06",
-        "leftRowColor": "#f9e59f",
+        "statsBg": "#044905",
+        "leftRowColor": "#ffffff",
         "splitBorder": "#ffffff",
         "leftRowHot": "#000000",
         "statsText": "#f0dfa3",
@@ -115,9 +115,9 @@
         "rankText": "#000000",
         "statsBg": "#ffffff",
         "statsText": "#0a0a0a",
-        "elimBg": "#6f3e06",
+        "elimBg": "#044905",
         "elimText": "#ffffff",
-        "nameTagBg": "#ff9d00",
+        "nameTagBg": "#f0d09e",
         "nameTagText": "#000000",
         "bannerLayout": "broadcast"
       },
@@ -125,8 +125,8 @@
         "footerText": "#ffffff",
         "dividerColor": "#ffffff",
         "barFilled": "#ffffff",
-        "footerBg": "#6f3e06",
-        "teamTagBg": "#6f3e06",
+        "footerBg": "#044905",
+        "teamTagBg": "#044905",
         "pctTextColor": "#fffafa",
         "teamTagText": "#ffffff"
       }
@@ -308,5 +308,6 @@
       "metricLayout": "split",
       "showRankPill": true
     }
-  }
+  },
+  "customOverlayThemes": {}
 }

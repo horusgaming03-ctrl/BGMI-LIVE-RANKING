@@ -15,6 +15,9 @@ const TEAM_STABLE_KEYS = [
   "status",
   "displayOrder",
   "eliminationRank",
+  "rondoRecallChargesRemaining",
+  "rondoRecallConsumed",
+  "rondoAwaitingRecall",
 ];
 
 export function teamsPayloadEqual(a, b) {

@@ -1707,18 +1707,29 @@ export default function ThemePreview() {
                 url={activePreset ? `/overlay/themed/overall?preset=${encodeURIComponent(activePreset)}` : `/overlay/themed/overall?theme=${selected}`}
               />
               <UrlRow label="Match board · this lobby only" url={`/overlay/themed?${buildThemedSearch()}&live=1`} />
-              <UrlRow label="Elimination Banner (same theme id + saved colors)" url={`/overlay/elimination?theme=${selected}`} />
+              <UrlRow
+                label="Elimination banner · Simple match"
+                url={`/overlay/elimination?theme=${selected}&source=simple`}
+                hint="Use during Simple / Live Rankings knocks only."
+              />
+              <UrlRow
+                label="Elimination banner · Round Robin"
+                url={`/overlay/elimination?theme=${selected}&source=roundRobin`}
+                hint="Use during Round Robin live lobby knocks only."
+              />
               <UrlRow label="With Switcher" url={`/overlay/themed?${buildThemedSearch()}&switcher=1`} />
               <UrlRow
                 label="WWCD 4-squad strip only (transparent — no match board)"
                 url={`/overlay/wwcd-only?theme=${encodeURIComponent(selected)}&position=bottom`}
+                hint="Same OBS link for Simple and Round Robin. If both lobbies are in the final 1–4, Round Robin live is shown."
               />
               <UrlRow
                 label="Rondo · recall success popup (2nd OBS source · transparent BG)"
                 url="/overlay/rondo/recall-popup"
                 hint={
                   <>
-                    Use a <strong style={{ color: "#9dd" }}>separate Browser Source</strong>: full canvas (e.g. 1920×1080). Enable{" "}
+                    Same OBS link for Simple and Round Robin recalls. Use a{" "}
+                    <strong style={{ color: "#9dd" }}>separate Browser Source</strong>: full canvas (e.g. 1920×1080). Enable{" "}
                     <strong style={{ color: "#9dd" }}>transparent</strong> where your OBS preset allows · layer above gameplay to center the toast.
                     {""} Optional chime → duplicate URL row below or append <code style={{ color: "#6ff3cb" }}>&amp;sound=1</code>
                     {""} · custom lines →{" "}

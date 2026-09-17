@@ -4,6 +4,7 @@ import Overlay from "./Overlay";
 import OverlayOverall from "./OverlayOverall";
 import TeamRegister from "./TeamRegister";
 import ThemedOverlay from "./overlays/ThemedOverlay";
+import RoundRobinThemedOverlay from "./overlays/RoundRobinThemedOverlay";
 import ThemedOverlayOverall from "./overlays/ThemedOverlayOverall";
 import ThemePreview from "./overlays/ThemePreview";
 import EliminationOverlay from "./EliminationOverlay";
@@ -29,6 +30,7 @@ export default function App() {
       <Route path="/overlay/overall" element={<OverlayOverall />} />
       <Route path="/register" element={<TeamRegister />} />
       <Route path="/overlay/themed" element={<ThemedOverlay />} />
+      <Route path="/overlay/round-robin" element={<RoundRobinThemedOverlay />} />
       {/* Same data + theme + alive as /overlay/themed; FIN column only, sorted by finishes (TOTAL hidden). */}
       <Route path="/overlay/finish-points-ranking" element={<ThemedOverlay />} />
       <Route path="/overlay/themed/overall" element={<ThemedOverlayOverall />} />

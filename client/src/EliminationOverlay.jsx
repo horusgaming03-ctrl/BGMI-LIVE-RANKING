@@ -1,8 +1,16 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import socket, { API } from "./overlays/socket";
 import { useGfxOverlayColors } from "./overlays/hooks/useGfxOverlayColors";
+import { overlayPackFromPayload } from "./overlays/hooks/useRoundRobinOverlay";
 import EliminationBannerRouter from "./overlays/components/EliminationBannerRouter";
 import { isClassicElimBannerLayout, resolveEliminationBannerLayout } from "./overlays/eliminationBannerRegistry";
+import {
+  getOverlaySource,
+  isRoundRobinOverlaySource,
+  overlayEventMatchesPage,
+  OVERLAY_SOURCE_ROUND_ROBIN,
+  OVERLAY_SOURCE_SIMPLE,
+} from "./overlays/utils/overlaySource";
 
 function hexToRgba(hex, alpha) {
   const h = hex.replace("#", "");
@@ -30,7 +38,14 @@ export default function EliminationOverlay() {
   const [exiting, setExiting] = useState(false);
   const [processing, setProcessing] = useState(false);
 
+  const shownKeysRef = useRef(new Set());
+
   const showBanner = useCallback((data) => {
+    const source = data?.source || OVERLAY_SOURCE_SIMPLE;
+    const key = `${source}:${data?.id ?? data?.team}:${data?.rank ?? ""}`;
+    if (shownKeysRef.current.has(key)) return;
+    shownKeysRef.current.add(key);
+    window.setTimeout(() => shownKeysRef.current.delete(key), 4000);
     setQueue((prev) => [...prev, data]);
   }, []);
 
@@ -55,8 +70,16 @@ export default function EliminationOverlay() {
     }, 4500);
   }, [queue, processing]);
 
+  const rrElimSnapRef = useRef(new Map());
+  const rrElimSeededRef = useRef(false);
+
   useEffect(() => {
-    socket.on("teamEliminated", showBanner);
+    const pageSource = getOverlaySource();
+    const onEliminated = (data) => {
+      if (!overlayEventMatchesPage(data?.source, pageSource)) return;
+      showBanner(data);
+    };
+    socket.on("teamEliminated", onEliminated);
 
     const onCommand = (cmd) => {
       if (cmd.type === "testElimination") {
@@ -71,9 +94,56 @@ export default function EliminationOverlay() {
     };
     socket.on("overlayCommand", onCommand);
 
+    let offRr = () => {};
+    if (isRoundRobinOverlaySource(pageSource)) {
+      const onRoundRobinUpdated = (payload) => {
+        const pack = overlayPackFromPayload(payload);
+        const teams = Array.isArray(pack.teams) ? pack.teams : [];
+        const nextSnap = new Map();
+
+        if (!rrElimSeededRef.current) {
+          rrElimSeededRef.current = true;
+          for (const t of teams) {
+            if (t?.id == null) continue;
+            nextSnap.set(t.id, String(t.status || "").toLowerCase());
+          }
+          rrElimSnapRef.current = nextSnap;
+          return;
+        }
+
+        const prevSnap = rrElimSnapRef.current;
+        for (const t of teams) {
+          if (t?.id == null) continue;
+          const st = String(t.status || "").toLowerCase();
+          nextSnap.set(t.id, st);
+          const prev = prevSnap.get(t.id);
+          if (prev === "eliminated" || st !== "eliminated") continue;
+
+          showBanner({
+            team: t.team,
+            logo: t.logo || null,
+            id: t.id,
+            rank: t.eliminationRank,
+            finishes: t.finishes ?? 0,
+            points: t.points ?? 0,
+            source: OVERLAY_SOURCE_ROUND_ROBIN,
+          });
+        }
+
+        rrElimSnapRef.current = nextSnap;
+      };
+
+      socket.on("roundRobinUpdated", onRoundRobinUpdated);
+      socket.emit("requestRoundRobin");
+      offRr = () => socket.off("roundRobinUpdated", onRoundRobinUpdated);
+    }
+
     return () => {
-      socket.off("teamEliminated", showBanner);
+      socket.off("teamEliminated", onEliminated);
       socket.off("overlayCommand", onCommand);
+      offRr();
+      rrElimSeededRef.current = false;
+      rrElimSnapRef.current = new Map();
     };
   }, [showBanner]);
 

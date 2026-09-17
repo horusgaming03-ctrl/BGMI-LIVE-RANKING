@@ -60,6 +60,12 @@ import ScheduleMatchSection from "./schedule-match/ScheduleMatchSection";
 import WwcdStatusSection from "./wwcd-status/WwcdStatusSection";
 import TopFraggersSection from "./top-fraggers/TopFraggersSection";
 import OverallStandingSection from "./overall-standing/OverallStandingSection";
+import RoundRobinSection from "./round-robin/RoundRobinSection";
+import ThemeCustomizationSection from "./theme-customization/ThemeCustomizationSection";
+import KnockControlDesk from "./knock-control/KnockControlDesk";
+import { useKnockControlActions } from "./knock-control/useKnockControlActions";
+import { normalizeRoundRobinKnockTeams } from "./knock-control/normalizeKnockTeams";
+import { knockControlStyles as knockUi } from "./knock-control/knockControlStyles";
 import {
   useLiveRankingThemePalette,
   announcementAdminPreviewStyles,
@@ -98,6 +104,9 @@ export default function AdminPanel() {
   const [matchHistory, setMatchHistory] = useState([]);
   const [tournamentStats, setTournamentStats] = useState([]);
   const [expandedSection, setExpandedSection] = useState("dashboard");
+  /** Knock control data source — Simple = main teams[], Round Robin = live RR lobby */
+  const [knockSource, setKnockSource] = useState("simple");
+  const [rrKnockState, setRrKnockState] = useState({ liveMatch: null, groups: [], matches: [] });
   const [screenshotPreview, setScreenshotPreview] = useState(null);
   const [screenshotResults, setScreenshotResults] = useState(null);
   const [processingScreenshot, setProcessingScreenshot] = useState(false);
@@ -1947,7 +1956,26 @@ export default function AdminPanel() {
   );
 
   const matchBoardMeta = useMemo(() => normalizeMatchMeta(currentMatch), [currentMatch]);
-  const rondoKnockMode = matchBoardMeta?.map === "rondo";
+  const rrKnockMap = useMemo(() => {
+    const raw = rrKnockState.liveMatch?.map;
+    return String(raw || "erangel").toLowerCase();
+  }, [rrKnockState.liveMatch?.map]);
+
+  const rondoKnockMode =
+    (knockSource === "simple" && matchBoardMeta?.map === "rondo") ||
+    (knockSource === "roundRobin" && rrKnockMap === "rondo");
+
+  const knockTeamsForDesk = useMemo(() => {
+    if (knockSource === "roundRobin") return normalizeRoundRobinKnockTeams(rrKnockState.liveMatch);
+    return knockStableOrderTeams;
+  }, [knockSource, rrKnockState.liveMatch, knockStableOrderTeams]);
+
+  const knockScoresEditable = useMemo(() => {
+    if (knockSource === "roundRobin") {
+      return String(rrKnockState.liveMatch?.status || "").toLowerCase() === "live";
+    }
+    return currentMatch?.status === "live" || currentMatch?.status === "ended";
+  }, [knockSource, rrKnockState.liveMatch, currentMatch?.status]);
 
   const wwcdPercentById = useMemo(() => wwcdPercentMapFromTeams(teams), [teams]);
 
@@ -1985,7 +2013,114 @@ export default function AdminPanel() {
     rondoBenched: teams.filter((t) => t.status === "rondo_benched").length,
   };
 
-  const goSection = useCallback((s) => setExpandedSection(s), []);
+  const goSection = useCallback((s) => {
+    if (s === "roundRobin") setKnockSource("roundRobin");
+    else if (s === "knock" || s === "dashboard") setKnockSource("simple");
+    setExpandedSection(s);
+  }, []);
+
+  useEffect(() => {
+    if (knockSource !== "roundRobin" && expandedSection !== "roundRobin") return undefined;
+    const applyRr = (payload) => {
+      if (!payload || typeof payload !== "object") return;
+      setRrKnockState({
+        liveMatch: payload.liveMatch || null,
+        groups: Array.isArray(payload.groups) ? payload.groups : [],
+        matches: Array.isArray(payload.matches) ? payload.matches : [],
+      });
+    };
+    socket.on("roundRobinUpdated", applyRr);
+    socket.emit("requestRoundRobin");
+    fetch(`${API}/round-robin`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data) applyRr(data);
+      })
+      .catch(() => {});
+    return () => socket.off("roundRobinUpdated", applyRr);
+  }, [knockSource, expandedSection]);
+
+  const applyRrKnockPayload = useCallback((data) => {
+    if (!data || typeof data !== "object") return;
+    if (data.liveMatch != null || Array.isArray(data.groups)) {
+      setRrKnockState({
+        liveMatch: data.liveMatch || null,
+        groups: Array.isArray(data.groups) ? data.groups : [],
+        matches: Array.isArray(data.matches) ? data.matches : [],
+      });
+    } else if (data.match) {
+      setRrKnockState((prev) => ({
+        ...prev,
+        liveMatch: String(data.match.status || "").toLowerCase() === "live" ? data.match : null,
+      }));
+    }
+  }, []);
+
+  const knockActions = useKnockControlActions({
+    source: knockSource,
+    apiBase: API,
+    liveMatchId: rrKnockState.liveMatch?.id,
+    autoCalculate,
+    onMessage: setMessage,
+    onRoundRobinPayload: applyRrKnockPayload,
+  });
+
+  const rrKnockChromeActive = knockSource === "roundRobin";
+  const rrLiveMatch = rrKnockState.liveMatch;
+  const rrLiveActive = String(rrLiveMatch?.status || "").toLowerCase() === "live";
+
+  const patchRrMatchMeta = useCallback(
+    async (patch) => {
+      const id = rrKnockState.liveMatch?.id;
+      if (!id) {
+        setMessage("No live Round Robin match — start one on the Round Robin page first.");
+        return { ok: false };
+      }
+      try {
+        const res = await fetch(`${API}/round-robin/matches/${id}/meta`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(patch),
+        });
+        const payload = await res.json().catch(() => null);
+        if (!res.ok) {
+          setMessage(payload?.error || "Could not save Round Robin match map.");
+          return { ok: false, payload };
+        }
+        if (payload?.match) {
+          setRrKnockState((prev) => ({ ...prev, liveMatch: payload.match }));
+        }
+        socket.emit("requestRoundRobin");
+        return { ok: true, payload };
+      } catch {
+        setMessage("Could not save Round Robin match header — connection error.");
+        return { ok: false, payload: null };
+      }
+    },
+    [rrKnockState.liveMatch?.id],
+  );
+
+  const endRrMatch = useCallback(async () => {
+    const id = rrKnockState.liveMatch?.id;
+    if (!id) {
+      setMessage("No live Round Robin match to end.");
+      return;
+    }
+    if (!window.confirm("End this Round Robin match?")) return;
+    try {
+      const res = await fetch(`${API}/round-robin/matches/${id}/end`, { method: "POST" });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        setMessage(payload?.error || "Could not end Round Robin match.");
+        return;
+      }
+      applyRrKnockPayload(payload);
+      socket.emit("requestRoundRobin");
+      setMessage("Round Robin match ended.");
+    } catch {
+      setMessage("Could not end Round Robin match — connection error.");
+    }
+  }, [rrKnockState.liveMatch?.id, applyRrKnockPayload]);
 
   const teamFormAnchorRef = useRef(null);
 
@@ -2355,6 +2490,17 @@ export default function AdminPanel() {
           <span aria-hidden>📊</span>
           <span style={{ flex: 1 }}>Overall standing</span>
         </button>
+        <button
+          type="button"
+          onClick={() => goSection("roundRobin")}
+          style={{
+            ...dash.navItem,
+            ...(expandedSection === "roundRobin" ? dash.navItemActive : {}),
+          }}
+        >
+          <span aria-hidden>🔁</span>
+          <span style={{ flex: 1 }}>Round Robin</span>
+        </button>
 
         <div style={dash.navGroupLab}>Team management</div>
         <button
@@ -2391,6 +2537,17 @@ export default function AdminPanel() {
         >
           <span aria-hidden>🖥</span>
           <span style={{ flex: 1 }}>Overlay control</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => goSection("themeCustomization")}
+          style={{
+            ...dash.navItem,
+            ...(expandedSection === "themeCustomization" ? dash.navItemActive : {}),
+          }}
+        >
+          <span aria-hidden>🎨</span>
+          <span style={{ flex: 1 }}>Theme customization</span>
         </button>
         <button
           type="button"
@@ -2435,32 +2592,46 @@ export default function AdminPanel() {
           </button>
 
           <div style={{ ...dash.topbarMid, flexWrap: "wrap", gap: 10 }}>
-            {currentMatch.status === "live" ? <span style={dash.livePillSm}>LIVE</span> : null}
-            <button
-              type="button"
-              style={dash.restartCountTopBtn}
-              onClick={() => void restartSeriesAtMatchOne()}
-              aria-label="Restart count — Match number becomes 1, history and standings cleared"
-              title="Match #1 · clears Match History · resets Overall Standings and all squad scores in this lobby"
-            >
-              Restart count
-            </button>
+            {(rrKnockChromeActive ? rrLiveActive : currentMatch.status === "live") ? (
+              <span style={dash.livePillSm}>LIVE</span>
+            ) : null}
+            {!rrKnockChromeActive ? (
+              <button
+                type="button"
+                style={dash.restartCountTopBtn}
+                onClick={() => void restartSeriesAtMatchOne()}
+                aria-label="Restart count — Match number becomes 1, history and standings cleared"
+                title="Match #1 · clears Match History · resets Overall Standings and all squad scores in this lobby"
+              >
+                Restart count
+              </button>
+            ) : null}
             <label style={dash.screenReaderOnly} htmlFor="admin-match-banner">
               Match title
             </label>
-            <input
-              id="admin-match-banner"
-              style={dash.matchBannerInput}
-              placeholder={`MATCH ${currentMatch.number}`}
-              autoCapitalize="characters"
-              maxLength={72}
-              value={currentMatch.matchLabel || ""}
-              onChange={(e) => setCurrentMatch((p) => ({ ...p, matchLabel: e.target.value }))}
-              onBlur={(e) => {
-                void patchMatchMeta({ matchLabel: e.target.value.trim() });
-              }}
-              aria-label="Optional match banner text"
-            />
+            {rrKnockChromeActive ? (
+              <input
+                id="admin-match-banner"
+                style={{ ...dash.matchBannerInput, opacity: 0.92 }}
+                readOnly
+                value={rrLiveMatch?.label || rrLiveMatch?.id || "Round Robin"}
+                aria-label="Round Robin match label"
+              />
+            ) : (
+              <input
+                id="admin-match-banner"
+                style={dash.matchBannerInput}
+                placeholder={`MATCH ${currentMatch.number}`}
+                autoCapitalize="characters"
+                maxLength={72}
+                value={currentMatch.matchLabel || ""}
+                onChange={(e) => setCurrentMatch((p) => ({ ...p, matchLabel: e.target.value }))}
+                onBlur={(e) => {
+                  void patchMatchMeta({ matchLabel: e.target.value.trim() });
+                }}
+                aria-label="Optional match banner text"
+              />
+            )}
             <span style={dash.matchDotMid} aria-hidden>
               ·
             </span>
@@ -2471,11 +2642,16 @@ export default function AdminPanel() {
               id="admin-match-map"
               aria-label="Map"
               style={dash.matchMapSel}
-              value={currentMatch.map || "erangel"}
+              value={rrKnockChromeActive ? rrLiveMatch?.map || "erangel" : currentMatch.map || "erangel"}
+              disabled={rrKnockChromeActive && !rrLiveActive}
               onChange={(e) => {
                 const map = e.target.value;
-                setCurrentMatch((p) => ({ ...p, map }));
-                void patchMatchMeta({ map });
+                if (rrKnockChromeActive) {
+                  void patchRrMatchMeta({ map });
+                } else {
+                  setCurrentMatch((p) => ({ ...p, map }));
+                  void patchMatchMeta({ map });
+                }
               }}
             >
               {BGMI_MAP_OPTS.map((o) => (
@@ -3064,22 +3240,44 @@ export default function AdminPanel() {
         {expandedSection !== "dashboard" && (
         <div style={{ ...ns.matchBar, marginTop: 4, marginBottom: 12 }}>
           <div style={ns.matchInfo}>
-            <span style={ns.matchBadge}>MATCH #{currentMatch.number}</span>
-            <span style={{ ...ns.matchStatus, color: currentMatch.status === "live" ? "#5CFF72" : "#A5B4BF" }}>
-              {currentMatch.status === "live" ? "● LIVE" : "● ENDED"}
-            </span>
+            {rrKnockChromeActive ? (
+              <>
+                <span style={ns.matchBadge}>{rrLiveMatch?.id || "RR"}</span>
+                <span style={{ ...ns.matchStatus, color: rrLiveActive ? "#5CFF72" : "#A5B4BF" }}>
+                  {rrLiveActive ? "● LIVE" : "● NO LIVE RR MATCH"}
+                </span>
+                {rrLiveMatch?.label ? (
+                  <span style={{ fontSize: 12, color: "#8891a1", fontWeight: 700 }}>{rrLiveMatch.label}</span>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <span style={ns.matchBadge}>MATCH #{currentMatch.number}</span>
+                <span style={{ ...ns.matchStatus, color: currentMatch.status === "live" ? "#5CFF72" : "#A5B4BF" }}>
+                  {currentMatch.status === "live" ? "● LIVE" : "● ENDED"}
+                </span>
+              </>
+            )}
           </div>
           <div style={ns.matchActions}>
             <label style={ns.autoCalcLabel}>
               <input type="checkbox" checked={autoCalculate} onChange={toggleAutoCalc} style={ns.checkbox} />
               Auto-Calculate Points
             </label>
-            <button onClick={() => void endMatch()} style={ns.matchBtn}>
-              End Match
-            </button>
-            <button onClick={() => void startNewMatch()} style={ns.matchBtnPrimary}>
-              New Match (next #)
-            </button>
+            {rrKnockChromeActive ? (
+              <button type="button" onClick={() => void endRrMatch()} style={ns.matchBtn} disabled={!rrLiveActive}>
+                End Match
+              </button>
+            ) : (
+              <>
+                <button type="button" onClick={() => void endMatch()} style={ns.matchBtn}>
+                  End Match
+                </button>
+                <button type="button" onClick={() => void startNewMatch()} style={ns.matchBtnPrimary}>
+                  New Match (next #)
+                </button>
+              </>
+            )}
           </div>
         </div>
         )}
@@ -3157,6 +3355,8 @@ export default function AdminPanel() {
         {expandedSection === "topFraggers" && <TopFraggersSection />}
 
         {expandedSection === "overallStanding" && <OverallStandingSection />}
+        {expandedSection === "roundRobin" && <RoundRobinSection />}
+        {expandedSection === "themeCustomization" && <ThemeCustomizationSection />}
 
         {expandedSection === "announcements" && (
           <section style={ns.sectionCard}>
@@ -3273,71 +3473,111 @@ export default function AdminPanel() {
                     "Team Knock Control"
                   )}
                 </h2>
-                <p style={{ margin: "6px 0 0", fontSize: 12, color: "#8891a1", fontWeight: 600, maxWidth: 820, lineHeight: 1.45 }}>
-                  {rondoKnockMode ? (
+                {rondoKnockMode ? (
+                  <p style={{ margin: "6px 0 0", fontSize: 12, color: "#8891a1", fontWeight: 600, maxWidth: 820, lineHeight: 1.45 }}>
+                    {knockSource === "roundRobin" ? (
+                      <>
+                        Round Robin live lobby on <strong style={{ color: "#7eebfb" }}>RONDO</strong> — recall / bench / undo use isolated RR endpoints only (
+                        <code style={{ color: "#8891a1", fontSize: 11 }}>/overlay/round-robin</code>). Main Simple teams[] unchanged.
+                      </>
+                    ) : (
+                      <>
+                        Full production layout below — states, recall gate, and OBS strip follow your original Rondo spec. Match header must stay on{" "}
+                        <strong style={{ color: "#7eebfb" }}>RONDO</strong> so the server benches first wipes (not immediate placement). If a team still goes straight to rank
+                        #, hard-refresh admin and confirm <code style={{ color: "#8891a1", fontSize: 11 }}>POST /match/meta</code> saved map=rondo.
+                      </>
+                    )}
+                  </p>
+                ) : null}
+                <div style={knockUi.sourceToggleRow}>
+                  <button
+                    type="button"
+                    style={{ ...knockUi.sourceBtn, ...(knockSource === "simple" ? knockUi.sourceBtnActive : {}) }}
+                    onClick={() => setKnockSource("simple")}
+                  >
+                    Simple
+                  </button>
+                  <button
+                    type="button"
+                    style={{ ...knockUi.sourceBtn, ...(knockSource === "roundRobin" ? knockUi.sourceBtnActive : {}) }}
+                    onClick={() => setKnockSource("roundRobin")}
+                  >
+                    Round Robin
+                  </button>
+                </div>
+              </div>
+            </div>
+            {!rondoKnockMode ? (
+              <KnockControlDesk
+                teams={knockTeamsForDesk}
+                scoresEditable={knockScoresEditable}
+                actions={knockActions}
+                showFinishBadgesButton={knockSource === "simple"}
+                finishBadgesObsUrl={finishBadgesObsUrl}
+                subtitle={
+                  knockSource === "roundRobin" ? (
                     <>
-                      Full production layout below — states, recall gate, and OBS strip follow your original Rondo spec. Match header must stay on{" "}
-                      <strong style={{ color: "#7eebfb" }}>RONDO</strong> so the server benches first wipes (not immediate placement). If a team still goes straight to rank
-                      #, hard-refresh admin and confirm <code style={{ color: "#8891a1", fontSize: 11 }}>POST /match/meta</code> saved map=rondo.
+                      Round Robin live lobby — same 1K / 2K / 3K / OUT process. Updates{" "}
+                      <code style={{ color: "#F1CF69", fontSize: 11 }}>/overlay/round-robin</code> only.
+                      {!rrKnockState.liveMatch || String(rrKnockState.liveMatch.status).toLowerCase() !== "live" ? (
+                        <>
+                          {" "}
+                          Start a Round Robin match from the Round Robin page first.
+                        </>
+                      ) : (
+                        <>
+                          {" "}
+                          Match: <strong style={{ color: "#cbd5df" }}>{rrKnockState.liveMatch.id}</strong>
+                        </>
+                      )}
                     </>
                   ) : (
                     <>
                       OBS finish strips (red pill + skull, live from socket):{" "}
                       <code style={{ color: "#F1CF69", fontSize: 11 }}>/overlay/finish-badges</code>. Before{" "}
-                      <strong style={{ color: "#cbd5df" }}>New Match</strong>: use <strong style={{ color: "#5CFF72" }}>Restore</strong> if a squad was marked OUT by mistake.
+                      <strong style={{ color: "#cbd5df" }}>New Match</strong>: use{" "}
+                      <strong style={{ color: "#5CFF72" }}>Restore</strong> if a squad was marked OUT by mistake.
                     </>
-                  )}
-                </p>
-                {!rondoKnockMode ? (
-                  <button type="button" style={{ ...ns.matchBtn, marginTop: 8 }} onClick={() => window.open(finishBadgesObsUrl, "_blank", "width=520,height=960")}>
-                    Open finish badges overlay
-                  </button>
-                ) : null}
-              </div>
-            </div>
-            {!rondoKnockMode ? (
-              <div style={ns.knockSections}>
-                <div style={ns.knockSectionBlock}>
-                  <div style={ns.knockSectionHeadAlive}>
-                    <span>Alive</span>
-                    <span style={ns.knockSectionCount}>{knockAliveTeams.length}</span>
-                  </div>
-                  <div style={ns.knockGrid}>
-                    {knockAliveTeams.length ? knockAliveTeams.map((team) => renderKnockControlRow(team)) : (
-                      <p style={ns.knockSectionEmpty}>No squads still in the match.</p>
-                    )}
-                  </div>
-                </div>
-                <div style={ns.knockSectionBlock}>
-                  <div style={ns.knockSectionHeadElim}>
-                    <span>Eliminated</span>
-                    <span style={ns.knockSectionCount}>{knockEliminatedTeams.length}</span>
-                  </div>
-                  <div style={{ ...ns.knockGrid, ...ns.knockGridElim }}>
-                    {knockEliminatedTeams.length ? knockEliminatedTeams.map((team) => renderKnockControlRow(team)) : (
-                      <p style={ns.knockSectionEmpty}>No eliminated squads yet — OUT moves a team here (slot # unchanged).</p>
-                    )}
-                  </div>
-                </div>
-              </div>
+                  )
+                }
+                emptyAliveMessage={
+                  knockSource === "roundRobin" && String(rrKnockState.liveMatch?.status || "").toLowerCase() !== "live"
+                    ? "No LIVE Round Robin match — create and start a match on the Round Robin page."
+                    : "No squads still in the match."
+                }
+              />
             ) : (
               <RondoKnockMatrix
-                teams={knockStableOrderTeams}
+                teams={knockTeamsForDesk}
                 apiBase={API}
                 teamLogoStyle={{}}
                 styles={styles}
                 ns={ns}
-                knockTeam={knockTeam}
-                setAlive={setAlive}
-                adjustTeamFinishes={adjustTeamFinishes}
-                triggerRondoRecall={triggerRondoRecall}
-                undoRondoMistakenBench={undoRondoMistakenBench}
-                finalizeBenchedElimination={finalizeBenchedElimination}
+                knockTeam={knockSource === "roundRobin" ? knockActions.knockTeam : knockTeam}
+                setAlive={knockSource === "roundRobin" ? knockActions.setAlive : setAlive}
+                adjustTeamFinishes={
+                  knockSource === "roundRobin" ? knockActions.adjustTeamFinishes : adjustTeamFinishes
+                }
+                triggerRondoRecall={
+                  knockSource === "roundRobin" ? knockActions.triggerRondoRecall : triggerRondoRecall
+                }
+                undoRondoMistakenBench={
+                  knockSource === "roundRobin" ? knockActions.undoRondoMistakenBench : undoRondoMistakenBench
+                }
+                finalizeBenchedElimination={
+                  knockSource === "roundRobin" ? knockActions.finalizeBenchedElimination : finalizeBenchedElimination
+                }
                 finishBadgesObsUrl={finishBadgesObsUrl}
-                getKnockControlDisplayNumber={getKnockControlDisplayNumber}
-                commitKnockRowNumberFromIndex={commitKnockRowNumberFromIndex}
-                restoreEliminatedTeam={restoreEliminatedTeam}
-                matchScoresEditable={matchScoresEditable}
+                getKnockControlDisplayNumber={
+                  knockSource === "roundRobin" ? undefined : getKnockControlDisplayNumber
+                }
+                commitKnockRowNumberFromIndex={
+                  knockSource === "roundRobin" ? undefined : commitKnockRowNumberFromIndex
+                }
+                restoreEliminatedTeam={
+                  knockSource === "roundRobin" ? knockActions.restoreEliminatedTeam : restoreEliminatedTeam
+                }
+                matchScoresEditable={knockScoresEditable}
               />
             )}
           </section>
@@ -3612,7 +3852,7 @@ export default function AdminPanel() {
                 <div style={{ fontWeight: 800, fontSize: 16 }}>Fullscreen Toggle</div>
                 <div style={{ color: "#8CB7BE", fontSize: 12, marginTop: 4 }}>Toggle overlay fullscreen</div>
               </div>
-              <div style={ns.overlayCard} onClick={() => window.open(`/overlay/elimination`, "_blank", "width=1920,height=1080")}>
+              <div style={ns.overlayCard} onClick={() => window.open(`/overlay/elimination?source=simple`, "_blank", "width=1920,height=1080")}>
                 <div style={{ fontSize: 36, marginBottom: 8 }}>💀</div>
                 <div style={{ fontWeight: 800, fontSize: 16 }}>Elimination Banner</div>
                 <div style={{ color: "#8CB7BE", fontSize: 12, marginTop: 4 }}>Opens in separate window</div>

@@ -1,21 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import WwcdFourAliveStrip from "./WwcdFourAliveStrip";
 import { stripTeamsFromAlive } from "../wwcdModel";
 import { useGfxOverlayColors } from "./hooks/useGfxOverlayColors";
+import { useRoundRobinOverlay } from "./hooks/useRoundRobinOverlay";
+import { overlayListensToRoundRobin, overlayListensToSimple } from "./utils/overlaySource";
 import socket from "./socket";
 
 export default function WwcFourAliveStripOverlay() {
   const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
   const debug = params.get("debug") === "1";
   const position = params.get("position") === "bottom" ? "bottom" : "center";
+  const listenSimple = overlayListensToSimple();
+  const listenRr = overlayListensToRoundRobin();
 
-  const [teams, setTeams] = useState([]);
+  const [simpleTeams, setSimpleTeams] = useState([]);
+  const { teams: rrTeams, matchMeta } = useRoundRobinOverlay();
   const { wwcdStripColors } = useGfxOverlayColors();
 
   useEffect(() => {
-    const onTeams = (data) => setTeams(Array.isArray(data) ? data : []);
+    if (!listenSimple) return undefined;
+    const onTeams = (data) => setSimpleTeams(Array.isArray(data) ? data : []);
     const onMatchUpdated = (payload) => {
-      if (payload && Array.isArray(payload.teams)) setTeams(payload.teams);
+      if (payload && Array.isArray(payload.teams)) setSimpleTeams(payload.teams);
     };
     socket.on("teamsUpdated", onTeams);
     socket.on("matchUpdated", onMatchUpdated);
@@ -24,7 +30,18 @@ export default function WwcFourAliveStripOverlay() {
       socket.off("teamsUpdated", onTeams);
       socket.off("matchUpdated", onMatchUpdated);
     };
-  }, []);
+  }, [listenSimple]);
+
+  const teams = useMemo(() => {
+    const simpleList = listenSimple && Array.isArray(simpleTeams) ? simpleTeams : [];
+    const rrLive = listenRr && String(matchMeta?.status || "").toLowerCase() === "live";
+    const rrList = rrLive && Array.isArray(rrTeams) ? rrTeams : [];
+    const simpleStrip = stripTeamsFromAlive(simpleList);
+    const rrStrip = stripTeamsFromAlive(rrList);
+    if (rrStrip.length) return rrList;
+    if (simpleStrip.length) return simpleList;
+    return [];
+  }, [listenSimple, listenRr, simpleTeams, rrTeams, matchMeta]);
 
   const stripTeams = stripTeamsFromAlive(teams);
   const aliveTeams = teams.filter((t) => String(t.status || "").toLowerCase() !== "eliminated");
